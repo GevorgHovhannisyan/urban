@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime data — SQLite database (WAL/SHM included), generated JWT signing
+# secret, and admin-uploaded media. Never contains anything that belongs in
+# version control; regenerated/seeded automatically on first run.
+data/
+
+# Environment variables — real secrets (SMTP password, Stripe keys, JWT
+# secret, admin credentials) live here. .env.example is the tracked,
+# secret-free template; only the real .env must never be committed.
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,2633 @@
+/* Google Fonts are loaded via <link> in index.html (preconnect + stylesheet)
+   instead of @import here, so the browser can start fetching them immediately
+   instead of waiting for this stylesheet to be fetched and parsed first. */
+@import 'tailwindcss';
+
+/* ── Theme tokens ──
+   Every themeable color lives here as a plain CSS custom property, swapped
+   per data-theme attribute on <html> (set before first paint by the inline
+   script in index.html — see the FOUC note there). The @theme block below
+   points each Tailwind color utility (bg-bg, text-fg, bg-card, text-muted,
+   text-accent, border-border, ...) at these variables instead of a literal
+   value, so switching data-theme repaints every utility class site-wide
+   without touching component code. Dark is the site's default identity —
+   :root holds the dark values, [data-theme="light"] overrides them. */
+:root {
+  color-scheme: dark;
+
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #131313;
+  --surface: #1E1E1E;
+  --text-primary: #F5F5F3;
+  --text-secondary: #A3A3A3;
+  --border-color: rgba(255, 255, 255, 0.12);
+  --accent: #C65D1E;
+  --accent-light: #D96B26;
+  --button-bg: #F5F5F3;
+  --button-text: #0A0A0A;
+  --error: #E5484D;
+  --success: #6FBF73;
+  --warning: #F2B84B;
+
+  --overlay-scrim: rgba(0, 0, 0, 0.86);
+  --skeleton-base: rgba(255, 255, 255, 0.05);
+  --hover-overlay: rgba(255, 255, 255, 0.07);
+  --active-overlay: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Warm cream/off-white, not clinical white — premium editorial, not SaaS. */
+  --bg-primary: #FAF6EF;
+  --bg-secondary: #F1EAE0;
+  --surface: #FFFDF9;
+  --text-primary: #17140F;
+  --text-secondary: #5C564C;
+  --border-color: rgba(23, 20, 15, 0.14);
+  --accent: #C65D1E;
+  --accent-light: #A84A16;
+  --button-bg: #17140F;
+  --button-text: #FAF6EF;
+  --error: #B0271F;
+  --success: #276B45;
+  --warning: #96650F;
+
+  --overlay-scrim: rgba(23, 20, 15, 0.72);
+  --skeleton-base: rgba(23, 20, 15, 0.06);
+  --hover-overlay: rgba(23, 20, 15, 0.05);
+  --active-overlay: rgba(23, 20, 15, 0.08);
+}
+
+@theme {
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  --color-bg: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-surface: var(--surface);
+  --color-card: var(--surface);
+  --color-fg: var(--text-primary);
+  --color-muted: var(--text-secondary);
+  --color-border: var(--border-color);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-button-bg: var(--button-bg);
+  --color-button-text: var(--button-text);
+
+  /* Semantic status colors — used by .status-error/.status-success below so
+     form/inline feedback reads consistently instead of drifting between
+     text-red-400, bespoke checkout-error tones, and review-form status
+     colors depending on which page happened to implement it. */
+  --color-error: var(--error);
+  --color-success: var(--success);
+}
+
+/* ── Global motion tokens ──
+   One shared vocabulary for every animation on the site instead of
+   ad-hoc durations/easings scattered per component. Reach for these
+   variables first; only hand-roll a value when a specific effect
+   genuinely needs it (documented inline where that happens). */
+:root {
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Slightly softer landing than --ease-premium — used for the navbar's
+     scroll-solidify transition (site-header below), where a subtler
+     settle reads as cinematic rather than snappy. */
+  --ease-nav-scroll: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 180ms;
+  --dur-normal: 300ms;
+  --dur-slow: 500ms;
+  --dur-cinematic: 700ms;
+}
+
+/* ── Theme-swap transition ──
+   Only background/border/text/fill colors animate on toggle — never
+   transform, opacity, filter, or layout properties — so the switch feels
+   like a fade, not a redraw, and can't introduce layout jank. Kept off
+   entirely under prefers-reduced-motion. */
+*, *::before, *::after {
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, fill 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none; }
+}
+
+/* ── Global interactive-element affordance ──
+   Tailwind's preflight resets buttons to cursor:default (not :pointer), so
+   without this every button site-wide showed the plain arrow cursor and
+   many had no hover feedback at all. This covers every link/button as a
+   baseline; more specific existing hover rules (btn-primary, up-nav, etc.)
+   still win via normal CSS specificity, so nothing already-styled changes —
+   this only fills in the gaps. */
+a, button, [role='button'], input[type='submit'], input[type='button'], select, label[for] {
+  cursor: pointer;
+}
+a:disabled, button:disabled, [role='button'][aria-disabled='true'],
+input[type='submit']:disabled, input[type='button']:disabled, select:disabled {
+  cursor: not-allowed;
+}
+a, button, [role='button'] {
+  transition: filter 0.2s ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+a:hover:not(:disabled), button:hover:not(:disabled), [role='button']:hover:not([aria-disabled='true']) {
+  filter: brightness(1.15);
+}
+
+/* ── Button motion language ──
+   One consistent hover/press treatment instead of buttons only ever
+   changing color. `.btn-motion` is the general-purpose version (small lift
+   on hover, compress on press) for any button; `.magnetic-btn` replaces
+   that hover lift with useMagnetic's pointer-follow pull for the handful of
+   CTAs the spec calls out as "major" (Add to Bag, Buy Now, hero CTAs) —
+   the two are deliberately not combined on the same element, since the
+   hook writes `transform` directly and would fight a CSS hover transform. */
+.btn-motion {
+  transition: transform var(--dur-fast) var(--ease-premium), background-color var(--dur-normal) ease, border-color var(--dur-normal) ease, color var(--dur-normal) ease;
+}
+.btn-motion:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.btn-motion:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+.magnetic-btn {
+  transition: transform var(--dur-fast) var(--ease-premium), background-color var(--dur-normal) ease, border-color var(--dur-normal) ease, color var(--dur-normal) ease;
+  will-change: transform;
+}
+.magnetic-btn:active:not(:disabled) {
+  transform: scale(0.97) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-motion, .magnetic-btn { transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease; }
+  .btn-motion:hover:not(:disabled), .btn-motion:active:not(:disabled),
+  .magnetic-btn:active:not(:disabled) { transform: none; }
+}
+
+/* One quiet confirmation pulse when a product is added to the bag —
+   deliberately a single small beat, not a celebration animation. */
+@keyframes addToBagPulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+.add-to-bag-pulse {
+  animation: addToBagPulse 0.4s var(--ease-premium);
+}
+@media (prefers-reduced-motion: reduce) {
+  .add-to-bag-pulse { animation: none; }
+}
+
+/* ── Accordion panels (product details, etc.) ──
+   Same grid-template-rows 0fr→1fr trick already used by the footer's
+   policy panel — animates height without ever measuring pixel heights in
+   JS, and without the layout-thrash cost of animating `height` directly. */
+.product-accordion-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-normal) var(--ease-premium), opacity var(--dur-fast) var(--ease-premium);
+}
+.product-accordion-panel.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.product-accordion-panel__inner {
+  overflow: hidden;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-accordion-panel { transition: opacity var(--dur-fast) ease; }
+}
+
+/* ── Major-statement text reveal (TextReveal.jsx) ──
+   Reserved for oversized manifesto/editorial headings only — never body
+   copy. Each line's mask (overflow:hidden) sits around an inner span that
+   starts translated fully below its own line; `.is-visible` (added once,
+   on first scroll-into-view) triggers the rise. Same visual idea as the
+   homepage hero's word-mask, just scroll-triggered instead of mount-
+   triggered, and per-line rather than per-word — full sentences reading as
+   held statements rather than a flurry of individual words. */
+.text-reveal-line-mask {
+  display: block;
+  overflow: hidden;
+}
+.text-reveal-line {
+  display: block;
+  transform: translateY(110%);
+  opacity: 0;
+}
+.text-reveal-line.is-visible {
+  animation: textRevealLineIn 0.85s var(--ease-premium) both;
+}
+@keyframes textRevealLineIn {
+  from { transform: translateY(110%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-reveal-line { transform: none; opacity: 1; }
+  .text-reveal-line.is-visible { animation: none; }
+}
+
+/* Small mono eyebrow labels (Journal, and reusable anywhere similar) — a
+   quiet fade + tiny lift on mount. Deliberately does not touch
+   letter-spacing: each call site sets its own `tracking-[...]` value via a
+   Tailwind utility, and a second rule animating that same property would
+   either fight it (last-cascade-wins) or need to duplicate every call
+   site's exact tracking value — this stays out of that property entirely. */
+@keyframes labelFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.label-fade-in {
+  animation: labelFadeIn var(--dur-slow) var(--ease-premium) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .label-fade-in { animation: none; }
+}
+
+/* ── Mobile menu (Navbar.jsx) ──
+   Same exit-animation architecture as search/cart (useExitAnimation keeps
+   it mounted through its own close transition) and the same "container
+   fades, content staggers in on top" language as the search overlay, so
+   all three full-screen overlays read as one system. Restrained: items
+   shift 14px and stagger by ~50ms each, not a scene-by-scene reveal. */
+@keyframes mobileMenuItemIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mobileMenuItemOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+.mobile-menu {
+  animation: fadeIn var(--dur-normal) ease both;
+}
+.mobile-menu.is-closing {
+  animation: fadeIn var(--dur-fast) ease reverse both;
+}
+.mobile-menu-hero {
+  animation: mobileMenuItemIn var(--dur-normal) var(--ease-premium) 40ms both;
+}
+.mobile-menu-list > * {
+  animation: mobileMenuItemIn var(--dur-normal) var(--ease-premium) both;
+}
+.mobile-menu-list > *:nth-child(1) { animation-delay: 90ms; }
+.mobile-menu-list > *:nth-child(2) { animation-delay: 130ms; }
+.mobile-menu-list > *:nth-child(3) { animation-delay: 170ms; }
+.mobile-menu-list > *:nth-child(4) { animation-delay: 210ms; }
+.mobile-menu-list > *:nth-child(5) { animation-delay: 250ms; }
+.mobile-menu-list > *:nth-child(6) { animation-delay: 290ms; }
+.mobile-menu-list > *:nth-child(7) { animation-delay: 330ms; }
+.mobile-menu-list > *:nth-child(8) { animation-delay: 370ms; }
+/* Catch-all for any items beyond the 8 explicitly staggered above (e.g. the
+   trailing language/currency preferences block) — without this they'd fall
+   back to the base rule's implicit 0ms delay and pop in with item 1
+   instead of continuing the sequence. */
+.mobile-menu-list > *:nth-child(n+9) { animation-delay: 400ms; }
+.mobile-menu.is-closing .mobile-menu-hero,
+.mobile-menu.is-closing .mobile-menu-list > * {
+  animation: mobileMenuItemOut 160ms ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-menu, .mobile-menu.is-closing, .mobile-menu-hero,
+  .mobile-menu-list > *, .mobile-menu.is-closing .mobile-menu-hero,
+  .mobile-menu.is-closing .mobile-menu-list > * {
+    animation: none;
+  }
+}
+
+/* ── Full-screen search overlay ──
+   One shared overlay motion language with the cart drawer below: same
+   easing, same backdrop-blur-adjacent feel, same "bar enters first, body
+   content follows a beat later" staging — so the two overlays read as the
+   same product instead of two different ones bolted together. Exit reverses
+   the entrance via `.is-closing` (driven by useExitAnimation, which keeps
+   the component mounted long enough for this to actually play). */
+@keyframes searchOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes searchBarIn {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes searchBodyIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.search-overlay {
+  animation: searchOverlayIn var(--dur-normal) var(--ease-premium) both;
+}
+.search-overlay__bar {
+  animation: searchBarIn var(--dur-normal) var(--ease-premium) 60ms both;
+}
+.search-overlay__body {
+  animation: searchBodyIn var(--dur-slow) ease 140ms both;
+}
+.search-overlay.is-closing {
+  animation: searchOverlayIn var(--dur-normal) var(--ease-premium) reverse both;
+}
+.search-overlay.is-closing .search-overlay__bar {
+  animation: searchBarIn var(--dur-fast) var(--ease-premium) reverse both;
+}
+@keyframes searchResultIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.search-result-row {
+  animation: searchResultIn var(--dur-normal) var(--ease-premium) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-overlay, .search-overlay__bar, .search-overlay__body,
+  .search-overlay.is-closing, .search-overlay.is-closing .search-overlay__bar,
+  .search-result-row {
+    animation: none;
+  }
+}
+
+/* ── Page transition wipe overlay ──
+   Purely decorative: a fixed, pointer-events:none layer remounted (via
+   `key={page}` in App.jsx) every time the route changes. It does NOT gate
+   or delay the actual route change — AppContext's navigate()/popstate
+   handling swaps `page` synchronously exactly as before, so back/forward
+   and scroll restoration are untouched. This just fades a near-black layer
+   in and back out on top of the instant swap, turning it into what reads
+   as a deliberate wipe instead of a hard cut. */
+@keyframes pageWipe {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.page-wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: var(--bg-primary);
+  pointer-events: none;
+  animation: pageWipe 550ms var(--ease-premium) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-wipe { display: none; }
+}
+
+/* ── Branded image load reveal (RevealImage.jsx) ──
+   Wrapper always matches the caller's positioning (absolute inset-0 for
+   full-bleed photos, static for grid tiles) via wrapperClassName; the <img>
+   itself carries the reveal. Cached images start already `.is-loaded` (set
+   synchronously on mount), so this never delays an image the browser
+   already has. */
+/* No `position` here on purpose — an unlayered custom rule would beat any
+   Tailwind positioning utility passed in via wrapperClassName (Tailwind v4
+   ships its utilities inside a lower-priority cascade layer, so a plain
+   rule like this always wins regardless of source order). Positioning is
+   entirely the caller's responsibility via wrapperClassName. */
+.reveal-img { overflow: hidden; }
+/* Most call sites also carry .up-photo (the sitewide photo color-grade
+   filter). `filter` doesn't merge across two independent class rules —
+   whichever rule wins the cascade replaces the whole property, dropping
+   the other's filter entirely. So the grade is folded directly into this
+   rule's own filter value (not just blur) rather than left to .up-photo,
+   which keeps both effects regardless of class order or cascade layers. */
+/* `.reveal-img .reveal-img__el` (two classes) rather than just
+   `.reveal-img__el` (one) — needs to reliably outrank `.up-photo` (one
+   class) regardless of which rule happens to sit later in the stylesheet,
+   since equal-specificity same-layer rules resolve by source order and
+   this file's section order isn't something call sites should have to
+   track. The load-reveal deliberately animates only opacity/filter here,
+   never `transform` — several call sites (Journal cards, product cards)
+   already put their own hover-zoom `transform` on this same <img> via a
+   Tailwind utility, and a second rule fighting over `transform` would
+   silently cancel whichever one loses the cascade. The "scale 1.02" part
+   of the reveal lives on the wrapper (.reveal-img) instead, which no call
+   site ever also hover-zooms, so there's nothing for it to conflict with. */
+.reveal-img {
+  transform: scale(1.02);
+  transition: transform var(--dur-cinematic) var(--ease-premium);
+}
+.reveal-img.is-loaded {
+  transform: scale(1);
+}
+.reveal-img .reveal-img__el {
+  opacity: 0;
+  filter: blur(14px) contrast(1.05) saturate(0.92) brightness(0.99) sepia(0.04);
+  transition: opacity var(--dur-cinematic) var(--ease-premium), filter var(--dur-cinematic) var(--ease-premium);
+}
+.reveal-img.is-loaded .reveal-img__el {
+  opacity: 1;
+  filter: contrast(1.05) saturate(0.92) brightness(0.99) sepia(0.04);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-img, .reveal-img.is-loaded { transition: none; transform: none; }
+  .reveal-img .reveal-img__el { transition: opacity var(--dur-fast) ease; filter: contrast(1.05) saturate(0.92) brightness(0.99) sepia(0.04); }
+}
+
+/* ── Product card → product page continuity illusion (ProductCard.jsx) ──
+   The clone starts pinned exactly over the clicked card image (top/left/
+   width/height set inline from its real getBoundingClientRect()), then
+   this animation takes over: grows slightly and dissolves on top of
+   everything, including the page-wipe overlay (z-index sits above it).
+   `img.product-image-continuity` (tag+class) rather than just the class
+   alone so it reliably outranks `.up-photo`'s filter regardless of source
+   order — same reasoning as .reveal-img__el above; the grade is folded
+   directly into this rule's own filter values for the same reason. */
+@keyframes productContinuityExpand {
+  0% { transform: scale(1); opacity: 1; filter: contrast(1.05) saturate(0.92) brightness(0.99) sepia(0.04) blur(0); }
+  100% { transform: scale(1.16); opacity: 0; filter: contrast(1.05) saturate(0.92) brightness(0.99) sepia(0.04) blur(3px); }
+}
+img.product-image-continuity {
+  position: fixed;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 600;
+  animation: productContinuityExpand 480ms var(--ease-premium) both;
+  will-change: transform, opacity;
+}
+
+/* ── Horizontal drag gallery (DragGallery.jsx) ──
+   A native-scroll track (touch devices get real momentum/inertia for free)
+   with an opt-in pointer-drag layer on top for desktop mice/trackpads,
+   which don't have native drag-to-scroll. `cursor:grab/grabbing` below is
+   the native cursor feedback for that drag affordance. */
+.drag-gallery {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  cursor: grab;
+  user-select: none;
+}
+.drag-gallery::-webkit-scrollbar { display: none; }
+.drag-gallery { scrollbar-width: none; }
+.drag-gallery.is-dragging { cursor: grabbing; scroll-snap-type: none; }
+.drag-gallery > * { scroll-snap-align: start; flex-shrink: 0; }
+
+/* ── Button hierarchy ──
+   Every "primary" action across the site should read as the same button.
+   Deliberately scoped to color/background only (not padding/sizing) so it
+   composes with each call site's existing Tailwind spacing utilities
+   instead of fighting them. */
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+  transition: background-color 0.2s ease;
+}
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-light); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.status-error { color: var(--color-error); }
+.status-success { color: var(--color-success); }
+
+/* ── Skeleton loading ──
+   A blank page/blank div during a route transition or data fetch reads as
+   broken on a premium site — every top-tier storefront shows a
+   content-shaped placeholder instead. This one shimmer animation backs every
+   skeleton block site-wide (route transitions, product grids, account pages,
+   reviews) so loading states feel like one consistent system, not a
+   patchwork of spinners and "Loading…" strings. */
+@keyframes skeleton-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--border-color) 37%, var(--skeleton-base) 63%);
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--skeleton-base); }
+}
+
+/* ── Page transitions ──
+   Instant page swaps read as jarring on a premium site — a brief fade
+   softens every navigation without adding perceptible delay. */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.page-transition {
+  animation: page-fade-in 420ms var(--ease-premium) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition { animation: fadeIn 180ms ease both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition { animation: none; }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+}
+
+::selection {
+  background-color: var(--accent);
+  color: #F5F5F3;
+}
+
+/* Keyboard-focus indicator. Kept as one sitewide rule (not per-component)
+   so every interactive element gets a visible ring in both themes without
+   needing its own focus styling. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 2px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-secondary);
+}
+
+/* ── Marquee ── */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+
+/* ── Page-level fadeUp for hero ── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Each headline word is a mask (overflow:hidden) around an inner span that
+   translates up from fully below its own line into place — a clip-path-like
+   reveal using only transform/overflow, so no layout-affecting property
+   animates. inline-block + a trailing space (via margin, not literal text)
+   keeps natural word wrapping intact at every viewport width. */
+.hero-word-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  margin-right: 0.24em;
+}
+.hero-word {
+  display: inline-block;
+  transform: translateY(110%);
+  animation: heroWordIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes heroWordIn {
+  from { transform: translateY(110%); }
+  to { transform: translateY(0); }
+}
+.hero-sub {
+  animation: fadeUp 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+}
+.hero-cta {
+  animation: fadeUp 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.65s both;
+}
+.hero-label {
+  animation: fadeIn 1s ease 0.1s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-word, .hero-sub, .hero-cta, .hero-label {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+.cart-drawer {
+  animation: slideRight 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.cart-drawer.is-closing {
+  animation: slideRight var(--dur-normal) var(--ease-premium) reverse both;
+}
+.cart-backdrop-in { animation: fadeIn var(--dur-normal) ease both; }
+.cart-backdrop-out { animation: fadeIn var(--dur-normal) ease reverse both; }
+
+/* New cart line items pop in on mount (fresh key = fresh mount, so this
+   only ever plays for a genuinely new row, never on unrelated re-renders).
+   Removal reverses the same idea locally, driven by CartDrawer's own
+   `removingKey` state rather than an unmount — it fades/collapses the row
+   *before* removeFromCart() actually runs. */
+@keyframes cartItemIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.cart-item-row {
+  animation: cartItemIn var(--dur-normal) var(--ease-premium) both;
+  transition: opacity 240ms ease, transform 240ms ease, grid-template-rows 240ms ease;
+}
+.cart-item-row.is-removing {
+  opacity: 0;
+  transform: translateX(24px) scale(0.97);
+  pointer-events: none;
+}
+/* Subtotal / per-line price / quantity number — pops on every value
+   change (keyed by the value itself, same trick as the navbar badge). */
+.cart-value-pop { animation: badgePop 0.3s var(--ease-premium); display: inline-block; }
+@media (prefers-reduced-motion: reduce) {
+  .cart-drawer.is-closing, .cart-backdrop-in, .cart-backdrop-out,
+  .cart-item-row, .cart-item-row.is-removing, .cart-value-pop {
+    animation: none;
+    transition: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* ── Scroll reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1), transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 100ms; }
+.reveal-delay-2 { transition-delay: 200ms; }
+.reveal-delay-3 { transition-delay: 300ms; }
+.reveal-delay-4 { transition-delay: 400ms; }
+.reveal-delay-5 { transition-delay: 500ms; }
+
+/* ── Unified photography grade ──
+   Product/campaign photos on this site come from many different original
+   sources (different lighting, different white balance, different original
+   crop). Without a shared grade, the grid reads as a stock-photo collage
+   instead of one brand's photography. This single filter — applied to every
+   product/campaign <img> site-wide — pulls them toward one consistent
+   contrast/saturation/warmth so they read as one shoot even when they
+   aren't. Deliberately subtle: this is a unifying grade, not a filter
+   effect. */
+.up-photo {
+  filter: contrast(1.05) saturate(0.92) brightness(0.99) sepia(0.04);
+}
+
+/* ── Product gallery crossfade ──
+   Every image in the gallery is stacked (all rendered, absolutely
+   positioned) rather than swapping a single <img>'s src — the inactive
+   ones simply sit at opacity 0. Switching the active index crossfades with
+   a very subtle scale/blur instead of hard-cutting between photos. */
+.gallery-stage-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.02);
+  filter: blur(6px);
+  transition: opacity var(--dur-slow) var(--ease-premium), transform var(--dur-slow) var(--ease-premium), filter var(--dur-slow) var(--ease-premium);
+  pointer-events: none;
+}
+.gallery-stage-img.is-active {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-stage-img { transition: opacity var(--dur-fast) ease; transform: none; filter: none; }
+}
+
+/* ── Product image swap ── */
+.img-swap-container {
+  position: relative;
+  overflow: hidden;
+}
+.img-swap-back {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.img-swap-container:hover .img-swap-back {
+  opacity: 1;
+}
+.img-swap-front {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.img-swap-container:hover .img-swap-front {
+  transform: scale(1.04);
+}
+
+/* ── Quick view overlay ── */
+.modal-overlay {
+  animation: fadeIn 0.2s ease both;
+}
+.modal-panel {
+  animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Noise grain overlay ── */
+.noise-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
+
+@keyframes themeIconIn {
+  from { opacity: 0; transform: rotate(-45deg) scale(.6); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+.theme-toggle-icon {
+  animation: themeIconIn .3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle-icon { animation: none; }
+}
+
+/* Cart/wishlist count badge: pops on every value change (keyed by the
+   count itself in Navbar.jsx, so React remounts it and this replays) —
+   small motion instead of the number just silently changing. */
+@keyframes badgePop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.up-badge-pop { animation: badgePop 0.35s var(--ease-premium); }
+@media (prefers-reduced-motion: reduce) {
+  .up-badge-pop { animation: none; }
+}
+
+.up-input{width:100%;background:transparent;border:1px solid var(--border-color);padding:14px 16px;color:var(--color-fg);outline:none;transition:border-color .2s}.up-input:focus{border-color:rgba(255,255,255,.55)}.up-input option{background:var(--surface)}.up-nav{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(245,245,243,.7);transition:color .2s}.up-nav:hover{color:#fff}.up-icon{width:36px;height:36px;color:rgba(245,245,243,.75);position:relative;transition:color .2s}.up-badge{position:absolute;right:1px;top:1px;background:var(--accent);color:white;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:var(--font-mono),monospace}.up-icon:hover{color:#fff}
+/* .up-nav/.up-icon default to a literal near-white — correct for the
+   header's resting transparent state, which floats over an unpredictable
+   hero photo regardless of site theme (same reasoning as the photo-overlay
+   text elsewhere). Once the header goes solid (opaque bg-bg background),
+   that background itself is theme-driven, so a permanently near-white icon
+   would go invisible on the light theme's cream solid header — this scopes
+   a theme-aware override to only that state. */
+.site-header--solid .up-nav,
+.site-header--solid .up-icon {
+  color: var(--text-secondary);
+}
+.site-header--solid .up-nav:hover,
+.site-header--solid .up-icon:hover {
+  color: var(--color-accent);
+}
+
+/* .site-header (the <nav>) only ever changes color — background-color/
+   backdrop-filter/border-color — never its own position. Two states, driven
+   by Navbar.jsx:
+     - resting/transparent: at the very top of a hero page.
+     - .site-header--solid: black/solid — either a non-hero page (always,
+       from first paint) or a hero page whose header just reappeared while
+       scrolling back up (Navbar.jsx sets black=true in the same tick it
+       un-hides, so it never flashes transparent first).
+   Height/padding/font-size never change (h-[68px] is set unconditionally in
+   Navbar.jsx), so none of this can cause layout shift or resize the logo/
+   links/icons. color-mix() over --bg-primary keeps the solid color
+   theme-aware (near-black in the default dark theme — equivalent to
+   rgba(8,8,8,.97); near-solid cream in the light theme) rather than
+   hardcoding black regardless of theme. */
+.site-header {
+  background-color: color-mix(in srgb, var(--bg-primary) 0%, transparent);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  border-bottom: 1px solid transparent;
+  transition: background-color 400ms ease,
+    backdrop-filter 400ms ease,
+    border-color 400ms ease;
+}
+.site-header--solid {
+  background-color: color-mix(in srgb, var(--bg-primary) 97%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom-color: var(--border-color);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header--solid {
+    transition-duration: .01s;
+  }
+}
+
+/* .site-header-wrap is the ONE element that ever moves vertically — it
+   wraps the shipping bar and the navbar as one unit (see Navbar.jsx), and
+   both of those are plain, unpositioned children: no fixed/sticky/transform/
+   top offset of their own, so they can never visually drift apart from each
+   other or from this wrapper. A real downward scroll slides the whole thing
+   away via transform; a real upward scroll brings it right back — pure
+   transform, never display/visibility, so it's always a smooth slide. */
+.site-header-wrap {
+  transform: translateY(0);
+  transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.site-header-wrap--hidden {
+  transform: translateY(-100%);
+  /* Slid fully off-screen — don't let it eat clicks meant for the page
+     underneath while it's hidden. */
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header-wrap,
+  .site-header-wrap--hidden {
+    transition-duration: .01s;
+  }
+}
+
+@keyframes quickAddSheetSlideIn {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.quick-add-sheet { animation: quickAddSheetSlideIn .28s cubic-bezier(.22,1,.36,1) both; }
+
+@keyframes sizeGuideSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.size-guide-panel { animation: sizeGuideSlideIn .28s cubic-bezier(.22,1,.36,1) both; }
+
+/* Garment illustrations for the size guide */
+.up-garment-art {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 4px 0 10px;
+}
+
+.up-garment-art::before {
+  display: none;
+}
+
+.up-garment-art svg {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  overflow: visible;
+}
+
+.garment-shape {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.garment-measure-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.garment-arrow-head {
+  fill: var(--accent);
+  stroke: none;
+}
+
+.garment-marker-circle {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.garment-marker-text {
+  fill: var(--text-primary);
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.up-garment-caption {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.up-garment-generated-image {
+  width: 100%;
+  max-width: 390px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 36px rgba(0, 0, 0, 0.28));
+}
+
+@media (max-width: 640px) {
+  .up-garment-generated-image {
+    max-width: 330px;
+  }
+}
+
+
+/* ── Reference-matched Urban Phoenix size guide ── */
+.size-guide-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.size-guide-overlay {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(7px);
+}
+
+.size-guide-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(750px, 100%);
+  max-width: none;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  box-shadow: -30px 0 80px rgba(0,0,0,.72);
+}
+
+.size-guide-header {
+  position: relative;
+  top: auto;
+  z-index: 1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: none;
+}
+
+.size-guide-heading-row {
+  position: relative;
+  z-index: 99999;
+  min-height: 122px;
+  padding: 26px 24px 23px 27px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.size-guide-eyebrow {
+  margin: 0;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.size-guide-title {
+  margin: 14px 0 0;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 52px;
+  font-weight: 900;
+  line-height: .82;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.size-guide-close {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.size-guide-close span { display: none; }
+.size-guide-close svg {
+  width: 36px;
+  height: 36px;
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 1.55;
+}
+
+.size-guide-tabs {
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--border-color);
+}
+
+.size-guide-tabs > span {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 3px solid var(--accent);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.size-guide-tabs::after {
+  content: '';
+  border-bottom: 1px solid var(--border-color);
+}
+
+.size-guide-content {
+  padding: 0 27px 37px;
+}
+
+.size-guide-visual-section {
+  padding: 39px 10px 28px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.size-guide-measure-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.14fr) minmax(330px, .86fr);
+  gap: 54px;
+  align-items: center;
+}
+
+.up-garment-art {
+  position: relative;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.up-garment-art::before { display: none; }
+
+.up-garment-generated-image {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  object-fit: contain;
+}
+
+.up-garment-caption {
+  display: block;
+  margin-top: 12px;
+  padding: 0;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  letter-spacing: .105em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.size-guide-instructions {
+  display: grid;
+}
+
+.size-guide-instruction {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 10px;
+  padding: 26px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.size-guide-instruction:first-child { border-top: 0; }
+
+.size-guide-instruction > span {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  font-family: 'DM Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.size-guide-instruction strong {
+  display: block;
+  margin: 2px 0 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.size-guide-instruction p {
+  margin: 5px 0 0;
+  max-width: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.size-guide-note {
+  margin: 27px 0 0;
+  padding: 0 0 0 20px;
+  border-left: 3px solid var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--text-secondary);
+}
+
+.size-guide-selection-section {
+  padding: 35px 10px 0;
+  border: 0;
+}
+
+.size-guide-section-title {
+  margin: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.size-guide-size-list {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin: 24px 0 22px;
+}
+
+.size-guide-size-list button {
+  position: relative;
+  width: 76%;
+  height: 70px;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.size-guide-size-list button::after { display: none; }
+
+.size-guide-size-list button:hover { color: var(--accent); }
+
+.size-guide-size-list button.is-active {
+  border-color: var(--accent);
+  background: rgba(240,100,19,.035);
+  color: var(--accent);
+}
+
+.size-guide-table-head,
+.size-guide-table-row {
+  display: grid;
+  grid-template-columns: 1.3fr .8fr .8fr;
+  align-items: center;
+}
+
+.size-guide-table-head {
+  padding: 31px 0 18px;
+  border-top: 1px solid var(--border-color);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 300;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.size-guide-table-row {
+  min-height: 76px;
+  border-top: 1px solid var(--border-color);
+}
+
+.size-guide-table-row > span {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 300;
+  color: var(--text-primary);
+}
+
+.size-guide-table-row strong,
+.size-guide-table-row em {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.size-guide-stock-button {
+  width: 100%;
+  min-height: 70px;
+  margin-top: 22px;
+  border: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.size-guide-stock-button.is-available {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.size-guide-stock-button.is-available:hover { background: var(--accent-light); }
+.size-guide-stock-button.is-unavailable {
+  background: var(--border-color);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .size-guide-heading-row {
+    min-height: 98px;
+    padding: 20px 18px;
+  }
+
+  .size-guide-eyebrow { font-size: 10px; }
+  .size-guide-title { margin-top: 10px; font-size: 40px; }
+  .size-guide-close { width: 54px; height: 54px; }
+  .size-guide-close svg { width: 28px; height: 28px; }
+
+  .size-guide-tabs,
+  .size-guide-tabs > span { min-height: 58px; }
+
+  .size-guide-tabs > span { font-size: 15px; }
+  .size-guide-content { padding: 0 18px 28px; }
+  .size-guide-visual-section { padding: 26px 0 24px; }
+
+  .size-guide-measure-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .up-garment-generated-image { max-width: 100%; }
+  .up-garment-caption { font-size: 10px; }
+
+  .size-guide-instruction {
+    grid-template-columns: 40px 1fr;
+    gap: 14px;
+    padding: 18px 0;
+  }
+
+  .size-guide-instruction > span {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+
+  .size-guide-instruction strong { font-size: 16px; }
+  .size-guide-instruction p { margin-top: 8px; font-size: 14px; }
+
+  .size-guide-selection-section { padding: 28px 0 0; }
+  .size-guide-section-title { font-size: 18px; }
+  .size-guide-size-list { gap: 6px; }
+  .size-guide-size-list button { height: 54px; font-size: 15px; }
+  .size-guide-table-head { padding-top: 22px; font-size: 11px; }
+  .size-guide-table-row { min-height: 58px; }
+  .size-guide-table-row > span { font-size: 14px; }
+
+  .size-guide-table-row strong,
+  .size-guide-table-row em { font-size: 13px; }
+
+  .size-guide-stock-button {
+    min-height: 58px;
+    font-size: 16px;
+  }
+}
+
+
+/* Exact supplied size-guide artwork */
+.size-guide-reference-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  overflow-y: auto;
+  background: var(--overlay-scrim);
+}
+
+.size-guide-reference-backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.size-guide-reference-frame {
+  position: relative;
+  z-index: 1;
+  width: min(990px, 100vw);
+  min-width: 0;
+  margin-left: auto;
+  background: var(--surface);
+  box-shadow: -28px 0 80px rgba(0, 0, 0, 0.72);
+}
+
+.size-guide-reference-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.size-guide-reference-close,
+.size-guide-reference-select {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.size-guide-reference-close {
+  top: 1.75%;
+  right: 2.15%;
+  width: 7.25%;
+  aspect-ratio: 1;
+}
+
+.size-guide-reference-select {
+  left: 3.85%;
+  right: 3.85%;
+  bottom: 2.55%;
+  height: 4.55%;
+}
+
+.size-guide-reference-close:focus-visible,
+.size-guide-reference-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (max-width: 700px) {
+  .size-guide-reference-root {
+    justify-content: center;
+  }
+
+  .size-guide-reference-frame {
+    width: 100vw;
+    box-shadow: none;
+  }
+}
+
+/* Functional reference-matched size guide fixes */
+.size-guide-root .size-guide-size-list button.is-sold-out {
+  color: var(--text-secondary);
+}
+.size-guide-root .size-guide-size-list button.is-sold-out::before {
+  content: '';
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  top: 50%;
+  height: 1px;
+  background: var(--text-secondary);
+  transform: rotate(-18deg);
+}
+.size-guide-root .size-guide-size-list button.is-active.is-sold-out {
+  border-color: #7a3212;
+  color: #9b4c24;
+}
+.size-guide-root .size-guide-panel {
+  overscroll-behavior: contain;
+}
+
+
+/* Size guide must stay above the fixed site header — and above the region/
+   privacy popups' own tier (20000/20001) too, since either can already be
+   dismissed and a customer can still reach Size Guide right after. 21000
+   keeps it above every other overlay tier actually used on the site. */
+.size-guide-root {
+  position: fixed;
+  inset: 0;
+  z-index: 21000;
+  isolation: isolate;
+}
+
+.size-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.size-guide-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+/* Hide the fixed header completely while the size guide is open. */
+body.size-guide-open .site-header {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+
+/* Checkout interaction states */
+.checkout-payment {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: border-color .2s ease, background-color .2s ease;
+}
+.checkout-payment:hover,
+.checkout-payment.is-selected {
+  border-color: var(--accent);
+  background: rgba(198,93,30,.07);
+}
+.checkout-payment input {
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+.checkout-payment__icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 20px;
+  margin-top: 2px;
+}
+.checkout-payment strong,
+.checkout-payment small {
+  display: block;
+}
+.checkout-payment strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.checkout-payment small {
+  margin-top: 5px;
+  color: #8f8f8f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.up-input.has-error {
+  border-color: var(--error);
+}
+.checkout-field-error {
+  display: block;
+  margin-top: 6px;
+  color: var(--error);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.checkout-error {
+  padding: 12px 14px;
+  border-left: 2px solid var(--error);
+  background: rgba(228,105,79,.08);
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.checkout-submit {
+  transition: background-color .2s ease, transform .2s ease;
+}
+.checkout-submit:not(:disabled):hover {
+  background: var(--accent-light);
+}
+.checkout-submit:not(:disabled):active {
+  transform: translateY(1px);
+}
+/* "Processing…" gets a soft breathing pulse instead of a spinner graphic —
+   keeps the button's typographic look rather than introducing a new icon
+   style, while still visibly communicating "something is happening" for
+   the async order-creation call this gates. Purely visual: the actual
+   double-submit guard is the existing `disabled` + isSubmitting check in
+   CheckoutPage.jsx, untouched. */
+@keyframes checkoutProcessingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .55; }
+}
+.checkout-submit.is-processing {
+  animation: checkoutProcessingPulse 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .checkout-submit.is-processing { animation: none; }
+}
+.checkout-success {
+  animation: fadeUp .45s cubic-bezier(.16,1,.3,1) both;
+}
+
+/* ── Sandbox payment-environment indicator (honest, non-fake — reflects the
+   server's real PAYMENT_ENV; see server/payment-config-guard.mjs) ── */
+.sandbox-banner {
+  padding: 14px 16px;
+  border: 1px dashed var(--accent);
+  background: rgba(198,93,30,.08);
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-align: center;
+}
+/* ── Checkout delivery method selector ── */
+.checkout-delivery-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: border-color .2s ease, background-color .2s ease;
+}
+.checkout-delivery-option:hover,
+.checkout-delivery-option.is-selected {
+  border-color: var(--accent);
+  background: rgba(198,93,30,.07);
+}
+.checkout-delivery-option input {
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+
+/* ── Privacy popup ── */
+.privacy-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(12px);
+  animation: fadeIn .28s ease both;
+}
+.privacy-popup {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 42px;
+  border: 1px solid var(--border-color);
+  background:
+    radial-gradient(circle at 100% 0, rgba(198,93,30,.2), transparent 38%),
+    var(--surface);
+  box-shadow: 0 35px 100px rgba(0,0,0,.72);
+}
+.privacy-popup__mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 30px;
+  border: 1px solid var(--accent);
+  padding: 10px;
+}
+.privacy-popup__mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.privacy-popup__eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+.privacy-popup h2 {
+  margin: 0;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(36px, 7vw, 58px);
+  font-weight: 900;
+  line-height: .92;
+  text-transform: uppercase;
+}
+.privacy-popup__text {
+  margin: 24px 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.privacy-popup__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.privacy-popup__actions button {
+  min-height: 52px;
+  border: 1px solid var(--border-color);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.privacy-popup__primary { background: var(--accent); border-color: var(--accent) !important; color: #fff; }
+.privacy-popup__secondary { background: transparent; color: var(--text-primary); }
+.privacy-popup__link {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ── Region select popup ── */
+.region-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20001;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(12px);
+  animation: fadeIn .28s ease both;
+  overflow-y: auto;
+}
+.region-popup {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 42px;
+  border: 1px solid var(--border-color);
+  background:
+    radial-gradient(circle at 100% 0, rgba(198,93,30,.2), transparent 38%),
+    var(--surface);
+  box-shadow: 0 35px 100px rgba(0,0,0,.72);
+}
+.region-popup__mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 30px;
+  border: 1px solid var(--accent);
+  padding: 10px;
+}
+.region-popup__mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.region-popup__eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+.region-popup h2 {
+  margin: 0;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(32px, 6vw, 48px);
+  font-weight: 900;
+  line-height: .92;
+  text-transform: uppercase;
+}
+.region-popup__text {
+  margin: 18px 0 28px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.region-popup__groups {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px 20px;
+}
+.region-popup__group-title {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.region-popup__group ul { display: flex; flex-direction: column; gap: 4px; }
+.region-popup__group button {
+  width: 100%;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: #c7c7c7;
+  font-size: 13px;
+  text-align: left;
+  transition: color .15s ease;
+}
+.region-popup__group button:hover,
+.region-popup__group button:focus-visible { color: var(--accent); }
+.region-popup__skip {
+  display: block;
+  margin: 30px auto 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (max-width: 640px) {
+  .region-popup { padding: 30px 22px; }
+  .region-popup__groups { grid-template-columns: repeat(2, 1fr); gap: 22px 14px; }
+}
+@media (max-width: 400px) {
+  .region-popup__groups { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Customer comments ── */
+.product-review-form {
+  margin-top: 36px;
+  padding: 30px;
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+}
+.product-review-form__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+.product-review-form__eyebrow {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.product-review-form h3 {
+  margin: 0;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 34px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.product-review-form__rating span,
+.product-review-form label > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.product-review-form select,
+.product-review-form input,
+.product-review-form textarea {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  background: var(--surface);
+  color: var(--text-primary);
+  outline: none;
+}
+.product-review-form select,
+.product-review-form input { min-height: 48px; padding: 0 14px; }
+.product-review-form textarea { padding: 14px; resize: vertical; }
+.product-review-form select:focus,
+.product-review-form input:focus,
+.product-review-form textarea:focus { border-color: var(--accent); }
+.product-review-form__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.product-review-form__comment { display: block; margin-top: 14px; }
+.product-review-form__status { margin: 15px 0 0; font-size: 12px; }
+.product-review-form__status.is-error { color: var(--error); }
+.product-review-form__status.is-success { color: var(--success); }
+.product-review-form > button {
+  min-width: 190px;
+  min-height: 50px;
+  margin-top: 20px;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.product-review-form > button:disabled { opacity: .55; }
+.product-review-own__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.product-review-own__action {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.product-review-own__action:hover { color: var(--fg); }
+.product-review-own__action--danger:hover { color: var(--error); }
+.product-review-own__action:disabled { opacity: .55; cursor: default; }
+.reviews-loading { margin-top: 18px; color: var(--text-secondary); font-size: 12px; }
+.product-price-row { display: flex; align-items: baseline; gap: 12px; }
+
+@media (max-width: 640px) {
+  .privacy-popup { padding: 30px 22px; }
+  .privacy-popup__actions,
+  .product-review-form__grid { grid-template-columns: 1fr; }
+  .product-review-form { padding: 22px; }
+  .product-review-form__heading { align-items: flex-start; flex-direction: column; }
+}
+
+
+/* ── Language and currency selectors ──
+   Compact, borderless-until-active triggers with a small floating listbox —
+   deliberately understated (no boxed/bordered resting state, no thick
+   selected-state border) so it reads as premium editorial chrome rather
+   than a form <select>. Built on the shared theme tokens (surface/border/
+   text/hover-overlay) so it repaints correctly in both themes, same as
+   every other floating panel on the site. */
+.header-preferences {
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+.header-select {
+  position: relative;
+}
+.header-select__trigger {
+  position: relative;
+  z-index: 116;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color .2s ease, background-color .2s ease, transform .2s ease;
+}
+.header-select__trigger:hover,
+.header-select__trigger[aria-expanded="true"] {
+  border-color: var(--border-color);
+  background: var(--hover-overlay);
+  transform: translateY(-1px);
+}
+.header-select__trigger:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(198,93,30,.25);
+}
+.header-select__trigger:active {
+  background: var(--active-overlay);
+}
+.header-select__symbol {
+  min-width: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .02em;
+  text-align: center;
+}
+.header-select--language .header-select__symbol {
+  color: var(--color-accent);
+}
+.header-select__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.header-select__chevron-icon {
+  margin-left: 1px;
+  color: var(--color-muted);
+  flex-shrink: 0;
+  transition: transform .18s ease;
+}
+.header-select__chevron-icon.is-open {
+  transform: rotate(180deg);
+}
+
+/* Floating panel */
+.header-select__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  min-width: 168px;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 14px 34px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.18);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: preferenceMenuIn .18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 120;
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-select__menu { animation: none; }
+}
+.header-select__option {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-fg);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color .15s ease, color .15s ease;
+}
+.header-select__option .header-select__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+/* Hover only for devices that actually have a mouse — gated behind
+   (hover: hover) so a tap on touch devices can't leave the option stuck
+   in a "hovered" look after the finger lifts. */
+@media (hover: hover) and (pointer: fine) {
+  .header-select__option:hover {
+    background: var(--hover-overlay);
+  }
+  .header-select__option.is-active:hover {
+    background: rgba(198,93,30,.12);
+  }
+}
+/* :active covers both a mouse press and a touch tap-down, so this is the
+   feedback touch devices actually get (they have no :hover). */
+.header-select__option:active {
+  background: var(--active-overlay);
+  transition-duration: .05s;
+}
+.header-select__option:focus-visible {
+  outline: none;
+  background: var(--hover-overlay);
+  box-shadow: inset 0 0 0 1px rgba(198,93,30,.5);
+}
+/* Selected state — a subtle accent tint and orange text/check, no thick
+   border or highlighted block. */
+.header-select__option.is-active {
+  background: rgba(198,93,30,.08);
+  color: var(--color-accent-light);
+}
+.header-select__option.is-active:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(198,93,30,.5);
+}
+.header-select__check {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+.mobile-preferences {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 24px;
+}
+.mobile-preferences .header-select__trigger {
+  width: 100%;
+  border-color: var(--border-color);
+}
+.mobile-preferences .header-select__trigger:hover,
+.mobile-preferences .header-select__trigger[aria-expanded="true"] {
+  transform: none;
+}
+.mobile-preferences .header-select__menu {
+  /* Anchored from the right by default: currency sits in the right-hand
+     grid column and its rows ("AMD — ARMENIAN DRAM") run noticeably wider
+     than language's — anchoring left:0 there pushed the panel past the
+     viewport edge and clipped it on narrow phones. Language (left column,
+     short content) overrides back to left:0 below. */
+  left: auto;
+  right: 0;
+  top: auto;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  min-width: 180px;
+  max-width: min(280px, 90vw);
+  max-height: min(280px, 60vh);
+  /* overflow-y: auto/scroll promotes this panel to its own touch-scroll
+     GPU compositing layer on mobile Safari/Chrome, which is a well-known
+     source of text being rasterized below native resolution and never
+     re-rendered sharp — independent of any transform/animation/filter.
+     Both dropdowns only ever hold 3 items that always fit comfortably
+     under max-height, so scrolling was never actually needed here;
+     overflow: hidden keeps the same off-screen safety clip without ever
+     creating a scroll layer. */
+  overflow: hidden;
+  /* Any of backdrop-filter, a transform/opacity animation, or a large
+     blurred box-shadow forces this panel onto its own GPU-composited
+     layer — on many mobile GPUs that layer's text gets rasterized below
+     native resolution and never re-rendered at full sharpness, even once
+     the effect itself is gone. Using a fully opaque background instead of
+     the translucent+blur desktop treatment buys back the same premium
+     look without ever creating that layer; stripping the entrance
+     animation too keeps the mobile popover's text natively sharp. Desktop
+     keeps both since it wasn't reported as low-quality there. */
+  background: var(--surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
+  box-shadow: 0 8px 20px rgba(0,0,0,.32);
+}
+.mobile-preferences .header-select--language .header-select__menu {
+  left: 0;
+  right: auto;
+}
+@keyframes preferenceMenuIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Auth-only product comments */
+.review-login-gate {
+  margin-top: 34px;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid var(--border-color);
+  background:
+    radial-gradient(circle at 85% 0%, rgba(198,93,30,.18), transparent 34%),
+    var(--color-card);
+}
+.review-login-gate__eyebrow {
+  margin: 0 0 8px;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+.review-login-gate h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.review-login-gate p:last-child {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+.review-login-gate button {
+  flex: 0 0 auto;
+  padding: 14px 24px;
+  border: 0;
+  background: var(--color-accent);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.product-review-form input[readonly] {
+  opacity: .72;
+  cursor: not-allowed;
+}
+
+/* Quantity selector: 1–100 */
+.product-quantity-input {
+  width: 58px;
+  height: 44px;
+  border: 0;
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+  appearance: textfield;
+}
+.product-quantity-input::-webkit-inner-spin-button,
+.product-quantity-input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .review-login-gate {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .review-login-gate button {
+    width: 100%;
+  }
+}
+
+.checkout-quantity {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
+}
+.checkout-quantity button,
+.checkout-quantity input {
+  width: 30px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--color-fg);
+  text-align: center;
+}
+.checkout-quantity button {
+  cursor: pointer;
+}
+.checkout-quantity input {
+  width: 42px;
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  appearance: textfield;
+}
+.checkout-quantity input::-webkit-inner-spin-button,
+.checkout-quantity input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+
+/* ── Limited edition selector ── */
+.limited-edition { margin: 24px 0; }
+.limited-edition__heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:12px; }
+.limited-edition__heading strong { display:block; margin-top:4px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+.limited-edition__eyebrow { color:var(--accent); font-family:'DM Mono',monospace; font-size:9px; letter-spacing:.18em; }
+.limited-edition__remaining { color:var(--text-secondary); font-family:'DM Mono',monospace; font-size:10px; white-space:nowrap; }
+.limited-edition__prompt { color:var(--text-secondary); font-size:13px; margin-bottom:12px; }
+.limited-edition__trigger { width:100%; min-height:58px; padding:0 18px; display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border-color); background:var(--surface); color:var(--text-primary); transition:.2s ease; }
+.limited-edition__trigger:hover { border-color:var(--accent); background:var(--surface); }
+.limited-edition__trigger span:first-child { font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+.limited-edition__trigger span:last-child { color:var(--accent); font-family:'DM Mono',monospace; font-size:13px; font-weight:600; }
+.limited-edition__view-link { display:block; margin-top:10px; color:var(--text-secondary); font-size:11px; letter-spacing:.06em; text-transform:uppercase; transition:color .18s ease; }
+.limited-edition__view-link:hover { color:var(--accent); }
+.limited-edition__hint, .edition-error { margin-top:9px; color:var(--text-secondary); font-size:11px; line-height:1.5; }
+.edition-error { color:var(--error); }
+
+.edition-modal { position:fixed; inset:0; z-index:12000; display:grid; place-items:center; padding:20px; }
+.edition-modal__overlay { position:absolute; inset:0; width:100%; height:100%; border:0; background:var(--overlay-scrim); backdrop-filter:blur(10px); }
+.edition-modal__panel { position:relative; width:min(920px,100%); max-height:90vh; overflow:auto; border:1px solid var(--border-color); background:var(--surface); box-shadow:0 30px 100px rgba(0,0,0,.75); }
+.edition-modal__header { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; gap:20px; padding:24px 28px; border-bottom:1px solid var(--border-color); background:rgba(12,12,12,.96); backdrop-filter:blur(12px); }
+.edition-modal__header span { color:var(--accent); font:500 9px 'DM Mono',monospace; letter-spacing:.2em; }
+.edition-modal__header h2 { margin:7px 0 3px; font:900 34px/1 'Barlow Condensed',sans-serif; text-transform:uppercase; }
+.edition-modal__header p { color:var(--text-secondary); font-size:12px; }
+.edition-modal__close { width:44px; height:44px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border-color); background:transparent; }
+.edition-modal__close:hover { border-color:var(--accent); color:var(--accent); }
+.edition-modal__grid { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:8px; padding:24px 28px; }
+.edition-number { min-height:62px; padding:8px 3px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:1px solid var(--border-color); background:var(--surface); transition:.18s ease; }
+.edition-number strong { font:500 13px 'DM Mono',monospace; }
+.edition-number small { min-height:10px; color:var(--accent); font-size:8px; text-transform:uppercase; }
+.edition-number:not(:disabled):hover { transform:translateY(-2px); border-color:var(--accent); }
+.edition-number.is-selected { border-color:var(--accent); background:rgba(198,93,30,.13); color:#e97834; }
+.edition-number.is-sold { opacity:.42; border-color:rgba(160,50,50,.35); background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 5px,var(--border-color) 5px,var(--border-color) 10px); text-decoration:line-through; cursor:not-allowed; }
+.edition-number:disabled:not(.is-sold) { opacity:.35; cursor:not-allowed; }
+.edition-modal__loading { min-height:360px; display:grid; place-items:center; color:var(--text-secondary); }
+.edition-modal__footer { position:sticky; bottom:0; display:grid; grid-template-columns:160px 1fr; gap:10px; padding:18px 28px; border-top:1px solid var(--border-color); background:rgba(12,12,12,.97); }
+.edition-modal__clear, .edition-modal__confirm { min-height:52px; text-transform:uppercase; letter-spacing:.08em; font-size:12px; }
+.edition-modal__clear { border:1px solid var(--border-color); }
+.edition-modal__confirm { background:var(--accent); color:#fff; }
+.edition-modal__confirm:disabled { background:#242424; color:var(--text-secondary); cursor:not-allowed; }
+.cart-editions, .checkout-editions { margin:5px 0 8px; color:var(--accent); font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+
+@media (max-width:760px) {
+  .edition-modal { padding:0; align-items:end; }
+  .edition-modal__panel { width:100%; max-height:94vh; border-left:0; border-right:0; border-bottom:0; }
+  .edition-modal__header { padding:20px; }
+  .edition-modal__header h2 { font-size:29px; }
+  .edition-modal__grid { grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; padding:20px; }
+  .edition-number { min-height:55px; }
+  .edition-modal__footer { grid-template-columns:110px 1fr; padding:15px 20px; }
+}
+
+/* ── Garment Explorer ──
+   LOCKED design (approved reference, not to be restructured without
+   explicit sign-off — see the conversation this was built from): a
+   permanently-dark, full-bleed "construction lab" section regardless of the
+   site's light/dark theme toggle — literal colors throughout, the same
+   reasoning as the hero photo-overlay text elsewhere ("sits on top of
+   photography/its own dark treatment, not page chrome, must not flip with
+   theme"). Desktop: image stage ~65%, info panel ~35%. Mobile collapses to
+   a single column (image, then info) rather than a scaled-down desktop
+   layout — hotspots stay on the image, the panel just moves from "beside"
+   to "beneath". */
+.garment-explorer {
+  position: relative;
+  left: 50%;
+  right: 50%;
+  width: 100vw;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  margin-top: 96px;
+  background: #0a0a0a;
+  color: #f5f5f3;
+  padding: 56px 0 72px;
+  overflow: hidden;
+}
+.ge-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+@media (min-width: 1024px) {
+  .ge-inner { padding: 0 48px; }
+}
+
+.ge-banner { margin-bottom: 40px; }
+.ge-banner__eyebrow {
+  font: 10px/1 var(--font-mono), monospace;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 243, .55);
+  margin: 0 0 12px;
+}
+.ge-banner__highlight {
+  display: inline-block;
+}
+.ge-banner__title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: clamp(1.9rem, 5.2vw, 4.25rem);
+  line-height: .88;
+  letter-spacing: -0.02em;
+  color: #fdfaf5;
+}
+
+.ge-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .ge-layout {
+    grid-template-columns: 65fr 35fr;
+    gap: 64px;
+  }
+}
+
+.ge-stage {
+  position: relative;
+}
+.ge-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(245, 245, 243, .16);
+  padding: 3px;
+}
+.ge-view-toggle__btn {
+  font: 10px/1 var(--font-mono), monospace;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  padding: 7px 16px;
+  color: rgba(245, 245, 243, .55);
+  transition: color .2s, background-color .2s;
+}
+.ge-view-toggle__btn.is-active {
+  background: #f5f5f3;
+  color: #0a0a0a;
+}
+
+.ge-stage__frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  background: #131110;
+}
+.ge-stage__hint {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  z-index: 5;
+  margin: 0;
+  font: 9px/1 var(--font-mono), monospace;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 243, .65);
+  pointer-events: none;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
+}
+/* Zoom/pan toward the active hotspot — transform-origin is set inline per
+   render from that hotspot's own x/y%, so "toward the cuff" always means
+   the actual cuff regardless of image size. Scale stays modest (1.08) so
+   the garment never crops out of frame ("do not crop excessively"). */
+.ge-stage__zoom {
+  position: absolute;
+  inset: 0;
+  transform: scale(1.08);
+  transition: transform .6s cubic-bezier(.22, 1, .36, 1);
+}
+.ge-stage__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity .5s ease;
+}
+.ge-stage__img.is-visible {
+  opacity: 1;
+}
+
+/* Hotspots: a controlled circle + plus, not a map pin. The button itself is
+   a full 44px touch target; the visible ring is a smaller cosmetic mark
+   centered inside it via flex, so shrinking the mark never shrinks what's
+   actually tappable. */
+.ge-hotspot {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ge-hotspot__ring {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  /* Orange-tinted even at rest (matches the locked reference — every
+     hotspot reads as part of the same accent-colored system, not a plain
+     white marker that only turns orange once active). */
+  border: 1.4px solid rgba(230, 140, 80, .65);
+  background: rgba(10, 10, 10, .35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(245, 220, 200, .9);
+  font-size: 13px;
+  line-height: 1;
+  /* --ge-proximity (0–1, written directly by GarmentExplorer.jsx's mousemove
+     handler, bypassing React) grows the ring as the cursor approaches even
+     before an exact hover — the garment "sensing" the pointer. */
+  transform: scale(calc(1 + var(--ge-proximity, 0) * 0.25));
+  transition: transform .2s cubic-bezier(.22, 1, .36, 1), border-color .25s, background-color .25s, color .25s;
+}
+.ge-hotspot__plus {
+  transform: translateY(-0.5px);
+}
+.ge-hotspot:hover .ge-hotspot__ring {
+  transform: scale(1.18);
+  border-color: var(--accent-light);
+  color: #fff;
+}
+.ge-hotspot.is-active .ge-hotspot__ring {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  transform: scale(1.1);
+}
+.ge-hotspot__tag {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-3px);
+  font: 9px/1 var(--font-mono), monospace;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(10, 10, 10, .8);
+  padding: 4px 8px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.ge-hotspot:hover .ge-hotspot__tag,
+.ge-hotspot.is-active .ge-hotspot__tag {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@keyframes geHotspotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(198, 93, 30, .45); }
+  50% { box-shadow: 0 0 0 7px rgba(198, 93, 30, 0); }
+}
+.ge-hotspot.is-pulsing:not(.is-active) .ge-hotspot__ring {
+  animation: geHotspotPulse 2.2s ease-out infinite;
+}
+
+.ge-panel {
+  display: flex;
+  flex-direction: column;
+  padding-top: 4px;
+}
+.ge-panel__eyebrow {
+  font: 10px/1 var(--font-mono), monospace;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: rgba(245, 245, 243, .5);
+  margin: 0 0 14px;
+}
+.ge-panel__headline {
+  margin: 0 0 22px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: clamp(1.6rem, 2.6vw, 2.5rem);
+  line-height: .98;
+  letter-spacing: -0.01em;
+  color: #fdfaf5;
+}
+.ge-panel__headline span {
+  display: block;
+}
+.ge-panel__intro {
+  margin: 0 0 32px;
+  max-width: 42ch;
+  font-family: var(--font-body), sans-serif;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(245, 245, 243, .68);
+}
+
+/* Spec grid: every category's own real data point, shown together (not one
+   at a time) — clicking a card (or a hotspot, or a category pill below)
+   just moves which one is "active"; the grid itself never restructures. */
+.ge-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(245, 245, 243, .14);
+  border: 1px solid rgba(245, 245, 243, .14);
+  margin-bottom: 28px;
+}
+.ge-spec-card {
+  background: #0a0a0a;
+  padding: 16px 18px;
+  text-align: left;
+  transition: background-color .25s ease;
+}
+.ge-spec-card__label {
+  display: block;
+  font: 10px/1 var(--font-mono), monospace;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+  transition: color .25s ease;
+}
+.ge-spec-card__value {
+  display: block;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  color: rgba(245, 245, 243, .85);
+}
+.ge-spec-card.is-active {
+  background: rgba(198, 93, 30, .14);
+}
+.ge-spec-card.is-active .ge-spec-card__label {
+  color: #f2a06a;
+}
+.ge-spec-card:hover:not(.is-active) {
+  background: rgba(245, 245, 243, .04);
+}
+/* An odd number of categories (e.g. a t-shirt's 5) would otherwise leave a
+   trailing empty cell in the 2-column grid — spans the last card full width
+   instead so the grid always ends cleanly. */
+.ge-spec-grid > *:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* Bottom category controls — the same set of parts as the spec grid above
+   and the hotspots on the image, offered as a third, always-visible way to
+   switch the active one. */
+.ge-category-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(245, 245, 243, .14);
+}
+.ge-category-btn {
+  font: 10px/1 var(--font-mono), monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  min-height: 40px;
+  color: rgba(245, 245, 243, .6);
+  border: 1px solid rgba(245, 245, 243, .18);
+  transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+.ge-category-btn:hover {
+  color: #f5f5f3;
+  border-color: rgba(245, 245, 243, .4);
+}
+.ge-category-btn.is-active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ge-stage__zoom,
+  .ge-stage__img,
+  .ge-hotspot__ring,
+  .ge-hotspot__tag,
+  .ge-spec-card,
+  .ge-spec-card__label,
+  .ge-category-btn {
+    transition-duration: .01s;
+    animation: none !important;
+  }
+}

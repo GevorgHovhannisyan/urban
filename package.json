@@ -1,0 +1,41 @@
+{
+  "name": "urban-phoenix-storefront",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.mjs",
+    "serve": "npm run build && npm run start",
+    "test:unit": "node --test tests/unit/loyalty.test.mjs tests/unit/order-draft.test.mjs tests/unit/mailer.test.mjs tests/unit/rate-limit.test.mjs tests/unit/admin-config-guard.test.mjs tests/unit/mailer-failure-path.test.mjs tests/unit/foreign-keys.test.mjs tests/unit/smtp-config.test.mjs tests/unit/email-senders.test.mjs",
+    "test:api": "node --test tests/api/authz.test.mjs tests/api/order-lifecycle.test.mjs tests/api/security-headers.test.mjs tests/api/stripe-webhook.test.mjs tests/api/rate-limit.test.mjs tests/api/gift-cards.test.mjs tests/api/promo-codes.test.mjs tests/api/returns.test.mjs tests/api/reports.test.mjs tests/api/shipping-rule.test.mjs tests/api/password-policy.test.mjs tests/api/upload-security.test.mjs tests/api/admin-default-credentials.test.mjs tests/api/verification-preview-leak.test.mjs tests/api/inventory-race.test.mjs tests/api/contact-form.test.mjs tests/api/verified-purchase-reviews.test.mjs tests/api/limited-edition.test.mjs",
+    "test:e2e": "npm run build && playwright test",
+    "test": "npm run test:unit && npm run test:api"
+  },
+  "dependencies": {
+    "@stripe/react-stripe-js": "^6.8.0",
+    "@stripe/stripe-js": "^9.13.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "mysql2": "^3.23.4",
+    "nodemailer": "^9.0.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "stripe": "^22.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "playwright": "^1.62.1",
+    "tailwindcss": "^4.0.0",
+    "vite": "^8.0.0"
+  }
+}
