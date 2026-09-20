@@ -1,6 +1,6 @@
-import 'dotenv/config';
-import { defineConfig } from 'vite';
-import tailwindcss from '@tailwindcss/vite';
+import "dotenv/config";
+import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 // Mounts the exact same Express app (API + /admin panel) used in production
 // (server.mjs) as Vite dev-server middleware, so the live preview has full
@@ -17,11 +17,11 @@ import tailwindcss from '@tailwindcss/vite';
 // that never touch the database.
 function backendApiPlugin() {
   return {
-    name: 'urban-phoenix-backend-api',
+    name: "urban-phoenix-backend-api",
     async configureServer(server) {
-      const { initDb } = await import('./server/db.mjs');
-      const { runSeed } = await import('./server/seed.mjs');
-      const { createApp } = await import('./server/app.mjs');
+      const { initDb } = await import("./server/db.mjs");
+      const { runSeed } = await import("./server/seed.mjs");
+      const { createApp } = await import("./server/app.mjs");
 
       // Creates every table on a fresh 'urban' MySQL database (no-op once
       // they already exist) — must resolve before the dev server starts
@@ -37,7 +37,7 @@ function backendApiPlugin() {
 export default defineConfig({
   plugins: [tailwindcss(), backendApiPlugin()],
   server: {
-    host: '0.0.0.0',
+    host: "0.0.0.0",
     port: 5173,
     allowedHosts: true,
     // dist/: without this, the dev server's file watcher and a concurrent
@@ -54,8 +54,8 @@ export default defineConfig({
     // src/data/products.js, garmentExplorer.js, etc. were silently never
     // picked up by the dev server (it kept serving whatever it had already
     // transformed in memory) until a manual restart.
-    watch: { ignored: ['**/dist/**', 'data/**'] },
+    watch: { ignored: ["**/dist/**", "data/**", "public/uploads/**"] },
   },
-  preview: { host: '0.0.0.0', port: 4173 },
-  esbuild: { jsx: 'automatic' },
+  preview: { host: "0.0.0.0", port: 4173 },
+  esbuild: { jsx: "automatic" },
 });

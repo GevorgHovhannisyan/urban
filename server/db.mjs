@@ -1,21 +1,23 @@
-import mysql from 'mysql2/promise';
+import mysql from "mysql2/promise";
 
-// MySQL connection settings come from the environment only — see
-// .env.example. DB_NAME defaults to 'urban' (the database this project was
-// migrated onto), everything else must be supplied by the operator; there is
-// no embedded/local fallback database anymore (this used to be node:sqlite
-// writing to data/urbanphoenix.db — that file is no longer read or written).
-const {
-  DB_HOST = '127.0.0.1',
-  DB_PORT = '3306',
-  DB_USER,
-  DB_PASSWORD,
-  DB_NAME = 'urban',
-} = process.env;
+// MySQL connection settings come from the environment only — see .env.
+// There is no embedded/local fallback database anymore (this used to be
+// node:sqlite writing to data/urbanphoenix.db — that file is no longer read
+// or written).
+const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
 
-if (!DB_USER) {
+const missingDbVariables = [
+  "DB_HOST",
+  "DB_PORT",
+  "DB_USER",
+  "DB_PASSWORD",
+  "DB_NAME",
+].filter((name) => !process.env[name]);
+
+if (missingDbVariables.length > 0) {
   throw new Error(
-    'DB_USER is not set. This app now reads/writes a real MySQL database (see .env.example\'s DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME) — there is no mock/embedded fallback.'
+    `Missing required database environment variable(s): ${missingDbVariables.join(", ")}. ` +
+      "Set DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME in .env — there is no mock/embedded fallback.",
   );
 }
 
@@ -55,7 +57,11 @@ export async function get(sql, params = []) {
 
 export async function run(sql, params = []) {
   const [result] = await pool.query(sql, params);
-  return { insertId: result.insertId, affectedRows: result.affectedRows, changes: result.affectedRows };
+  return {
+    insertId: result.insertId,
+    affectedRows: result.affectedRows,
+    changes: result.affectedRows,
+  };
 }
 
 // Runs several statements against a single connection inside a transaction —
@@ -74,7 +80,11 @@ export async function withTransaction(fn) {
       get: async (sql, params = []) => (await conn.query(sql, params))[0][0],
       run: async (sql, params = []) => {
         const [result] = await conn.query(sql, params);
-        return { insertId: result.insertId, affectedRows: result.affectedRows, changes: result.affectedRows };
+        return {
+          insertId: result.insertId,
+          affectedRows: result.affectedRows,
+          changes: result.affectedRows,
+        };
       },
     };
     const result = await fn(txHelpers);
@@ -98,7 +108,7 @@ export async function closeDb() {
 // constant) so callers/tests that used to check this after opening a
 // connection still have something to call.
 export async function isForeignKeyEnforcementActive() {
-  const row = await get('SELECT @@foreign_key_checks AS v');
+  const row = await get("SELECT @@foreign_key_checks AS v");
   return Number(row?.v) === 1;
 }
 
@@ -367,7 +377,7 @@ const SCHEMA_STATEMENTS = [
 
   // Media Library: one row per file actually uploaded through Admin (see
   // server/media-api.mjs). Deliberately just tracks metadata about a file
-  // that already exists in data/uploads/ (server/uploads.mjs) — it is never
+  // that already exists in public/uploads/ (server/uploads.mjs) — it is never
   // itself the storage layer, so this table can later be repointed at
   // cloud/object storage without changing its shape (url would just become
   // an absolute CDN URL instead of a /uploads/... path).
@@ -408,15 +418,16 @@ const SCHEMA_STATEMENTS = [
 // table_info`. Both are idempotent — safe to call on every boot.
 async function ensureColumn(table, column, definition) {
   const existing = await get(
-    'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
-    [table, column]
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+    [table, column],
   );
-  if (!existing) await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  if (!existing)
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 async function ensureIndex(table, indexName, definition) {
   const existing = await get(
-    'SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
-    [table, indexName]
+    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?",
+    [table, indexName],
   );
   if (!existing) await pool.query(`ALTER TABLE ${table} ADD ${definition}`);
 }
@@ -442,16 +453,24 @@ export function initDb() {
       // comment above idx_orders_idempotency_key for the same reasoning —
       // so old reviews with no userId can never collide with each other or
       // block a real customer's first review).
-      await ensureColumn('reviews', 'userId', 'VARCHAR(64) NULL');
-      await ensureColumn('reviews', 'orderId', 'VARCHAR(64) NULL');
-      await ensureColumn('reviews', 'updatedAt', 'DATETIME NULL');
-      await ensureIndex('reviews', 'idx_reviews_user_id', 'KEY idx_reviews_user_id (userId)');
-      await ensureIndex('reviews', 'uniq_reviews_user_product', 'UNIQUE KEY uniq_reviews_user_product (userId, productId)');
+      await ensureColumn("reviews", "userId", "VARCHAR(64) NULL");
+      await ensureColumn("reviews", "orderId", "VARCHAR(64) NULL");
+      await ensureColumn("reviews", "updatedAt", "DATETIME NULL");
+      await ensureIndex(
+        "reviews",
+        "idx_reviews_user_id",
+        "KEY idx_reviews_user_id (userId)",
+      );
+      await ensureIndex(
+        "reviews",
+        "uniq_reviews_user_product",
+        "UNIQUE KEY uniq_reviews_user_product (userId, productId)",
+      );
       // Delivery / payment-provider architecture (server/delivery.mjs,
       // server/payment/): every column below is nullable and additive — a
       // pre-existing order simply has NULL for fields it predates, and
       // nothing that already reads/writes the orders table needs to change.
-      await ensureColumn('orders', 'deliveryMethod', 'VARCHAR(32) NULL');
+      await ensureColumn("orders", "deliveryMethod", "VARCHAR(32) NULL");
       // The real delivery-time estimate text (e.g. "Up to 3 business days"),
       // resolved from server/delivery.mjs and snapshotted onto the order at
       // commit time — same reasoning as every other order-item snapshot in
@@ -460,19 +479,23 @@ export function initDb() {
       // keep showing exactly what the customer was actually promised, not a
       // re-derived, possibly different, current value. NULL for any order
       // placed before this column existed.
-      await ensureColumn('orders', 'deliveryEstimate', 'VARCHAR(160) NULL');
-      await ensureColumn('orders', 'customerApartment', 'TEXT NULL');
-      await ensureColumn('orders', 'deliveryNotes', 'TEXT NULL');
-      await ensureColumn('orders', 'paymentProvider', 'VARCHAR(32) NULL');
-      await ensureColumn('orders', 'providerTransactionId', 'VARCHAR(191) NULL');
-      await ensureColumn('orders', 'paymentEnv', 'VARCHAR(16) NULL');
-      await ensureColumn('orders', 'confirmationEmailSentAt', 'DATETIME NULL');
-      await ensureColumn('orders', 'confirmationEmailError', 'TEXT NULL');
+      await ensureColumn("orders", "deliveryEstimate", "VARCHAR(160) NULL");
+      await ensureColumn("orders", "customerApartment", "TEXT NULL");
+      await ensureColumn("orders", "deliveryNotes", "TEXT NULL");
+      await ensureColumn("orders", "paymentProvider", "VARCHAR(32) NULL");
+      await ensureColumn(
+        "orders",
+        "providerTransactionId",
+        "VARCHAR(191) NULL",
+      );
+      await ensureColumn("orders", "paymentEnv", "VARCHAR(16) NULL");
+      await ensureColumn("orders", "confirmationEmailSentAt", "DATETIME NULL");
+      await ensureColumn("orders", "confirmationEmailError", "TEXT NULL");
       // Limited Edition Serial Number System: per-product edition size, so
       // "100" is no longer a hardcoded global assumption (server/edition-api.mjs
       // reads this instead). NULL for every non-limited product, matching
       // isLimitedEdition's own default-off behavior.
-      await ensureColumn('products', 'limitedEditionTotal', 'INT NULL');
+      await ensureColumn("products", "limitedEditionTotal", "INT NULL");
       // Backfill only — every product that was already marked limited-edition
       // before this column existed relied on the old system's hardcoded run
       // size of 100 (server/edition-api.mjs's previous normalizeNumbers()).
@@ -482,7 +505,7 @@ export function initDb() {
       // Idempotent: only ever touches rows still sitting at NULL, so it
       // never overwrites a total an admin has since configured.
       await pool.query(
-        'UPDATE products SET limitedEditionTotal = 100 WHERE isLimitedEdition = 1 AND limitedEditionTotal IS NULL'
+        "UPDATE products SET limitedEditionTotal = 100 WHERE isLimitedEdition = 1 AND limitedEditionTotal IS NULL",
       );
       // One-time cleanup: server/products-api.mjs's image-save path now
       // rejects a non-http(s)/relative image URL outright (see its own
@@ -494,14 +517,30 @@ export function initDb() {
       // never touches a real http(s) or /uploads/... URL, and only runs
       // once per boot — safe to leave in place going forward as a standing
       // guard against the same class of bad data however it got in.
-      const galleryRows = await pool.query('SELECT id, images FROM products WHERE images IS NOT NULL');
+      const galleryRows = await pool.query(
+        "SELECT id, images FROM products WHERE images IS NOT NULL",
+      );
       for (const row of galleryRows[0]) {
         let images;
-        try { images = typeof row.images === 'string' ? JSON.parse(row.images) : row.images; } catch { continue; }
+        try {
+          images =
+            typeof row.images === "string"
+              ? JSON.parse(row.images)
+              : row.images;
+        } catch {
+          continue;
+        }
         if (!Array.isArray(images) || images.length === 0) continue;
-        const cleaned = images.filter((url) => typeof url === 'string' && (url.startsWith('/') || /^https?:\/\//i.test(url)));
+        const cleaned = images.filter(
+          (url) =>
+            typeof url === "string" &&
+            (url.startsWith("/") || /^https?:\/\//i.test(url)),
+        );
         if (cleaned.length !== images.length) {
-          await pool.query('UPDATE products SET images = ? WHERE id = ?', [JSON.stringify(cleaned), row.id]);
+          await pool.query("UPDATE products SET images = ? WHERE id = ?", [
+            JSON.stringify(cleaned),
+            row.id,
+          ]);
         }
       }
     })();
@@ -518,7 +557,7 @@ export function fromJson(value, fallback = []) {
   // mysql2 already parses JSON-typed columns into JS values for us; only
   // plain strings (e.g. a value that came from application code before it
   // was written, or a legacy TEXT column) need JSON.parse.
-  if (typeof value !== 'string') return value;
+  if (typeof value !== "string") return value;
   try {
     const parsed = JSON.parse(value);
     return parsed ?? fallback;

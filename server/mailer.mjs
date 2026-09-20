@@ -1,9 +1,22 @@
-import nodemailer from 'nodemailer';
-import { getDeliveryMethod, defaultDeliveryMethod } from './delivery.mjs';
-import { getCountryName } from '../src/data/countries.js';
+import nodemailer from "nodemailer";
+import { getDeliveryMethod, defaultDeliveryMethod } from "./delivery.mjs";
+import { getCountryName } from "../src/data/countries.js";
 
-const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE, SMTP_FROM, SUPPORT_EMAIL, ORDERS_EMAIL, ADMIN_EMAIL, PUBLIC_URL } = process.env;
-
+const {
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_SECURE,
+  SMTP_FROM,
+  SUPPORT_EMAIL,
+  ORDERS_EMAIL,
+  ADMIN_EMAIL,
+  PUBLIC_URL,
+} = process.env;
+console.log(
+  `SMTP config: host=${SMTP_HOST}, port=${SMTP_PORT}, user=${SMTP_USER}, pass=${SMTP_PASS ? "***" : "(not set)"}, secure=${SMTP_SECURE}, from=${SMTP_FROM}, support=${SUPPORT_EMAIL}, orders=${ORDERS_EMAIL}, admin=${ADMIN_EMAIL}`,
+);
 // Every HTML email below interpolates user-supplied text (account name, gift
 // card sender/recipient name, personal message, contact-form fields) directly
 // into the markup. Without escaping, a purchaser/visitor can inject arbitrary
@@ -13,9 +26,17 @@ const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE, SMTP_FROM, SUPP
 // user-supplied value used inside an `html:` template below — never needed in
 // the plain-text bodies.
 export function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch]));
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[ch],
+  );
 }
 
 const isConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
@@ -28,15 +49,32 @@ const isConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
 // an email never arrived. Never includes any credential value — only
 // presence/absence — so this is safe to log or return from an API.
 export function describeSmtpConfig() {
-  const has = { host: Boolean(SMTP_HOST), port: Boolean(SMTP_PORT), user: Boolean(SMTP_USER), pass: Boolean(SMTP_PASS) };
+  const has = {
+    host: Boolean(SMTP_HOST),
+    port: Boolean(SMTP_PORT),
+    user: Boolean(SMTP_USER),
+    pass: Boolean(SMTP_PASS),
+  };
   if (!has.host && !has.port && !has.user && !has.pass) {
-    return { status: 'unconfigured', message: 'SMTP is not configured — transactional email is unavailable; verification codes/reset links use the local dev-preview fallback instead.' };
+    return {
+      status: "unconfigured",
+      message:
+        "SMTP is not configured — transactional email is unavailable; verification codes/reset links use the local dev-preview fallback instead.",
+    };
   }
-  const missing = Object.entries(has).filter(([, present]) => !present).map(([key]) => key.toUpperCase());
+  const missing = Object.entries(has)
+    .filter(([, present]) => !present)
+    .map(([key]) => key.toUpperCase());
   if (missing.length) {
-    return { status: 'partial', message: `SMTP is partially configured — missing SMTP_${missing.join(', SMTP_')}. Transactional email will not work until all of SMTP_HOST/PORT/USER/PASS are set.` };
+    return {
+      status: "partial",
+      message: `SMTP is partially configured — missing SMTP_${missing.join(", SMTP_")}. Transactional email will not work until all of SMTP_HOST/PORT/USER/PASS are set.`,
+    };
   }
-  return { status: 'configured', message: `SMTP is configured (host=${SMTP_HOST}, user=${SMTP_USER}).` };
+  return {
+    status: "configured",
+    message: `SMTP is configured (host=${SMTP_HOST}, user=${SMTP_USER}).`,
+  };
 }
 
 let transporter = null;
@@ -47,7 +85,10 @@ if (isConfigured) {
     // Explicit SMTP_SECURE wins when set (Zoho: 465/true). Falls back to the
     // port-465-implies-TLS heuristic this file already used, so an existing
     // deployment that only ever set SMTP_PORT keeps working unchanged.
-    secure: SMTP_SECURE !== undefined ? SMTP_SECURE === 'true' : Number(SMTP_PORT) === 465,
+    secure:
+      SMTP_SECURE !== undefined
+        ? SMTP_SECURE === "true"
+        : Number(SMTP_PORT) === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
 }
@@ -58,12 +99,12 @@ if (isConfigured) {
 // for a one-off manual check (see scripts/verify-smtp.mjs) or a startup log,
 // never a request handler; the App Password never leaves this process.
 export async function verifySmtpConnection() {
-  if (!transporter) return { ok: false, reason: 'unconfigured' };
+  if (!transporter) return { ok: false, reason: "unconfigured" };
   try {
     await transporter.verify();
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: 'connection-failed', message: error.message };
+    return { ok: false, reason: "connection-failed", message: error.message };
   }
 }
 
@@ -82,40 +123,52 @@ export async function verifySmtpConnection() {
 // same real mailbox (admin@urbanphoenix.am), so one var correctly serves
 // both purposes rather than introducing a second name for the same address.
 function extractEmail(fromHeader) {
-  const match = String(fromHeader || '').match(/<([^>]+)>/);
-  return (match ? match[1] : fromHeader || '').trim();
+  const match = String(fromHeader || "").match(/<([^>]+)>/);
+  return (match ? match[1] : fromHeader || "").trim();
 }
 const legacyFallbackEmail = extractEmail(SMTP_FROM) || SMTP_USER;
 
 export const EMAIL_SENDERS = {
-  support: { name: 'Urban Phoenix Support', email: SUPPORT_EMAIL || legacyFallbackEmail },
-  orders: { name: 'Urban Phoenix Orders', email: ORDERS_EMAIL || legacyFallbackEmail },
-  admin: { name: 'Urban Phoenix', email: ADMIN_EMAIL || legacyFallbackEmail },
+  support: {
+    name: "Urban Phoenix Support",
+    email: SUPPORT_EMAIL || legacyFallbackEmail,
+  },
+  orders: {
+    name: "Urban Phoenix Orders",
+    email: ORDERS_EMAIL || legacyFallbackEmail,
+  },
+  admin: { name: "Urban Phoenix", email: ADMIN_EMAIL || legacyFallbackEmail },
 };
 
 function formatSender(key) {
   const sender = EMAIL_SENDERS[key];
-  return sender?.email ? `${sender.name} <${sender.email}>` : legacyFallbackEmail;
+  return sender?.email
+    ? `${sender.name} <${sender.email}>`
+    : legacyFallbackEmail;
 }
 
 export function getPublicUrl() {
-  return (PUBLIC_URL || 'http://localhost:4173').replace(/\/$/, '');
+  return (PUBLIC_URL || "http://localhost:4173").replace(/\/$/, "");
 }
 
 // Returns { sent: boolean, previewLink?: string } so callers can surface a dev-mode link
 // when no SMTP provider is configured yet.
 export async function sendVerificationCode({ to, name, code }) {
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
+    console.log(
+      "--------------------------------------------------------------",
+    );
     console.log(`SMTP is not configured — email not actually sent.`);
     console.log(`Verification code for ${to}: ${code}`);
-    console.log('--------------------------------------------------------------');
-    return { sent: false, reason: 'unconfigured', previewCode: code };
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    return { sent: false, reason: "unconfigured", previewCode: code };
   }
 
   try {
     await transporter.sendMail({
-      from: formatSender('support'),
+      from: formatSender("support"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
       subject: `${code} is your Urban Phoenix verification code`,
@@ -138,28 +191,32 @@ export async function sendVerificationCode({ to, name, code }) {
     // etc.). That's operationally different from "no SMTP provider on this
     // machine" and must never leak the actual verification code into an API
     // response, in any environment — see customer-auth.mjs's issueVerificationCode.
-    console.error('Failed to send verification code:', error.message);
+    console.error("Failed to send verification code:", error.message);
     console.log(`Verification code for ${to}: ${code}`);
-    return { sent: false, reason: 'send-failed' };
+    return { sent: false, reason: "send-failed" };
   }
 }
 
 export async function sendPasswordResetEmail({ to, name, link }) {
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
+    console.log(
+      "--------------------------------------------------------------",
+    );
     console.log(`SMTP is not configured — email not actually sent.`);
     console.log(`Password reset link for ${to}:`);
     console.log(link);
-    console.log('--------------------------------------------------------------');
-    return { sent: false, reason: 'unconfigured', previewLink: link };
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    return { sent: false, reason: "unconfigured", previewLink: link };
   }
 
   try {
     await transporter.sendMail({
-      from: formatSender('support'),
+      from: formatSender("support"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
-      subject: 'Reset your Urban Phoenix password',
+      subject: "Reset your Urban Phoenix password",
       text: `Hi ${name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n${link}\n\nThis link expires in 60 minutes. If you didn't request this, you can ignore this email — your password won't change.\n\n— Urban Phoenix`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -180,9 +237,9 @@ export async function sendPasswordResetEmail({ to, name, link }) {
     // See the matching comment in sendVerificationCode() above — no
     // previewLink here. A configured-but-failing SMTP send must never
     // expose a live password-reset link through the API response.
-    console.error('Failed to send password reset email:', error.message);
+    console.error("Failed to send password reset email:", error.message);
     console.log(`Password reset link for ${to}: ${link}`);
-    return { sent: false, reason: 'send-failed' };
+    return { sent: false, reason: "send-failed" };
   }
 }
 
@@ -193,13 +250,13 @@ export async function sendPasswordResetEmail({ to, name, link }) {
 // frontend's currency list beyond the amount/symbol formatting itself.
 function fmtGiftCardAmount(value, currency) {
   try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: currency === 'AMD' ? 0 : 2,
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+      maximumFractionDigits: currency === "AMD" ? 0 : 2,
     }).format(Number(value) || 0);
   } catch {
-    return `${Number(value || 0).toFixed(2)} ${currency || 'USD'}`;
+    return `${Number(value || 0).toFixed(2)} ${currency || "USD"}`;
   }
 }
 
@@ -225,7 +282,7 @@ function giftCardVisualHtml({ amountLabel, currency, code }) {
               <td style="font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:38px;letter-spacing:0.01em;color:#ffffff;">${escapeHtml(amountLabel)}</td>
             </tr>
             <tr>
-              <td style="padding-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:0.25em;color:#8a8a8a;">${escapeHtml(currency || 'USD')} · COLLECTION 001</td>
+              <td style="padding-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:0.25em;color:#8a8a8a;">${escapeHtml(currency || "USD")} · COLLECTION 001</td>
             </tr>
           </table>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:30px;border-top:1px solid #2a2622;">
@@ -241,27 +298,49 @@ function giftCardVisualHtml({ amountLabel, currency, code }) {
     </table>`;
 }
 
-export async function sendGiftCardEmail({ to, code, amount, currency = 'USD', senderName, recipientName, message, purchaserEmail, subjectOverride }) {
+export async function sendGiftCardEmail({
+  to,
+  code,
+  amount,
+  currency = "USD",
+  senderName,
+  recipientName,
+  message,
+  purchaserEmail,
+  subjectOverride,
+}) {
   const amountLabel = fmtGiftCardAmount(amount, currency);
-  const greeting = recipientName ? `Hi ${recipientName},` : 'Hi,';
-  const fromLine = senderName ? `${senderName} sent you a gift card` : "You've received a gift card";
-  const messageBlock = message ? `\n"${message}"\n` : '';
+  const greeting = recipientName ? `Hi ${recipientName},` : "Hi,";
+  const fromLine = senderName
+    ? `${senderName} sent you a gift card`
+    : "You've received a gift card";
+  const messageBlock = message ? `\n"${message}"\n` : "";
   const shopUrl = `${getPublicUrl()}/shop`;
 
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
+    console.log(
+      "--------------------------------------------------------------",
+    );
     console.log(`SMTP is not configured — gift card email not actually sent.`);
-    console.log(`Gift card code for ${to} (from ${purchaserEmail}): ${code} (${amountLabel})`);
-    console.log('--------------------------------------------------------------');
-    return { sent: false, error: 'SMTP is not configured.' };
+    console.log(
+      `Gift card code for ${to} (from ${purchaserEmail}): ${code} (${amountLabel})`,
+    );
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    return { sent: false, error: "SMTP is not configured." };
   }
 
   // HTML-safe counterparts of every purchaser-supplied field — recipientEmail
   // (and therefore who receives this email) is entirely attacker-chosen, so
   // this is one of the few emails in this file that can inject into a third
   // party's inbox rather than just the sender's own.
-  const greetingHtml = recipientName ? `Hi ${escapeHtml(recipientName)},` : 'Hi,';
-  const fromLineHtml = senderName ? `${escapeHtml(senderName)} sent you a gift card` : "You've received a gift card";
+  const greetingHtml = recipientName
+    ? `Hi ${escapeHtml(recipientName)},`
+    : "Hi,";
+  const fromLineHtml = senderName
+    ? `${escapeHtml(senderName)} sent you a gift card`
+    : "You've received a gift card";
 
   const html = `<!doctype html>
 <html>
@@ -299,7 +378,9 @@ export async function sendGiftCardEmail({ to, code, amount, currency = 'USD', se
             </td>
           </tr>
 
-          ${message ? `
+          ${
+            message
+              ? `
           <!-- Personal message -->
           <tr>
             <td class="up-px" style="padding:22px 32px 0;">
@@ -307,7 +388,9 @@ export async function sendGiftCardEmail({ to, code, amount, currency = 'USD', se
                 <tr><td style="padding:4px 0 4px 16px;font-family:Arial,Helvetica,sans-serif;font-style:italic;font-size:14px;line-height:1.6;color:#c7c7c5;">"${escapeHtml(message)}"</td></tr>
               </table>
             </td>
-          </tr>` : ''}
+          </tr>`
+              : ""
+          }
 
           <!-- Gift card visual -->
           <tr>
@@ -351,13 +434,14 @@ export async function sendGiftCardEmail({ to, code, amount, currency = 'USD', se
 
   try {
     const info = await transporter.sendMail({
-      from: formatSender('orders'),
+      from: formatSender("orders"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
       // subjectOverride exists only for test tooling to label a test send
       // distinctly (e.g. "— Real Template Test") — real purchases never
       // pass it, so this changes nothing about the actual customer subject.
-      subject: subjectOverride || `${fromLine} — ${amountLabel} — Urban Phoenix`,
+      subject:
+        subjectOverride || `${fromLine} — ${amountLabel} — Urban Phoenix`,
       text: `${greeting}\n\n${fromLine}, worth ${amountLabel}.\n${messageBlock}\nGift card code: ${code}\n\nEnter this code at checkout to redeem it.\n\n— Urban Phoenix`,
       html,
     });
@@ -366,32 +450,50 @@ export async function sendGiftCardEmail({ to, code, amount, currency = 'USD', se
     // resend-email endpoint can surface real delivery diagnostics instead
     // of a bare true/false, the same way the standalone diagnostic script
     // that confirmed the transport itself works did.
-    console.log(`Gift card email accepted by SMTP relay — messageId=${info.messageId} accepted=${JSON.stringify(info.accepted)} rejected=${JSON.stringify(info.rejected)} response="${info.response}"`);
-    return { sent: true, messageId: info.messageId, accepted: info.accepted, rejected: info.rejected, response: info.response };
+    console.log(
+      `Gift card email accepted by SMTP relay — messageId=${info.messageId} accepted=${JSON.stringify(info.accepted)} rejected=${JSON.stringify(info.rejected)} response="${info.response}"`,
+    );
+    return {
+      sent: true,
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response,
+    };
   } catch (error) {
-    console.error('Failed to send gift card email:', error.message);
-    console.log(`Gift card code for ${to} (from ${purchaserEmail}): ${code} (${amountLabel})`);
+    console.error("Failed to send gift card email:", error.message);
+    console.log(
+      `Gift card code for ${to} (from ${purchaserEmail}): ${code} (${amountLabel})`,
+    );
     return { sent: false, error: error.message };
   }
 }
 
-const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const currencyFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
 const fmtMoney = (value) => currencyFmt.format(Number(value || 0));
-const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+const fmtDate = (iso) =>
+  new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
 const PAYMENT_METHOD_LABELS = {
-  cash: 'Cash on delivery', // retired value — kept only so a historical order still renders sensibly
-  cash_on_delivery: 'Cash on Delivery',
-  card: 'Card',
-  paypal: 'PayPal',
-  idram: 'Idram',
-  telcell: 'Telcell',
+  cash: "Cash on delivery", // retired value — kept only so a historical order still renders sensibly
+  cash_on_delivery: "Cash on Delivery",
+  card: "Card",
+  paypal: "PayPal",
+  idram: "Idram",
+  telcell: "Telcell",
 };
 
 const PAYMENT_STATUS_LABELS = {
-  not_charged: 'Not yet charged',
-  paid: 'Paid',
-  refunded: 'Refunded',
+  not_charged: "Not yet charged",
+  paid: "Paid",
+  refunded: "Refunded",
 };
 
 // Cash on Delivery orders are always 'not_charged' (no money has changed
@@ -400,8 +502,11 @@ const PAYMENT_STATUS_LABELS = {
 // delivery" says exactly the same true thing in the context they expect.
 // Never used to imply the order is paid.
 function paymentStatusLabel(order) {
-  if (order.paymentMethod === 'cash_on_delivery' && order.paymentStatus === 'not_charged') {
-    return 'Payment due on delivery';
+  if (
+    order.paymentMethod === "cash_on_delivery" &&
+    order.paymentStatus === "not_charged"
+  ) {
+    return "Payment due on delivery";
   }
   return PAYMENT_STATUS_LABELS[order.paymentStatus] || order.paymentStatus;
 }
@@ -442,7 +547,9 @@ function deliveryMethodLabel(order) {
     subtotal: Number(order.subtotal),
   });
   if (fallback) return `${fallback.label} — ${fallback.description}`;
-  return Number(order.shipping) === 0 ? 'Free Standard Shipping' : 'Standard Shipping';
+  return Number(order.shipping) === 0
+    ? "Free Standard Shipping"
+    : "Standard Shipping";
 }
 
 // Editorial product row: larger, cleaner image, uppercase name, a single
@@ -454,21 +561,28 @@ function deliveryMethodLabel(order) {
 // moment it was placed, so this line can never drift from what the customer
 // actually owns even if the product's config changes later.
 function editionOwnershipLine(item) {
-  if (!item.isLimitedEdition || !item.editionNumbers?.length) return '';
+  if (!item.isLimitedEdition || !item.editionNumbers?.length) return "";
   const total = item.editionTotal || 100;
-  const serials = item.editionNumbers.map((number) => `${String(number).padStart(3, '0')}/${String(total).padStart(3, '0')}`);
-  const text = serials.length > 1 ? `Pieces ${serials.join(', ')} are yours.` : `Piece ${serials[0]} is yours.`;
+  const serials = item.editionNumbers.map(
+    (number) =>
+      `${String(number).padStart(3, "0")}/${String(total).padStart(3, "0")}`,
+  );
+  const text =
+    serials.length > 1
+      ? `Pieces ${serials.join(", ")} are yours.`
+      : `Piece ${serials[0]} is yours.`;
   return `<p style="margin:6px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#e07a3a;">${escapeHtml(text)}</p>`;
 }
 
 function orderItemsHtml(order) {
-  return order.items.map((item, index) => {
-    const isLast = index === order.items.length - 1;
-    const borderStyle = isLast ? '' : 'border-bottom:1px solid #1c1c1c;';
-    const imageCell = item.image
-      ? `<img src="${escapeHtml(item.image)}" width="84" height="106" alt="${escapeHtml(item.name)}" style="display:block;width:84px;height:106px;object-fit:cover;background:#141414;border:1px solid #232323;" />`
-      : `<table role="presentation" width="84" height="106" cellpadding="0" cellspacing="0" style="width:84px;height:106px;background:#141414;border:1px solid #232323;"><tr><td align="center" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.15em;color:#5c5c5c;">UP</td></tr></table>`;
-    return `
+  return order.items
+    .map((item, index) => {
+      const isLast = index === order.items.length - 1;
+      const borderStyle = isLast ? "" : "border-bottom:1px solid #1c1c1c;";
+      const imageCell = item.image
+        ? `<img src="${escapeHtml(item.image)}" width="84" height="106" alt="${escapeHtml(item.name)}" style="display:block;width:84px;height:106px;object-fit:cover;background:#141414;border:1px solid #232323;" />`
+        : `<table role="presentation" width="84" height="106" cellpadding="0" cellspacing="0" style="width:84px;height:106px;background:#141414;border:1px solid #232323;"><tr><td align="center" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.15em;color:#5c5c5c;">UP</td></tr></table>`;
+      return `
       <tr>
         <td style="padding:22px 0;${borderStyle}" width="84">${imageCell}</td>
         <td style="padding:22px 0 22px 18px;${borderStyle}vertical-align:top;">
@@ -480,21 +594,22 @@ function orderItemsHtml(order) {
           <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#f5f5f3;">${fmtMoney(item.lineTotal)}</p>
         </td>
       </tr>`;
-  }).join('');
+    })
+    .join("");
 }
 
 function summaryRow(label, value, { accent = false, strong = false } = {}) {
-  const labelColor = strong ? '#8a8a8a' : (accent ? '#e07a3a' : '#9a9a9a');
+  const labelColor = strong ? "#8a8a8a" : accent ? "#e07a3a" : "#9a9a9a";
   const labelStyle = strong
     ? `font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:${labelColor};`
     : `font-size:13px;color:${labelColor};`;
   const valueStyle = strong
-    ? 'font-size:24px;font-weight:800;color:#f5f5f3;'
-    : `font-size:13px;font-weight:400;color:${accent ? '#e07a3a' : '#f5f5f3'};`;
+    ? "font-size:24px;font-weight:800;color:#f5f5f3;"
+    : `font-size:13px;font-weight:400;color:${accent ? "#e07a3a" : "#f5f5f3"};`;
   return `
     <tr>
-      <td style="padding:${strong ? '14px 0 0' : '6px 0'};font-family:Arial,Helvetica,sans-serif;${labelStyle}">${escapeHtml(label)}</td>
-      <td style="padding:${strong ? '14px 0 0' : '6px 0'};font-family:Arial,Helvetica,sans-serif;${valueStyle}text-align:right;">${value}</td>
+      <td style="padding:${strong ? "14px 0 0" : "6px 0"};font-family:Arial,Helvetica,sans-serif;${labelStyle}">${escapeHtml(label)}</td>
+      <td style="padding:${strong ? "14px 0 0" : "6px 0"};font-family:Arial,Helvetica,sans-serif;${valueStyle}text-align:right;">${value}</td>
     </tr>`;
 }
 
@@ -504,14 +619,17 @@ function summaryRow(label, value, { accent = false, strong = false } = {}) {
 // from, so this email can never drift from real order/product data.
 export async function sendOrderConfirmationEmail({ order }) {
   const to = order.customer.email;
-  const trackUrl = order.orderNumber ? `${getPublicUrl()}/track?order=${encodeURIComponent(order.orderNumber)}` : '';
+  const trackUrl = order.orderNumber
+    ? `${getPublicUrl()}/track?order=${encodeURIComponent(order.orderNumber)}`
+    : "";
   // Raster, not SVG (email-client compatibility) — a real, white, email-sized
   // export of the existing brand mark (public/images/brand/up-logo.png),
   // generated once at public/images/brand/up-logo-email-white.png so the
   // production-served asset (getPublicUrl() + this path) is what email
   // clients load; not an invented logo.
   const logoUrl = `${getPublicUrl()}/images/brand/up-logo-email-white.png`;
-  const paymentLabel = PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod;
+  const paymentLabel =
+    PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod;
   const paymentStatusText = paymentStatusLabel(order);
   const delivery = deliveryMethodLabel(order);
 
@@ -525,28 +643,49 @@ export async function sendOrderConfirmationEmail({ order }) {
     ``,
     `Items:`,
     ...order.items.flatMap((item) => {
-      const lines = [`  ${item.quantity}x ${item.name} (${item.color} / ${item.size}) — unit ${fmtMoney(item.unitPrice)} — line total ${fmtMoney(item.lineTotal)}`];
+      const lines = [
+        `  ${item.quantity}x ${item.name} (${item.color} / ${item.size}) — unit ${fmtMoney(item.unitPrice)} — line total ${fmtMoney(item.lineTotal)}`,
+      ];
       if (item.isLimitedEdition && item.editionNumbers?.length) {
         const total = item.editionTotal || 100;
-        const serials = item.editionNumbers.map((n) => `${String(n).padStart(3, '0')}/${String(total).padStart(3, '0')}`);
-        lines.push(serials.length > 1 ? `    Pieces ${serials.join(', ')} are yours.` : `    Piece ${serials[0]} is yours.`);
+        const serials = item.editionNumbers.map(
+          (n) =>
+            `${String(n).padStart(3, "0")}/${String(total).padStart(3, "0")}`,
+        );
+        lines.push(
+          serials.length > 1
+            ? `    Pieces ${serials.join(", ")} are yours.`
+            : `    Piece ${serials[0]} is yours.`,
+        );
       }
       return lines;
     }),
     ``,
     `Subtotal: ${fmtMoney(order.subtotal)}`,
-    order.discountAmount > 0 ? `Discount${order.promoCode ? ` (${order.promoCode})` : ''}: -${fmtMoney(order.discountAmount)}` : null,
-    order.giftCardAmount > 0 ? `Gift card applied: -${fmtMoney(order.giftCardAmount)}` : null,
-    order.loyaltyDiscount > 0 ? `Rewards points applied: -${fmtMoney(order.loyaltyDiscount)}` : null,
-    `Delivery: ${Number(order.shipping) === 0 ? 'Free' : fmtMoney(order.shipping)}`,
+    order.discountAmount > 0
+      ? `Discount${order.promoCode ? ` (${order.promoCode})` : ""}: -${fmtMoney(order.discountAmount)}`
+      : null,
+    order.giftCardAmount > 0
+      ? `Gift card applied: -${fmtMoney(order.giftCardAmount)}`
+      : null,
+    order.loyaltyDiscount > 0
+      ? `Rewards points applied: -${fmtMoney(order.loyaltyDiscount)}`
+      : null,
+    `Delivery: ${Number(order.shipping) === 0 ? "Free" : fmtMoney(order.shipping)}`,
     `Total: ${fmtMoney(order.total)}`,
     ``,
     `Shipping to:`,
     `${order.customer.firstName} ${order.customer.lastName}`,
-    order.customer.apartment ? `${order.customer.address}, ${order.customer.apartment}` : order.customer.address,
-    order.customer.postalCode ? `${order.customer.city}, ${order.customer.postalCode}` : order.customer.city,
+    order.customer.apartment
+      ? `${order.customer.address}, ${order.customer.apartment}`
+      : order.customer.address,
+    order.customer.postalCode
+      ? `${order.customer.city}, ${order.customer.postalCode}`
+      : order.customer.city,
     getCountryName(order.customer.country),
-    order.customer.deliveryNotes ? `Delivery notes: ${order.customer.deliveryNotes}` : null,
+    order.customer.deliveryNotes
+      ? `Delivery notes: ${order.customer.deliveryNotes}`
+      : null,
     ``,
     `Delivery method: ${delivery}`,
     `Payment method: ${paymentLabel}`,
@@ -555,13 +694,31 @@ export async function sendOrderConfirmationEmail({ order }) {
     `Track your order: ${trackUrl}`,
     ``,
     `— Urban Phoenix`,
-  ].filter((line) => line !== null).join('\n');
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 
   const discountRows = [
-    order.discountAmount > 0 ? summaryRow(`Discount${order.promoCode ? ` (${order.promoCode})` : ''}`, `-${fmtMoney(order.discountAmount)}`, { accent: true }) : '',
-    order.giftCardAmount > 0 ? summaryRow('Gift card applied', `-${fmtMoney(order.giftCardAmount)}`, { accent: true }) : '',
-    order.loyaltyDiscount > 0 ? summaryRow('Rewards points applied', `-${fmtMoney(order.loyaltyDiscount)}`, { accent: true }) : '',
-  ].join('');
+    order.discountAmount > 0
+      ? summaryRow(
+          `Discount${order.promoCode ? ` (${order.promoCode})` : ""}`,
+          `-${fmtMoney(order.discountAmount)}`,
+          { accent: true },
+        )
+      : "",
+    order.giftCardAmount > 0
+      ? summaryRow("Gift card applied", `-${fmtMoney(order.giftCardAmount)}`, {
+          accent: true,
+        })
+      : "",
+    order.loyaltyDiscount > 0
+      ? summaryRow(
+          "Rewards points applied",
+          `-${fmtMoney(order.loyaltyDiscount)}`,
+          { accent: true },
+        )
+      : "",
+  ].join("");
 
   const html = `<!doctype html>
 <html>
@@ -638,7 +795,9 @@ export async function sendOrderConfirmationEmail({ order }) {
             </td>
           </tr>
 
-          ${trackUrl ? `
+          ${
+            trackUrl
+              ? `
           <!-- CTA -->
           <tr>
             <td align="center" style="padding:28px 32px 0;">
@@ -650,7 +809,9 @@ export async function sendOrderConfirmationEmail({ order }) {
                 </tr>
               </table>
             </td>
-          </tr>` : ''}
+          </tr>`
+              : ""
+          }
 
           <!-- Items -->
           <tr>
@@ -666,11 +827,11 @@ export async function sendOrderConfirmationEmail({ order }) {
           <tr>
             <td class="up-px" style="padding:6px 32px 0;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;">
-                ${summaryRow('Subtotal', fmtMoney(order.subtotal))}
+                ${summaryRow("Subtotal", fmtMoney(order.subtotal))}
                 ${discountRows}
-                ${summaryRow('Delivery', Number(order.shipping) === 0 ? 'Free' : fmtMoney(order.shipping))}
+                ${summaryRow("Delivery", Number(order.shipping) === 0 ? "Free" : fmtMoney(order.shipping))}
                 <tr><td colspan="2" style="padding-top:14px;border-top:1px solid #1c1c1c;"></td></tr>
-                ${summaryRow('Total', fmtMoney(order.total), { strong: true })}
+                ${summaryRow("Total", fmtMoney(order.total), { strong: true })}
               </table>
             </td>
           </tr>
@@ -684,12 +845,12 @@ export async function sendOrderConfirmationEmail({ order }) {
                     <p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#c65d1e;">Delivery</p>
                     <p style="margin:0;font-size:13px;line-height:1.7;color:#f5f5f3;">
                       ${escapeHtml(order.customer.firstName)} ${escapeHtml(order.customer.lastName)}<br />
-                      ${escapeHtml(order.customer.address)}${order.customer.apartment ? `, ${escapeHtml(order.customer.apartment)}` : ''}<br />
-                      ${escapeHtml(order.customer.city)}${order.customer.postalCode ? `, ${escapeHtml(order.customer.postalCode)}` : ''}<br />
+                      ${escapeHtml(order.customer.address)}${order.customer.apartment ? `, ${escapeHtml(order.customer.apartment)}` : ""}<br />
+                      ${escapeHtml(order.customer.city)}${order.customer.postalCode ? `, ${escapeHtml(order.customer.postalCode)}` : ""}<br />
                       ${escapeHtml(getCountryName(order.customer.country))}
                     </p>
                     <p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">${escapeHtml(delivery)}</p>
-                    ${order.customer.deliveryNotes ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">Notes: ${escapeHtml(order.customer.deliveryNotes)}</p>` : ''}
+                    ${order.customer.deliveryNotes ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">Notes: ${escapeHtml(order.customer.deliveryNotes)}</p>` : ""}
                   </td>
                   <td class="up-stack-gap" width="0" style="font-size:0;line-height:0;">&nbsp;</td>
                   <td class="up-stack-td" width="50%" valign="top" style="font-family:Arial,Helvetica,sans-serif;padding-left:16px;">
@@ -720,16 +881,22 @@ export async function sendOrderConfirmationEmail({ order }) {
 </html>`;
 
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
-    console.log(`SMTP is not configured — order confirmation email not actually sent.`);
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    console.log(
+      `SMTP is not configured — order confirmation email not actually sent.`,
+    );
     console.log(`Order confirmation for ${to}: #${order.orderNumber}`);
-    console.log('--------------------------------------------------------------');
+    console.log(
+      "--------------------------------------------------------------",
+    );
     return { sent: false };
   }
 
   try {
     await transporter.sendMail({
-      from: formatSender('orders'),
+      from: formatSender("orders"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
       subject: `Urban Phoenix — Order #${order.orderNumber} Confirmed`,
@@ -743,27 +910,34 @@ export async function sendOrderConfirmationEmail({ order }) {
     // failed email must never look like a failed order, so this only logs
     // for debugging and returns a normal { sent: false } result rather than
     // throwing.
-    console.error(`Failed to send order confirmation email for order ${order.orderNumber}:`, error.message);
+    console.error(
+      `Failed to send order confirmation email for order ${order.orderNumber}:`,
+      error.message,
+    );
     return { sent: false, error: error.message };
   }
 }
 
 export async function sendVerificationEmail({ to, name, link }) {
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
+    console.log(
+      "--------------------------------------------------------------",
+    );
     console.log(`SMTP is not configured — email not actually sent.`);
     console.log(`Verification link for ${to}:`);
     console.log(link);
-    console.log('--------------------------------------------------------------');
-    return { sent: false, reason: 'unconfigured', previewLink: link };
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    return { sent: false, reason: "unconfigured", previewLink: link };
   }
 
   try {
     await transporter.sendMail({
-      from: formatSender('support'),
+      from: formatSender("support"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
-      subject: 'Verify your Urban Phoenix account',
+      subject: "Verify your Urban Phoenix account",
       text: `Hi ${name},\n\nPlease verify your email address by opening this link:\n${link}\n\nThis link expires in 24 hours.\n\n— Urban Phoenix`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -781,9 +955,9 @@ export async function sendVerificationEmail({ to, name, link }) {
     });
     return { sent: true };
   } catch (error) {
-    console.error('Failed to send verification email:', error.message);
+    console.error("Failed to send verification email:", error.message);
     console.log(`Verification link for ${to}: ${link}`);
-    return { sent: false, reason: 'send-failed' };
+    return { sent: false, reason: "send-failed" };
   }
 }
 
@@ -791,19 +965,30 @@ export async function sendVerificationEmail({ to, name, link }) {
 // the customer's own address (never `from`) so a Zoho reply lands straight in
 // the customer's inbox without spoofing their domain — see server/contact-api.mjs
 // for the validation/sanitization this relies on before values ever reach here.
-export async function sendContactNotificationEmail({ name, email, topic, message }) {
+export async function sendContactNotificationEmail({
+  name,
+  email,
+  topic,
+  message,
+}) {
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
-    console.log('SMTP is not configured — contact form email not actually sent.');
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    console.log(
+      "SMTP is not configured — contact form email not actually sent.",
+    );
     console.log(`From: ${name} <${email}> — Topic: ${topic}`);
     console.log(message);
-    console.log('--------------------------------------------------------------');
-    return { sent: false, reason: 'unconfigured' };
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    return { sent: false, reason: "unconfigured" };
   }
 
   try {
     await transporter.sendMail({
-      from: formatSender('support'),
+      from: formatSender("support"),
       to: EMAIL_SENDERS.support.email,
       replyTo: email,
       subject: `[Contact] ${topic} — ${name}`,
@@ -821,8 +1006,8 @@ export async function sendContactNotificationEmail({ name, email, topic, message
     });
     return { sent: true };
   } catch (error) {
-    console.error('Failed to send contact notification email:', error.message);
-    return { sent: false, reason: 'send-failed' };
+    console.error("Failed to send contact notification email:", error.message);
+    return { sent: false, reason: "send-failed" };
   }
 }
 
@@ -831,14 +1016,14 @@ export async function sendContactNotificationEmail({ name, email, topic, message
 // the visitor, since the notification to support@ above is the send that
 // actually matters and has already been attempted/logged by the time this runs.
 export async function sendContactConfirmationEmail({ name, email, topic }) {
-  if (!isConfigured) return { sent: false, reason: 'unconfigured' };
+  if (!isConfigured) return { sent: false, reason: "unconfigured" };
 
   try {
     await transporter.sendMail({
-      from: formatSender('support'),
+      from: formatSender("support"),
       to: email,
       replyTo: EMAIL_SENDERS.support.email,
-      subject: 'We received your message — Urban Phoenix',
+      subject: "We received your message — Urban Phoenix",
       text: `Hi ${name},\n\nThanks for reaching out about "${topic}" — our support team has received your message and will get back to you shortly.\n\n— Urban Phoenix Support`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -851,8 +1036,8 @@ export async function sendContactConfirmationEmail({ name, email, topic }) {
     });
     return { sent: true };
   } catch (error) {
-    console.error('Failed to send contact confirmation email:', error.message);
-    return { sent: false, reason: 'send-failed' };
+    console.error("Failed to send contact confirmation email:", error.message);
+    return { sent: false, reason: "send-failed" };
   }
 }
 
@@ -864,46 +1049,52 @@ export async function sendContactConfirmationEmail({ name, email, topic }) {
 // there for loyalty/stock reversal.
 export async function sendOrderStatusEmail({ order, event }) {
   const to = order.customerEmail;
-  if (!to) return { sent: false, reason: 'no-recipient' };
+  if (!to) return { sent: false, reason: "no-recipient" };
 
   const copy = {
     shipped: {
       subject: `Your order has shipped — #${order.orderNumber} — Urban Phoenix`,
-      heading: 'Your order has shipped',
+      heading: "Your order has shipped",
       body: `Great news — order #${order.orderNumber} is on its way.`,
     },
     cancelled: {
       subject: `Order cancelled — #${order.orderNumber} — Urban Phoenix`,
-      heading: 'Your order was cancelled',
+      heading: "Your order was cancelled",
       body: `Order #${order.orderNumber} has been cancelled. If you didn't request this, please contact support.`,
     },
     refunded: {
       subject: `Refund issued — #${order.orderNumber} — Urban Phoenix`,
-      heading: 'Your refund has been issued',
+      heading: "Your refund has been issued",
       body: `A refund for order #${order.orderNumber} has been issued and should appear on your original payment method shortly.`,
     },
   }[event];
-  if (!copy) return { sent: false, reason: 'unknown-event' };
+  if (!copy) return { sent: false, reason: "unknown-event" };
 
   if (!isConfigured) {
-    console.log('--------------------------------------------------------------');
-    console.log(`SMTP is not configured — order ${event} email not actually sent.`);
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    console.log(
+      `SMTP is not configured — order ${event} email not actually sent.`,
+    );
     console.log(`Order #${order.orderNumber} → ${to}`);
-    console.log('--------------------------------------------------------------');
-    return { sent: false, reason: 'unconfigured' };
+    console.log(
+      "--------------------------------------------------------------",
+    );
+    return { sent: false, reason: "unconfigured" };
   }
 
   try {
     await transporter.sendMail({
-      from: formatSender('orders'),
+      from: formatSender("orders"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
       subject: copy.subject,
-      text: `Hi ${order.customerFirstName || ''},\n\n${copy.body}\n\nQuestions? Reply to this email or contact ${EMAIL_SENDERS.support.email}.\n\n— Urban Phoenix`,
+      text: `Hi ${order.customerFirstName || ""},\n\n${copy.body}\n\nQuestions? Reply to this email or contact ${EMAIL_SENDERS.support.email}.\n\n— Urban Phoenix`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
           <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">${escapeHtml(copy.heading)}</h2>
-          <p>Hi ${escapeHtml(order.customerFirstName || '')},</p>
+          <p>Hi ${escapeHtml(order.customerFirstName || "")},</p>
           <p>${escapeHtml(copy.body)}</p>
           <p style="color:#666; font-size:13px;">Questions? Reply to this email or contact ${escapeHtml(EMAIL_SENDERS.support.email)}.</p>
         </div>
@@ -911,7 +1102,10 @@ export async function sendOrderStatusEmail({ order, event }) {
     });
     return { sent: true };
   } catch (error) {
-    console.error(`Failed to send order ${event} email for order ${order.orderNumber}:`, error.message);
-    return { sent: false, reason: 'send-failed', error: error.message };
+    console.error(
+      `Failed to send order ${event} email for order ${order.orderNumber}:`,
+      error.message,
+    );
+    return { sent: false, reason: "send-failed", error: error.message };
   }
 }
