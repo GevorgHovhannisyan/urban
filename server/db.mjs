@@ -5,14 +5,10 @@ import mysql from "mysql2/promise";
 // node:sqlite writing to data/urbanphoenix.db — that file is no longer read
 // or written).
 const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
-
-const missingDbVariables = [
-  "DB_HOST",
-  "DB_PORT",
-  "DB_USER",
-  "DB_PASSWORD",
-  "DB_NAME",
-].filter((name) => !process.env[name]);
+console.log("DB_HOST:", { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME });
+const missingDbVariables = ["DB_HOST", "DB_PORT", "DB_USER", "DB_NAME"].filter(
+  (name) => !process.env[name],
+);
 
 if (missingDbVariables.length > 0) {
   throw new Error(

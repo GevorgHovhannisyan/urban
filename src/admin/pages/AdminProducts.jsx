@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 import AdminLayout, { Badge, Button, Input, Textarea, Checkbox } from '../components/AdminLayout';
@@ -6,6 +6,96 @@ import Modal, { ConfirmModal } from '../components/Modal';
 import { ARMENIA_LABEL, toArmeniaDatetimeLocal as toDatetimeLocal, fromArmeniaDatetimeLocal } from '../armeniaTime';
 
 const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
+
+// Bypasses adminFetch on purpose — it always forces
+// Content-Type: application/json, which breaks multipart uploads (the
+// browser needs to set its own boundary in that header). Same pattern as
+// AdminCommunity's photo grid: the server writes the file to public/uploads
+// (server/uploads.mjs) and hands back a "/uploads/<name>" path, which is the
+// only thing this product's `images` column ever stores — never raw bytes.
+async function uploadImageFile(token, file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/admin/uploads', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || 'Upload failed.');
+  return data.url;
+}
+
+// Product photo gallery — upload files directly (stored under
+// public/uploads, referenced in the DB only by their "/uploads/<name>" path)
+// or paste an external URL. Mirrors AdminCommunity's photo grid editor.
+function ImageGallery({ images, setImages, token, toast }) {
+  const [uploadingId, setUploadingId] = useState(null); // index, or 'new' for the add-photo button
+  const newFileInputRef = useRef(null);
+
+  const updateAt = (i, url) => setImages(images.map((img, idx) => (idx === i ? url : img)));
+  const removeAt = (i) => setImages(images.filter((_, idx) => idx !== i));
+
+  const handleReplaceUpload = async (i, file) => {
+    if (!file) return;
+    setUploadingId(i);
+    try {
+      updateAt(i, await uploadImageFile(token, file));
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
+  const handleNewUpload = async (file) => {
+    if (!file) return;
+    setUploadingId('new');
+    try {
+      setImages([...images, await uploadImageFile(token, file)]);
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-white/45 mb-2">Product images</p>
+      <div className="space-y-3">
+        {images.length === 0 && <p className="text-white/40 text-xs mb-2">No images yet — add one below.</p>}
+        {images.map((url, i) => (
+          <div key={i} className="border border-white/10 p-3 flex gap-3 items-start">
+            <div className="w-14 h-14 shrink-0 bg-white/5 relative">
+              {url && <img src={url} alt="" className="w-14 h-14 object-cover" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />}
+              {uploadingId === i && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-[9px] font-mono text-white/70">…</div>
+              )}
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Input label={`Image ${i + 1} URL`} value={url} onChange={(e) => updateAt(i, e.target.value)} placeholder="https://… or upload a photo" />
+              <label className="inline-block">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 hover:text-white transition-colors cursor-pointer underline underline-offset-4">
+                  {uploadingId === i ? 'Uploading…' : 'Upload a photo to replace this'}
+                </span>
+                <input type="file" accept="image/*" className="hidden" disabled={uploadingId === i} onChange={(e) => { handleReplaceUpload(i, e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
+            </div>
+            <Button variant="danger" onClick={() => removeAt(i)} className="shrink-0">Remove</Button>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-3 mt-3">
+        <Button variant="secondary" onClick={() => setImages([...images, ''])}>+ Add Image URL</Button>
+        <Button variant="secondary" disabled={uploadingId === 'new'} onClick={() => newFileInputRef.current?.click()}>
+          {uploadingId === 'new' ? 'Uploading…' : '+ Upload Photo'}
+        </Button>
+        <input ref={newFileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { handleNewUpload(e.target.files?.[0]); e.target.value = ''; }} />
+      </div>
+    </div>
+  );
+}
 
 // One blank hotspot row for "Add hotspot" — x/y default to the center-ish
 // so a freshly-added point is at least visible on the image before the
@@ -15,7 +105,7 @@ const EMPTY_GARMENT_EXPLORER = { enabled: true, frontImage: '', backImage: '', h
 
 const EMPTY_PRODUCT = {
   name: '', price: '', compareAtPrice: '', category: '', garmentType: '', subtitle: '', collection: '',
-  colors: '', sizes: '', images: '', description: '', materials: '', care: '',
+  colors: '', sizes: '', images: [], description: '', materials: '', care: '',
   shipping: 'Free shipping within Armenia. Orders dispatched within 1–2 business days.',
   returns: 'Free returns within 14 days of delivery. Items must be unworn with original tags attached.',
   isNew: false, isFeatured: false, isLimitedEdition: false, limitedEditionTotal: '', archived: false,
@@ -33,7 +123,7 @@ function toFormState(p) {
     limitedEditionTotal: p.limitedEditionTotal != null ? String(p.limitedEditionTotal) : '',
     colors: (p.colors || []).join(', '),
     sizes: (p.sizes || []).join(', '),
-    images: (p.images || []).join('\n'),
+    images: p.images || [],
     stock: p.stock || {},
     releaseAt: toDatetimeLocal(p.releaseAt),
     earlyAccessAt: toDatetimeLocal(p.earlyAccessAt),
@@ -115,7 +205,7 @@ function toPayload(form) {
     collection: form.collection,
     colors: form.colors.split(',').map((s) => s.trim()).filter(Boolean),
     sizes: form.sizes.split(',').map((s) => s.trim()).filter(Boolean),
-    images: form.images.split('\n').map((s) => s.trim()).filter(Boolean),
+    images: (form.images || []).map((s) => String(s).trim()).filter(Boolean),
     description: form.description,
     materials: form.materials,
     care: form.care,
@@ -233,7 +323,7 @@ function GarmentExplorerEditor({ form, setForm }) {
 }
 
 export default function AdminProducts({ onNavigate }) {
-  const { adminFetch } = useAdminAuth();
+  const { adminFetch, token } = useAdminAuth();
   const toast = useToast();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -371,7 +461,7 @@ export default function AdminProducts({ onNavigate }) {
         <Input label="Colors (comma separated)" value={form.colors} onChange={(e) => setForm({ ...form, colors: e.target.value })} />
         <Input label="Sizes (comma separated)" value={form.sizes} onChange={(e) => setForm({ ...form, sizes: e.target.value })} />
         <StockGrid form={form} setForm={setForm} />
-        <Textarea label="Image URLs (one per line)" rows={3} value={form.images} onChange={(e) => setForm({ ...form, images: e.target.value })} />
+        <ImageGallery images={form.images || []} setImages={(images) => setForm({ ...form, images })} token={token} toast={toast} />
         <Textarea label="Description" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         <div className="grid grid-cols-2 gap-3">
           <Textarea label="Materials" rows={2} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} />
