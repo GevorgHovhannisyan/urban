@@ -18,6 +18,26 @@ jobs:
   build:
     name: Build & test
     runs-on: ubuntu-latest
+    # tests/helpers/test-db.mjs and test-server.mjs open a real MySQL
+    # connection (and throw immediately if DB_USER isn't set) — every
+    # test:unit file that touches the DB and all of test:api need this.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: urban_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ""
+      DB_NAME: urban_ci
     steps:
       - uses: actions/checkout@v4
 
