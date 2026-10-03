@@ -10,7 +10,7 @@ APP_DIR=/var/www/urban
 SERVICE=urban-phoenix
 APP_USER=gev                                   # user the service runs as
 DB_NAME=urban
-APP_PORT=3000                                  # port your server.mjs listens on
+APP_PORT=4173                                  # port your server.mjs listens on
 HEALTH_URL="http://127.0.0.1:${APP_PORT}/"     # better: add /api/health to your app
 KEEP_BACKUPS=14
 # Files/folders on the server that a deploy must NEVER overwrite or delete:
