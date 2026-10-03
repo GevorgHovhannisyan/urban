@@ -29,14 +29,8 @@ export function assertSecureAdminConfig() {
   if (!isDefaultAdminPasswordConfigured()) return;
 
   // DANGER: Bypassing this leaves the admin panel vulnerable to takeover.
-  console.warn(
-    "WARNING: Running in production with default admin credentials!",
-  );
-  return;
-
-  /* 
   throw new Error(
-    'Refusing to start in production: ADMIN_PASSWORD is unset...'
+    "Refusing to start in production: ADMIN_PASSWORD is unset or still the documented default. " +
+      "Set a real ADMIN_PASSWORD in .env before starting the server.",
   );
-  */
 }

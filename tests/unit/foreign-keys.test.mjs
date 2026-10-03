@@ -29,8 +29,8 @@ test('foreign key enforcement is active on this connection', async () => {
 test('inserting a customer_address for a nonexistent customerId is rejected', async () => {
   await assert.rejects(
     run(
-      `INSERT INTO customer_addresses (id, customerId, firstName, lastName, country, city, postalCode, address)
-       VALUES (?, ?, 'Ghost', 'Customer', 'Armenia', 'Yerevan', '0001', '1 St')`,
+      `INSERT INTO customer_addresses (id, customerId, firstName, lastName, phone, country, city, postalCode, address, apartment)
+       VALUES (?, ?, 'Ghost', 'Customer', '555-0000', 'Armenia', 'Yerevan', '0001', '1 St', '')`,
       [randomUUID(), 'this-customer-id-does-not-exist']
     ),
     /foreign key constraint fails/i
@@ -47,8 +47,8 @@ test('inserting a real customer, then an address for them, succeeds (enforcement
 
   await assert.doesNotReject(
     run(
-      `INSERT INTO customer_addresses (id, customerId, firstName, lastName, country, city, postalCode, address)
-       VALUES (?, ?, 'Real', 'Customer', 'Armenia', 'Yerevan', '0001', '1 St')`,
+      `INSERT INTO customer_addresses (id, customerId, firstName, lastName, phone, country, city, postalCode, address, apartment)
+       VALUES (?, ?, 'Real', 'Customer', '555-0000', 'Armenia', 'Yerevan', '0001', '1 St', '')`,
       [randomUUID(), customerId]
     )
   );
@@ -63,8 +63,8 @@ test('deleting a customer cascades to their addresses (ON DELETE CASCADE is hono
     [customerId, `fk-cascade-${customerId}@example.com`]
   );
   await run(
-    `INSERT INTO customer_addresses (id, customerId, firstName, lastName, country, city, postalCode, address)
-     VALUES (?, ?, 'Cascade', 'Customer', 'Armenia', 'Yerevan', '0001', '1 St')`,
+    `INSERT INTO customer_addresses (id, customerId, firstName, lastName, phone, country, city, postalCode, address, apartment)
+     VALUES (?, ?, 'Cascade', 'Customer', '555-0000', 'Armenia', 'Yerevan', '0001', '1 St', '')`,
     [addressId, customerId]
   );
 
