@@ -809,6 +809,30 @@ body {
   color: var(--color-accent);
 }
 
+/* The desktop language/currency control floats over the same unpredictable
+   hero photo as .up-nav/.up-icon above, but .header-select__trigger's own
+   default color is var(--text-primary) — correct for .mobile-preferences
+   (always on the mobile menu's solid, theme-colored panel) but wrong here:
+   in the light theme that resolves near-black, which disappears against a
+   dark hero photo. Scoped to .header-preferences (the desktop-only
+   wrapper) so the mobile instance is untouched. */
+.header-preferences .header-select__trigger,
+.header-preferences .header-select__chevron-icon {
+  color: rgba(245, 245, 243, .75);
+}
+.header-preferences .header-select__trigger:hover,
+.header-preferences .header-select__trigger[aria-expanded="true"] {
+  color: #fff;
+}
+.site-header--solid .header-preferences .header-select__trigger,
+.site-header--solid .header-preferences .header-select__chevron-icon {
+  color: var(--text-secondary);
+}
+.site-header--solid .header-preferences .header-select__trigger:hover,
+.site-header--solid .header-preferences .header-select__trigger[aria-expanded="true"] {
+  color: var(--color-accent);
+}
+
 /* .site-header (the <nav>) only ever changes color — background-color/
    backdrop-filter/border-color — never its own position. Two states, driven
    by Navbar.jsx:
@@ -1724,6 +1748,11 @@ body.size-guide-open .site-header {
   margin-bottom: 30px;
   border: 1px solid var(--accent);
   padding: 10px;
+  /* The source art is opaque black ink on a solid white backdrop (no alpha
+     channel) — painting that same white here (not a theme token) is what
+     keeps the mark crisp and legible on both the dark and light surface,
+     rather than relying on a blend mode meant for photo overlays. */
+  background: #fff;
 }
 .region-popup__mark-img {
   width: 100%;
@@ -1768,19 +1797,30 @@ body.size-guide-open .site-header {
   letter-spacing: .14em;
   text-transform: uppercase;
 }
-.region-popup__group ul { display: flex; flex-direction: column; gap: 4px; }
+.region-popup__group ul { display: flex; flex-direction: column; gap: 8px; }
+/* Was plain text at a hardcoded #c7c7c7 — legible on the dark theme's
+   near-black surface but nearly invisible on the light theme's near-white
+   one. Styled as a real bordered chip (matching the outline-button
+   language used elsewhere, e.g. the homepage hero's secondary CTA) so it
+   both reads as clickable and uses theme tokens instead of a literal
+   color, so contrast holds in both themes. */
 .region-popup__group button {
   width: 100%;
-  padding: 5px 0;
-  border: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
   background: transparent;
-  color: #c7c7c7;
+  color: var(--text-primary);
   font-size: 13px;
   text-align: left;
-  transition: color .15s ease;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
 }
 .region-popup__group button:hover,
-.region-popup__group button:focus-visible { color: var(--accent); }
+.region-popup__group button:focus-visible {
+  border-color: var(--accent);
+  background: var(--hover-overlay);
+  color: var(--accent);
+}
+.region-popup__group button:active { background: var(--active-overlay); }
 .region-popup__skip {
   display: block;
   margin: 30px auto 0;

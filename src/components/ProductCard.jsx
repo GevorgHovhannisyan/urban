@@ -185,7 +185,14 @@ export default function ProductCard({ product, showQuickAdd = true }) {
 
       {/* Info */}
       <a href={href} onClick={handleNavigate} className="block pt-3 pb-1 cursor-pointer">
-        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+        {/* Stacked by default, inline from lg: up — matching the breakpoint
+            the product grids themselves switch column count at (2 cols
+            below lg, more above). Sharing one row with justify-between
+            let the price span squeeze the flexible title column down to
+            almost nothing on a narrow 2-column card, wrapping a short
+            title one word per line; stacking removes that competition for
+            width entirely instead of trying to out-shrink it. */}
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-x-2 gap-y-1 transition-transform duration-300 ease-out group-hover:translate-x-0.5">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-mono text-muted tracking-widest uppercase mb-0.5">
               {product.subtitle}

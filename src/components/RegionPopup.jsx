@@ -28,7 +28,13 @@ export default function RegionPopup() {
         aria-labelledby="region-popup-title"
       >
         <div className="region-popup__mark" aria-hidden="true">
-          <img src="/images/brand/up-logo.png" alt="" className="region-popup__mark-img" style={{ filter: 'invert(1)', mixBlendMode: 'screen' }} />
+          {/* Unlike the navbar's logo, this mark always sits on the modal's
+              own opaque surface (never an unpredictable hero photo), so it
+              needs none of the navbar's invert+screen photo-compositing
+              trick — the source art's native white backdrop is simply
+              painted to match via .region-popup__mark's background,
+              keeping the black ink legible in both themes. */}
+          <img src="/images/brand/up-logo.png" alt="" className="region-popup__mark-img" />
         </div>
         <p className="region-popup__eyebrow">Shipping &amp; pricing</p>
         <h2 id="region-popup-title">Select your country</h2>

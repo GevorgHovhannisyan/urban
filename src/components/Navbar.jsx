@@ -341,16 +341,16 @@ export default function Navbar() {
 
         <nav className={`site-header w-full h-[68px] ${solidHeader ? 'site-header--solid' : ''}`}>
         <div className="site-header__inner relative max-w-screen-2xl mx-auto h-full px-6 lg:px-6 xl:px-12 flex items-center">
-          {/* The logo is absolutely centered in the nav rather than living in
-              a 3-column grid/flex split — a 1fr/auto/1fr grid was tried, but
-              CSS Grid's `1fr` tracks aren't equal when one side's content is
-              hidden (empty on mobile, since the nav-links column is `hidden
-              lg:flex`) and the other has real icons: the track with content
-              gets a larger auto-minimum before the fr split, so the "equal"
-              1fr columns actually differ and the logo skewed toward the
-              empty side (visually confirmed off-center at every width below
-              lg). Absolute centering is correct regardless of how
-              unbalanced the two side clusters are, at any breakpoint. */}
+          {/* From lg: up, the logo is absolutely centered in the nav rather
+              than living in a 3-column grid/flex split — a 1fr/auto/1fr
+              grid was tried, but CSS Grid's `1fr` tracks aren't equal when
+              one side's content is hidden (empty below lg, since this
+              nav-links column is `hidden lg:flex`) and the other has real
+              icons: the track with content gets a larger auto-minimum
+              before the fr split, so the "equal" 1fr columns actually
+              differ and the logo skewed toward the empty side. Below lg,
+              this column is hidden entirely and the logo sits left-aligned
+              instead (see the comment on the logo link itself). */}
           <div className="hidden lg:flex items-center justify-start gap-2 min-[1150px]:gap-4 xl:gap-8">
             <ShopMegaMenu navigate={navigate} />
             {hasActiveDrop && <a href={pageToPath('drop')} onClick={go('drop')} className="up-nav">{t('New Drop')}</a>}
@@ -359,7 +359,14 @@ export default function Navbar() {
             <a href={pageToPath('about')} onClick={go('about')} className="up-nav">{t('About')}</a>
           </div>
 
-          <a href={pageToPath('home')} onClick={go('home')} className="absolute left-1/2 top-1/2 shrink-0" style={{ transform: 'translate(-50%, -50%)' }} aria-label="Urban Phoenix — home">
+          {/* Absolutely centered only from lg: up, where the left nav-links
+              cluster is actually in flow (see the comment above this
+              block) — below lg that cluster is `hidden`, so a plain,
+              non-absolute logo here is simply the first visible flex child
+              and sits naturally at the left edge next to where the nav
+              links would be, with the icon cluster's `ml-auto` still
+              pushing itself to the right as before. */}
+          <a href={pageToPath('home')} onClick={go('home')} className="shrink-0 lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2" aria-label="Urban Phoenix — home">
             {/* Source art is black ink on a solid white backdrop (no alpha
                 channel). Over the transparent state (still floating on the
                 hero photo, which carries its own dark scrim independent of
