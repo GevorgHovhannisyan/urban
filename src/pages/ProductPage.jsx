@@ -357,6 +357,7 @@ export default function ProductPage({ product }) {
                     quantity={quantity}
                     value={editionNumbers}
                     onChange={(numbers) => { setEditionNumbers(numbers); setEditionError(false); }}
+                    error={editionError}
                   />
                   {editionError && <p className="edition-error">{t('Choose one number for each item')}</p>}
                 </>

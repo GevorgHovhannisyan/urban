@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { useDialogBehavior } from '../hooks/useDialogBehavior';
 
-const formatEdition = (number, total) => `${String(number).padStart(3, '0')} / ${String(total).padStart(3, '0')}`;
+const pad = (number) => String(number).padStart(3, '0');
 
 // Customer-facing piece-number picker for a Limited Edition product. `total`
 // is this product's own real limitedEditionTotal (server/products-api.mjs) —
@@ -14,10 +14,10 @@ const formatEdition = (number, total) => `${String(number).padStart(3, '0')} / $
 // the race first, checkout surfaces a clear "no longer available" error and
 // (CheckoutPage.jsx) sends the shopper back here to pick again — nothing
 // this component shows is ever treated as a guarantee by the backend.
-export default function LimitedEditionSelector({ productId, total, quantity, value, onChange }) {
+export default function LimitedEditionSelector({ productId, total, quantity, value, onChange, error = false }) {
   const { t } = useApp();
   const [open, setOpen] = useState(false);
-  const [sold, setSold] = useState([]);
+  const [sold, setSold] = useState(null);
   const [loading, setLoading] = useState(false);
   const selected = Array.isArray(value) ? value : [];
   const modalRef = useRef(null);
@@ -29,6 +29,8 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
       const response = await fetch(`/api/editions?productId=${encodeURIComponent(productId)}`);
       const data = await response.json();
       if (response.ok) setSold(Array.isArray(data.sold) ? data.sold : []);
+    } catch {
+      // Availability is a convenience here — checkout re-validates anyway.
     } finally {
       setLoading(false);
     }
@@ -39,21 +41,43 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quantity]);
 
+  // Loaded up front (for the "X left" count on the page) and refreshed every
+  // time the picker opens, so the grid never shows stale availability.
+  useEffect(() => {
+    loadEditions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
   useEffect(() => {
     if (open) loadEditions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, productId]);
+  }, [open]);
 
-  const remaining = useMemo(() => Math.max(0, total - sold.length), [sold, total]);
+  const soldList = sold || [];
+  const remaining = useMemo(() => Math.max(0, total - soldList.length), [soldList, total]);
+  const isComplete = selected.length === quantity;
 
   const toggle = (number) => {
-    if (sold.includes(number)) return;
+    if (soldList.includes(number)) return;
     if (selected.includes(number)) {
       onChange(selected.filter((item) => item !== number));
       return;
     }
-    if (selected.length >= quantity) return;
-    onChange([...selected, number].sort((a, b) => a - b));
+    // Already picked enough — swap out the most recent pick instead of
+    // blocking the tap, so changing your mind is a single click.
+    const base = selected.length >= quantity ? selected.slice(0, quantity - 1) : selected;
+    onChange([...base, number].sort((a, b) => a - b));
+  };
+
+  const pickRandom = () => {
+    const free = Array.from({ length: total }, (_, i) => i + 1)
+      .filter((n) => !soldList.includes(n) && !selected.includes(n));
+    const needed = quantity - selected.length;
+    if (needed <= 0 || free.length === 0) return;
+    const picks = [];
+    for (let i = 0; i < needed && free.length; i += 1) {
+      picks.push(free.splice(Math.floor(Math.random() * free.length), 1)[0]);
+    }
+    onChange([...selected, ...picks].sort((a, b) => a - b));
   };
 
   return (
@@ -68,28 +92,63 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
             <strong>LIMITED TO {total} PIECES.</strong>
           </div>
         </div>
+        {sold && (
+          <span className="limited-edition__remaining">
+            {remaining} / {total} <span>{t('left')}</span>
+          </span>
+        )}
       </div>
 
-      <p className="limited-edition__prompt">Choose the number that becomes yours.</p>
+      <p className="limited-edition__prompt">
+        {t('Every piece is individually numbered. Choose yours before adding to bag.')}
+      </p>
 
-      <button type="button" className="limited-edition__trigger" onClick={() => setOpen(true)}>
-        <span>{selected.length ? 'YOUR PIECE' : t('Select Your Piece')}</span>
-        {selected.length > 0 && <span>{selected.map((n) => formatEdition(n, total)).join(', ')}</span>}
-      </button>
-
-      <button type="button" className="limited-edition__view-link" onClick={() => setOpen(true)}>
-        View available numbers →
+      <button
+        type="button"
+        className={`limited-edition__trigger ${selected.length ? 'is-chosen' : ''} ${error ? 'is-error' : ''}`}
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+      >
+        <span className="limited-edition__badge" aria-hidden="true">#</span>
+        <span className="limited-edition__trigger-text">
+          {selected.length ? (
+            <>
+              <small>{t('Your Number')}</small>
+              <span className="limited-edition__numbers">
+                {selected.map((n) => (
+                  <span key={n}>{pad(n)}<em> / {pad(total)}</em></span>
+                ))}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="limited-edition__cta">{t('Choose Your Number')}</span>
+              <small>{t('Tap to see which numbers are still available')}</small>
+            </>
+          )}
+        </span>
+        <span className="limited-edition__action">
+          {selected.length ? t('Change') : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          )}
+        </span>
       </button>
 
       {open && createPortal(
-        <div ref={modalRef} className="edition-modal" role="dialog" aria-modal="true">
+        <div ref={modalRef} className="edition-modal" role="dialog" aria-modal="true" aria-label={t('Choose Your Number')}>
           <button className="edition-modal__overlay" type="button" onClick={() => setOpen(false)} aria-label={t('Close')} />
           <section className="edition-modal__panel">
             <header className="edition-modal__header">
               <div>
                 <span>URBAN PHOENIX — LIMITED DROP</span>
-                <h2>{t('Select Your Piece')}</h2>
-                <p>{t('Choose one number for each item')} ({selected.length}/{quantity}) &nbsp;·&nbsp; {remaining} / {total} remaining</p>
+                <h2>{t('Choose Your Number')}</h2>
+                <p>
+                  <span>{t('Choose one number for each item')}</span>
+                  <span className="edition-modal__count"> {selected.length}/{quantity}</span>
+                  {sold && <span> · {remaining} / {total} <span>{t('available')}</span></span>}
+                </p>
               </div>
               <button type="button" className="edition-modal__close" onClick={() => setOpen(false)} aria-label={t('Close')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -98,23 +157,34 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
               </button>
             </header>
 
-            {loading ? (
+            <div className="edition-modal__legend">
+              <span><i className="edition-swatch" />{t('Available')}</span>
+              <span><i className="edition-swatch is-selected" />{t('Your pick')}</span>
+              <span><i className="edition-swatch is-sold" />{t('Taken')}</span>
+              <button type="button" className="edition-modal__random" onClick={pickRandom} disabled={loading || isComplete || remaining === 0}>
+                {t('Pick for me')}
+              </button>
+            </div>
+
+            {loading && !sold ? (
               <div className="edition-modal__loading">Loading…</div>
             ) : (
               <div className="edition-modal__grid">
                 {Array.from({ length: total }, (_, index) => index + 1).map((number) => {
-                  const isSold = sold.includes(number);
+                  const isSold = soldList.includes(number);
                   const isSelected = selected.includes(number);
                   return (
                     <button
                       key={number}
                       type="button"
-                      disabled={isSold || (!isSelected && selected.length >= quantity)}
+                      disabled={isSold}
+                      aria-pressed={isSelected}
+                      aria-label={`${pad(number)}${isSold ? ` — ${t('Taken')}` : ''}`}
                       className={`edition-number ${isSold ? 'is-sold' : ''} ${isSelected ? 'is-selected' : ''}`}
                       onClick={() => toggle(number)}
                     >
-                      <strong>{String(number).padStart(3, '0')}</strong>
-                      <small>{isSold ? t('Sold out') : isSelected ? '✓' : ''}</small>
+                      <strong>{pad(number)}</strong>
+                      {isSelected && <small aria-hidden="true">✓</small>}
                     </button>
                   );
                 })}
@@ -122,11 +192,11 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
             )}
 
             <footer className="edition-modal__footer">
-              <button type="button" className="edition-modal__clear" onClick={() => onChange([])}>{t('Clear')}</button>
+              <button type="button" className="edition-modal__clear" onClick={() => onChange([])} disabled={!selected.length}>{t('Clear')}</button>
               <button
                 type="button"
                 className="edition-modal__confirm"
-                disabled={selected.length !== quantity}
+                disabled={!isComplete}
                 onClick={() => setOpen(false)}
               >
                 {t('Confirm Selection')} ({selected.length}/{quantity})
