@@ -10,19 +10,6 @@ import CountrySelect from '../components/CountrySelect';
 import CitySelect from '../components/CitySelect';
 import { getCountryName, getCountryCode, SUPPORTED_SHIPPING_COUNTRIES, isSupportedShippingCountry } from '../data/countries';
 
-// A gift card's remaining balance is shown in its OWN currency here (not
-// converted through the shopper's selected display currency/formatMoney) —
-// the order summary's actual "Gift card" discount line below already shows
-// the USD-equivalent amount being applied to this order, so this is purely
-// "here's what's left on the card itself" context, not a second total.
-function fmtGiftCardBalance(value, currency) {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: currency === 'AMD' ? 0 : 2 }).format(Number(value) || 0);
-  } catch {
-    return `${Number(value || 0).toFixed(2)} ${currency}`;
-  }
-}
-
 const initialForm = {
   firstName: '',
   lastName: '',
@@ -69,7 +56,7 @@ const PAYMENT_METHOD_DISPLAY_LABELS = {
 };
 
 export default function CheckoutPage() {
-  const { cart, cartTotal, formatMoney, clearCart, navigate, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, promo, discountAmount, giftCard, giftCardAmount, applyGiftCard, removeGiftCard, theme } = useApp();
+  const { cart, cartTotal, formatMoney, clearCart, navigate, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, promo, discountAmount, giftCard, giftCardAmount, theme } = useApp();
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState({});
   const [requestError, setRequestError] = useState('');
@@ -344,25 +331,6 @@ export default function CheckoutPage() {
       })
       .catch(() => {});
   }, [user]);
-  const [giftCardInput, setGiftCardInput] = useState('');
-  const [giftCardError, setGiftCardError] = useState('');
-  const [giftCardChecking, setGiftCardChecking] = useState(false);
-
-  const applyGiftCardCode = async () => {
-    if (!giftCardInput.trim() || giftCardChecking) return;
-    setGiftCardChecking(true);
-    setGiftCardError('');
-    const result = await applyGiftCard(giftCardInput);
-    if (!result.ok) setGiftCardError(result.error);
-    setGiftCardChecking(false);
-  };
-
-  const removeGiftCardCode = () => {
-    removeGiftCard();
-    setGiftCardInput('');
-    setGiftCardError('');
-  };
-
   const update = (event) => {
     const { name, value } = event.target;
     if (name === 'country') countryTouched.current = true;
@@ -793,45 +761,13 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* Promo code and gift card entry live on the Cart page only (one
+                  entry point each) — anything already applied there still
+                  flows through from AppContext into the totals below and the
+                  order payload untouched. */}
+              {user && loyaltyPointsValue > 0 && (
               <div className="border-t border-border mt-6 pt-5">
-                {/* Promo code entry lives on the Cart page only (avoids a
-                    second, redundant entry point and any risk of applying
-                    two codes) — an already-applied promo's discount still
-                    flows through from AppContext into the totals below and
-                    the order payload untouched. */}
-                {giftCard ? (
-                  <div className="checkout-promo-applied flex items-center justify-between text-sm mb-4">
-                    <span>
-                      Gift card <strong>{giftCard.code}</strong> applied
-                      {giftCard.currency && giftCard.balance != null && (
-                        <span className="text-muted"> ({fmtGiftCardBalance(giftCard.balance, giftCard.currency)} balance)</span>
-                      )}
-                    </span>
-                    <button type="button" onClick={removeGiftCardCode} className="underline text-muted hover:text-fg">Remove</button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      type="text"
-                      value={giftCardInput}
-                      onChange={(event) => { setGiftCardInput(event.target.value); setGiftCardError(''); }}
-                      placeholder="Gift card code"
-                      className="up-input flex-1"
-                      style={{ textTransform: 'uppercase' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={applyGiftCardCode}
-                      disabled={giftCardChecking || !giftCardInput.trim()}
-                      className="border border-border px-5 uppercase text-xs tracking-widest disabled:opacity-50"
-                    >
-                      {giftCardChecking ? '…' : 'Apply'}
-                    </button>
-                  </div>
-                )}
-                {giftCardError && <p className="checkout-error mb-4" role="alert">{giftCardError}</p>}
 
-                {user && loyaltyPointsValue > 0 && (
                   <label className="flex items-center justify-between gap-3 text-sm cursor-pointer mb-4">
                     <span className="flex items-center gap-2">
                       <input
@@ -843,10 +779,10 @@ export default function CheckoutPage() {
                       Use my {loyaltyPoints} points for {formatMoney(loyaltyPointsValue, { regional: false })} off
                     </span>
                   </label>
-                )}
               </div>
+              )}
 
-              <div className="border-t border-border pt-5 space-y-3">
+              <div className="border-t border-border mt-6 pt-5 space-y-3">
                 <div key={`subtotal-${cartTotal}`} className="flex justify-between text-muted"><span>Subtotal</span><span>{formatMoney(cartTotal, { regional: false })}</span></div>
                 {discountAmount > 0 && (
                   <div key={`discount-${discountAmount}`} className="flex justify-between text-accent"><span>Discount</span><span>−{formatMoney(discountAmount, { regional: false })}</span></div>
