@@ -467,7 +467,7 @@ export function initDb() {
       // pre-existing order simply has NULL for fields it predates, and
       // nothing that already reads/writes the orders table needs to change.
       await ensureColumn("orders", "deliveryMethod", "VARCHAR(32) NULL");
-      // The real delivery-time estimate text (e.g. "Up to 3 business days"),
+      // The real delivery-time estimate text (e.g. "3–4 business days"),
       // resolved from server/delivery.mjs and snapshotted onto the order at
       // commit time — same reasoning as every other order-item snapshot in
       // this codebase (price, product name, edition number): if the business

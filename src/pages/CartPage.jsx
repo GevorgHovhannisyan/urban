@@ -3,9 +3,9 @@ import { useApp } from '../context/AppContext';
 import ScrollReveal from '../components/ScrollReveal';
 import { handleImgError } from '../utils/imageFallback';
 import { useMagnetic } from '../hooks/useMagnetic';
-import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping, ARMENIA_MAX_DELIVERY_DAYS, US_MAX_DELIVERY_DAYS } from '../data/shippingRules';
+import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping, DELIVERY_ESTIMATES } from '../data/shippingRules';
 export default function CartPage() {
-    const { cart, formatMoney, removeFromCart, updateQuantity, cartTotal, navigate, promo, discountAmount, applyPromoCode, removePromoCode, giftCard, giftCardAmount, applyGiftCard, removeGiftCard, visitorCountry, isUnitedStates } = useApp();
+    const { cart, formatMoney, removeFromCart, updateQuantity, cartTotal, navigate, promo, discountAmount, applyPromoCode, removePromoCode, giftCard, giftCardAmount, applyGiftCard, removeGiftCard, visitorCountry, freeShippingThresholdApplies } = useApp();
     const checkoutBtnRef = useMagnetic(4);
     const [promoInput, setPromoInput] = useState('');
     const [promoError, setPromoError] = useState('');
@@ -20,22 +20,22 @@ export default function CartPage() {
     // checkout from the address the customer actually enters there
     // (server/delivery.mjs), which can differ from this guess (see
     // order-api.mjs's validateOrderDraft — the delivery address always
-    // wins). Urban Phoenix currently ships only to Armenia and the United
-    // States (SUPPORTED_SHIPPING_COUNTRIES, src/data/countries.js) — a
+    // wins). Urban Phoenix currently ships only to Armenia, the United
+    // States and Russia (SUPPORTED_SHIPPING_COUNTRIES, src/data/countries.js) — a
     // visitor detected as neither gets a neutral, honest message naming
-    // those two, never a "worldwide"/generic "international shipping"
+    // those three, never a "worldwide"/generic "international shipping"
     // claim implying broader coverage. The cart doesn't yet know a city, so
-    // Armenia shows the honest ceiling (up to 7 days) rather than ever
+    // Armenia shows both Yerevan and regional estimates rather than ever
     // claiming Yerevan-speed delivery before a real address is entered —
     // the actual city-aware estimate only ever appears at Checkout/on the
     // order once the real destination is known.
     const shippingMessage = visitorCountry === 'AM'
-      ? `Armenia — free shipping, up to ${ARMENIA_MAX_DELIVERY_DAYS} business days.`
-      : isUnitedStates
+      ? `Armenia — free shipping. Yerevan ${DELIVERY_ESTIMATES.yerevan}, other regions ${DELIVERY_ESTIMATES.armeniaRegions} business days.`
+      : freeShippingThresholdApplies
         ? (qualifiesForFreeUsShipping(cartTotal)
-          ? `You've unlocked free U.S. shipping — up to ${US_MAX_DELIVERY_DAYS} business days.`
-          : `${formatMoney(Math.max(0, FREE_US_SHIPPING_THRESHOLD - cartTotal), { regional: false })} away from free U.S. shipping.`)
-        : 'We currently ship to Armenia and the United States. Shipping calculated at checkout.';
+          ? `You've unlocked free ${visitorCountry === 'RU' ? 'Russia' : 'U.S.'} shipping — ${visitorCountry === 'RU' ? DELIVERY_ESTIMATES.russia : DELIVERY_ESTIMATES.unitedStates} business days.`
+          : `${formatMoney(Math.max(0, FREE_US_SHIPPING_THRESHOLD - cartTotal), { regional: false })} away from free ${visitorCountry === 'RU' ? 'Russia' : 'U.S.'} shipping.`)
+        : 'We currently ship to Armenia, the United States and Russia. Shipping calculated at checkout.';
 
     const applyPromo = async () => {
         if (!promoInput.trim() || promoChecking) return;

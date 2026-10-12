@@ -14,7 +14,7 @@ import { useDialogBehavior } from '../hooks/useDialogBehavior';
 import { Block, TextLinesSkeleton } from '../components/Skeleton';
 import Icon from '../components/Icon';
 import { useMagnetic } from '../hooks/useMagnetic';
-import { FREE_US_SHIPPING_THRESHOLD, ARMENIA_MAX_DELIVERY_DAYS, US_MAX_DELIVERY_DAYS } from '../data/shippingRules';
+import { FREE_US_SHIPPING_THRESHOLD, DELIVERY_ESTIMATES } from '../data/shippingRules';
 // Accordion keys stay stable (openSections, tabContent) — only the
 // customer-facing label changes, separating emotional "Product Story" copy
 // from the technical spec sections per the storytelling/technical split.
@@ -32,7 +32,7 @@ function StarRating({ rating }) {
     </div>);
 }
 export default function ProductPage({ product }) {
-    const { addToCart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView, visitorCountry, isUnitedStates } = useApp();
+    const { addToCart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView, visitorCountry, isUnitedStates, isRussia } = useApp();
     const [selectedSize, setSelectedSize] = useState('');
     const [selectedColor, setSelectedColor] = useState(product.colors[0]);
     const [quantity, setQuantity] = useState(1);
@@ -400,22 +400,21 @@ export default function ProductPage({ product }) {
             { icon: 'returns', label: 'Free Returns', sub: '14-day policy' },
             { icon: 'truck', label: 'Fast Local Delivery', sub: '1–2 day dispatch' },
             // Real, region-aware shipping messaging — Urban Phoenix currently
-            // ships only to Armenia and the United States
+            // ships only to Armenia, the United States and Russia
             // (SUPPORTED_SHIPPING_COUNTRIES, src/data/countries.js), never a
             // blanket "worldwide"/generic "international" claim. visitorCountry
             // is a detected/UX default only; the real charge and real
             // delivery estimate are always decided by the full address
-            // entered at checkout. Armenia shows the honest ceiling (up to
-            // ARMENIA_MAX_DELIVERY_DAYS) rather than ever claiming Yerevan-
-            // speed delivery here — this page has no shipping city yet, only
-            // a detected country, so it can't tell Yerevan from another
-            // region; only Checkout (and the order/email/account/admin
-            // surfaces after it) knows the real city and can say "up to 3".
+            // entered at checkout. Armenia shows both the Yerevan and the
+            // regional estimate — this page has no shipping city yet, only a
+            // detected country, so it can't tell Yerevan from another region.
             visitorCountry === 'AM'
-              ? { icon: 'globe', label: 'Armenia — Free Shipping', sub: `Up to ${ARMENIA_MAX_DELIVERY_DAYS} business days` }
+              ? { icon: 'globe', label: 'Armenia — Free Shipping', sub: `Yerevan ${DELIVERY_ESTIMATES.yerevan} · Regions ${DELIVERY_ESTIMATES.armeniaRegions} business days` }
               : isUnitedStates
-                ? { icon: 'globe', label: 'United States — Free Shipping', sub: `On orders $${FREE_US_SHIPPING_THRESHOLD}+ · up to ${US_MAX_DELIVERY_DAYS} business days` }
-                : { icon: 'globe', label: 'Ships To Armenia & U.S.', sub: 'Select your country at checkout' },
+                ? { icon: 'globe', label: 'United States — Free Shipping', sub: `On orders $${FREE_US_SHIPPING_THRESHOLD}+ · ${DELIVERY_ESTIMATES.unitedStates} business days` }
+                : isRussia
+                  ? { icon: 'globe', label: 'Russia — Free Shipping', sub: `On orders $${FREE_US_SHIPPING_THRESHOLD}+ · ${DELIVERY_ESTIMATES.russia} business days` }
+                  : { icon: 'globe', label: 'Ships To Armenia, U.S. & Russia', sub: 'Select your country at checkout' },
             { icon: 'shieldCheck', label: 'Authentic', sub: 'Quality guaranteed' },
         ].map(item => (<div key={item.label} className="text-center">
                   <Icon name={item.icon} size={20} strokeWidth={1.4} className="text-muted mx-auto mb-1.5" />

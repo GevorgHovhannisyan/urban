@@ -162,7 +162,7 @@ function validateAddressPayload(payload = {}) {
   // <CountrySelect> in AccountAddresses.jsx already only offers
   // Armenia/the United States, but this never trusts that alone).
   if (!isSupportedShippingCountry(fields.country)) {
-    return { error: 'We currently ship only to Armenia and the United States. Please select one of those as the address country.' };
+    return { error: 'We currently ship only to Armenia, the United States and Russia. Please select one of those as the address country.' };
   }
   return { fields };
 }

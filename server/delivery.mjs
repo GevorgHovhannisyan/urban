@@ -7,8 +7,8 @@
 // Zones are resolved from the delivery address (country/city) — this is
 // the ONE place the actual business rules live (see the site's announcement
 // bar copy and tests/api/shipping-rule.test.mjs): Armenia ships free
-// regardless of subtotal, U.S. orders of $150.00 or more ship free
-// (inclusive — see qualifiesForFree below), everywhere else pays a flat
+// regardless of subtotal, U.S. and Russia orders of $150.00 or more ship
+// free (inclusive — see qualifiesForFree below), everywhere else pays a flat
 // international fee. This is resolved from the customer's real submitted
 // delivery address only (order-api.mjs's validateOrderDraft passes
 // customerResult.value.country/city here) — never from IP/locale/timezone-
@@ -38,23 +38,26 @@ const normalize = (value) => String(value || '').trim().toLowerCase();
 // duplicating this matching logic itself.
 const isArmenia = (country) => ['armenia', 'am'].includes(normalize(country));
 const isUnitedStates = (country) => ['united states', 'us', 'usa'].includes(normalize(country));
+const isRussia = (country) => ['russia', 'russian federation', 'ru'].includes(normalize(country));
 const isYerevan = (city) => normalize(city) === 'yerevan';
 
 function resolveZone({ country, city }) {
   if (isArmenia(country)) return isYerevan(city) ? 'yerevan' : 'armenia_regional';
   if (isUnitedStates(country)) return 'united_states';
+  if (isRussia(country)) return 'russia';
   return 'international';
 }
 
 function methodsForZone(zone, { subtotal = 0 } = {}) {
   switch (zone) {
     case 'yerevan':
-      // "Up to N business days" everywhere (never a range, never a promised
-      // exact date) — this is the one place that wording is decided; every
-      // display surface (checkout, order confirmation, email, account,
-      // admin) shows this exact string, never its own re-worded estimate.
+      // "N–M business days" — this is the one place that wording is
+      // decided; every display surface (checkout, order confirmation, email,
+      // account, admin) shows this exact string, never its own re-worded
+      // estimate. Keep in sync with src/data/shippingRules.js's
+      // DELIVERY_ESTIMATES (pre-checkout display) and legalPolicies.js.
       return [
-        { id: 'standard', label: 'Standard Delivery', description: 'Up to 3 business days', cost: 0 },
+        { id: 'standard', label: 'Standard Delivery', description: '3–4 business days', cost: 0 },
         { id: 'express', label: 'Express Delivery', description: 'Same-day / next-day', cost: 4 },
         { id: 'pickup', label: 'Pickup', description: 'Free — collect from our Yerevan studio', cost: 0 },
       ];
@@ -64,7 +67,7 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       // zone exists to carry its own ETA/method availability (no same-day
       // express outside Yerevan), not a different price.
       return [
-        { id: 'standard', label: 'Standard Delivery', description: 'Up to 7 business days', cost: 0 },
+        { id: 'standard', label: 'Standard Delivery', description: '7–10 business days', cost: 0 },
         { id: 'pickup', label: 'Pickup', description: 'Free — collect from our Yerevan studio', cost: 0 },
       ];
     case 'united_states': {
@@ -75,8 +78,16 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       const qualifiesForFree = subtotal >= FREE_US_SHIPPING_THRESHOLD;
       const standardCost = qualifiesForFree ? 0 : FLAT_INTERNATIONAL_FEE_USD;
       return [
-        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — up to 15 business days' : 'Up to 15 business days', cost: standardCost },
+        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost },
         { id: 'express', label: 'Express Delivery', description: '3–5 business days', cost: Number((standardCost + 15).toFixed(2)) },
+      ];
+    }
+    case 'russia': {
+      // Same pricing rule as the U.S.: flat fee, free at $150+ (inclusive).
+      const qualifiesForFree = subtotal >= FREE_US_SHIPPING_THRESHOLD;
+      const standardCost = qualifiesForFree ? 0 : FLAT_INTERNATIONAL_FEE_USD;
+      return [
+        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 7–15 business days' : '7–15 business days', cost: standardCost },
       ];
     }
     default: // 'international'
@@ -87,8 +98,8 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
   }
 }
 
-// subtotal only affects pricing for the 'united_states' zone (the free-over-
-// $150 rule) — every other zone's prices are flat regardless of order size.
+// subtotal only affects pricing for the 'united_states' and 'russia' zones
+// (the free-over-$150 rule) — every other zone's prices are flat regardless of order size.
 export function listDeliveryMethods({ country, city, subtotal = 0 } = {}) {
   const zone = resolveZone({ country, city });
   return methodsForZone(zone, { subtotal }).map((method) => ({ ...method, cost: Number(method.cost.toFixed(2)) }));

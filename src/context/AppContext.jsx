@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { translate, translateDocument } from '../i18n/translations';
 import { RATES } from '../data/currency';
 import { LIVE_CATEGORIES } from '../data/categories';
+import { FREE_SHIPPING_THRESHOLD_COUNTRIES } from '../data/shippingRules';
 
 const AppContext = createContext(null);
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
@@ -25,7 +26,7 @@ function DEFAULT_MEASUREMENTS() {
 const DEFAULT_CONTENT = {
   announcement: {
     enabled: true,
-    message: 'Free U.S. shipping on orders $150+',
+    message: 'Free U.S. & Russia shipping on orders $150+',
   },
   homeHero: {
     eyebrow: 'Urban Phoenix',
@@ -115,7 +116,7 @@ const DEFAULT_CONTENT = {
     twitter: 'https://x.com/urbanphoenix_',
   },
   shippingInfo: {
-    intro: 'Urban Phoenix ships from Armenia to Armenia and the United States. Delivery estimates begin after an order has been processed and dispatched.',
+    intro: 'Urban Phoenix ships from Armenia to Armenia, the United States and Russia. Delivery estimates begin after an order has been processed and dispatched.',
   },
   sizeGuide: {
     tshirt: DEFAULT_MEASUREMENTS(), hoodie: DEFAULT_MEASUREMENTS(), sweatshirt: DEFAULT_MEASUREMENTS(), longsleeve: DEFAULT_MEASUREMENTS(),
@@ -739,6 +740,8 @@ export function AppProvider({ children }) {
   };
   const isWishlisted = id => wishlist.includes(id);
   const isUnitedStates = visitorCountry === 'US';
+  const isRussia = visitorCountry === 'RU';
+  const freeShippingThresholdApplies = FREE_SHIPPING_THRESHOLD_COUNTRIES.includes(visitorCountry);
   const regionalPriceMultiplier = isUnitedStates ? 1.15 : 1;
   const getRegionalPrice = value => Number(value || 0) * regionalPriceMultiplier;
   const cartTotal = useMemo(
@@ -918,6 +921,6 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  return <AppContext.Provider value={{page,pageData,navigate,products,productsStatus,retryLoadProducts,selectedProduct,content,socialLinks:content.socialLinks,cart,addToCart,removeFromCart,updateQuantity,cartTotal,cartCount,cartOpen,setCartOpen,promo,discountAmount,applyPromoCode,removePromoCode,giftCard,giftCardAmount,applyGiftCard,removeGiftCard,wishlist,toggleWishlist,isWishlisted,recentlyViewed,trackProductView,user,login,register,resendVerification,verifyCode,requestPasswordReset,resetPassword,logout,refreshUser,accountFetch,emailVerificationStatus,dismissEmailVerificationStatus,language,setLanguage,currency,setCurrency,formatMoney,getRegionalPrice,visitorCountry,isUnitedStates,regionalPriceMultiplier,locationReady,regionChosen,selectRegion,t,theme,setTheme,toggleTheme,clearCart:()=>{setCart([]);setPromo(null);setGiftCard(null);}}}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{page,pageData,navigate,products,productsStatus,retryLoadProducts,selectedProduct,content,socialLinks:content.socialLinks,cart,addToCart,removeFromCart,updateQuantity,cartTotal,cartCount,cartOpen,setCartOpen,promo,discountAmount,applyPromoCode,removePromoCode,giftCard,giftCardAmount,applyGiftCard,removeGiftCard,wishlist,toggleWishlist,isWishlisted,recentlyViewed,trackProductView,user,login,register,resendVerification,verifyCode,requestPasswordReset,resetPassword,logout,refreshUser,accountFetch,emailVerificationStatus,dismissEmailVerificationStatus,language,setLanguage,currency,setCurrency,formatMoney,getRegionalPrice,visitorCountry,isUnitedStates,isRussia,freeShippingThresholdApplies,regionalPriceMultiplier,locationReady,regionChosen,selectRegion,t,theme,setTheme,toggleTheme,clearCart:()=>{setCart([]);setPromo(null);setGiftCard(null);}}}>{children}</AppContext.Provider>;
 }
 export function useApp(){ const value=useContext(AppContext); if(!value) throw new Error('useApp must be used inside AppProvider'); return value; }

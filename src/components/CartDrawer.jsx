@@ -6,7 +6,7 @@ import { useExitAnimation } from '../hooks/useExitAnimation';
 import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping } from '../data/shippingRules';
 
 export default function CartDrawer() {
-    const { cart, formatMoney, cartOpen, setCartOpen, removeFromCart, updateQuantity, cartTotal, navigate, isUnitedStates } = useApp();
+    const { cart, formatMoney, cartOpen, setCartOpen, removeFromCart, updateQuantity, cartTotal, navigate, freeShippingThresholdApplies } = useApp();
     const panelRef = useRef(null);
     useDialogBehavior(cartOpen, () => setCartOpen(false), panelRef);
     // Kept mounted through its own exit animation instead of unmounting the
@@ -60,14 +60,14 @@ export default function CartDrawer() {
         </div>
 
         {/* Free shipping progress */}
-        {cart.length > 0 && isUnitedStates && (
+        {cart.length > 0 && freeShippingThresholdApplies && (
           <div className="px-6 py-4 border-b border-border">
             {remainingForFreeShipping > 0 ? (
               <p key={remainingForFreeShipping} className="text-[11px] font-mono text-muted tracking-wide mb-2">
-                <span className="text-fg">{formatMoney(remainingForFreeShipping, { regional: false })}</span> away from free U.S. shipping
+                <span className="text-fg">{formatMoney(remainingForFreeShipping, { regional: false })}</span> away from free shipping
               </p>
             ) : (
-              <p className="text-[11px] font-mono text-accent-light tracking-wide mb-2 uppercase">✓ You've unlocked free U.S. shipping</p>
+              <p className="text-[11px] font-mono text-accent-light tracking-wide mb-2 uppercase">✓ You've unlocked free shipping</p>
             )}
             <div className="h-1 bg-border overflow-hidden">
               <div className="h-full bg-accent transition-[width] duration-500" style={{ width: `${freeShippingProgress}%` }} />

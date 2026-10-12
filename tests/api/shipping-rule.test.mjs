@@ -224,7 +224,7 @@ test('Armenia orders are unaffected by the US $150 rule (existing Armenia-free b
 test('16. SUPPORTED COUNTRIES: an order to a country other than Armenia/United States is rejected outright, by full name or ISO code', async () => {
   await seedProductAtPrice(50);
   const { validateOrderDraft } = await import('../../server/order-api.mjs');
-  const expectedError = 'We currently ship only to Armenia and the United States. Please select one of those as your delivery country.';
+  const expectedError = 'We currently ship only to Armenia, the United States and Russia. Please select one of those as your delivery country.';
 
   const franceDraft = await validateOrderDraft({
     customer: { firstName: 'QA', lastName: 'France', email: EMAIL, phone: '123', country: 'France', city: 'Paris', postalCode: '75001', address: '1 St' },

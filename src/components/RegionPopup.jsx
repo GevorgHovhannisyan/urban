@@ -39,7 +39,7 @@ export default function RegionPopup() {
         <p className="region-popup__eyebrow">Shipping &amp; pricing</p>
         <h2 id="region-popup-title">Select your country</h2>
         <p className="region-popup__text">
-          Urban Phoenix currently ships only to Armenia and the United States. Select yours to see accurate shipping rates and delivery times.
+          Urban Phoenix currently ships only to Armenia, the United States and Russia. Select yours to see accurate shipping rates and delivery times.
         </p>
         <div className="region-popup__groups">
           {REGION_GROUPS.map((g) => (

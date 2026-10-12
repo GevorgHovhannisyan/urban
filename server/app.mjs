@@ -924,6 +924,22 @@ export function createApp({ allowFraming = false } = {}) {
             subtotal: 150,
           }),
         },
+        {
+          label: "Russia (under $150)",
+          methods: listDeliveryMethods({
+            country: "RU",
+            city: "",
+            subtotal: 0,
+          }),
+        },
+        {
+          label: "Russia ($150+)",
+          methods: listDeliveryMethods({
+            country: "RU",
+            city: "",
+            subtotal: 150,
+          }),
+        },
       ],
     });
   });

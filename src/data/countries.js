@@ -143,6 +143,7 @@ export function getCountryCode(name) {
 export const SUPPORTED_SHIPPING_COUNTRIES = [
   { code: 'AM', name: 'Armenia' },
   { code: 'US', name: 'United States' },
+  { code: 'RU', name: 'Russia' },
 ];
 
 const SHIPPING_CODES = new Set(SUPPORTED_SHIPPING_COUNTRIES.map((c) => c.code));

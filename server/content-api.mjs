@@ -33,7 +33,7 @@ const DEFAULTS = {
     // qualifiesForFree check, and explicitly "U.S." — this promotion is not
     // worldwide (Armenia already ships free unconditionally; every other
     // country pays the flat international rate regardless of subtotal).
-    message: 'Free U.S. shipping on orders $150+',
+    message: 'Free U.S. & Russia shipping on orders $150+',
   },
   homeHero: {
     eyebrow: 'Urban Phoenix',
@@ -194,7 +194,7 @@ const DEFAULTS = {
   // that module's own comments) and are never duplicated into free text
   // here, so this can never drift from what checkout/orders actually honor.
   shippingInfo: {
-    intro: 'Urban Phoenix ships from Armenia to Armenia and the United States. Delivery estimates begin after an order has been processed and dispatched.',
+    intro: 'Urban Phoenix ships from Armenia to Armenia, the United States and Russia. Delivery estimates begin after an order has been processed and dispatched.',
   },
   // Structured measurement tables for SizeGuideDrawer.jsx — keyed by
   // garmentType (the same values GarmentArtwork.jsx already illustrates:

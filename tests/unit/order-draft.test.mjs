@@ -79,9 +79,18 @@ test('US subtotal at exactly $150.00 ships for free (inclusive >=150 boundary)',
   assert.equal(result.value.shipping, 0, 'exactly $150.00 must qualify for free shipping — the rule is >=150, not >150');
 });
 
-test('a country other than Armenia/United States is rejected outright — Urban Phoenix currently ships only to those two', async () => {
+test('Russia uses the U.S. rule: flat fee under $150, free at $150+', async () => {
+  const under = await draftFor('Russia', false, 50);
+  assert.equal(under.error, undefined);
+  assert.ok(under.value.shipping > 0, 'Russia orders under $150 pay the flat shipping fee');
+  const over = await draftFor('RU', false, FREE_US_SHIPPING_THRESHOLD);
+  assert.equal(over.error, undefined);
+  assert.equal(over.value.shipping, 0, 'Russia orders of exactly $150.00 ship free');
+});
+
+test('a country other than Armenia/United States/Russia is rejected outright — Urban Phoenix currently ships only to those three', async () => {
   const result = await draftFor('France', false, EXPENSIVE_PRICE);
-  assert.equal(result.error, 'We currently ship only to Armenia and the United States. Please select one of those as your delivery country.');
+  assert.equal(result.error, 'We currently ship only to Armenia, the United States and Russia. Please select one of those as your delivery country.');
 });
 
 test('an invalid/unknown product id is rejected, not silently priced at $0', async () => {

@@ -39,7 +39,7 @@ function validateCustomer(customer = {}) {
   // value) is rejected outright, before any pricing/delivery-zone logic
   // ever runs.
   if (!isSupportedShippingCountry(normalized.country)) {
-    return { error: 'We currently ship only to Armenia and the United States. Please select one of those as your delivery country.' };
+    return { error: 'We currently ship only to Armenia, the United States and Russia. Please select one of those as your delivery country.' };
   }
 
   return { value: normalized };
@@ -270,8 +270,8 @@ export async function validateOrderDraft(payload = {}) {
   }
   const deliveryMethod = deliveryResult.value.id;
   const deliveryMethodLabel = deliveryResult.value.label;
-  // The real, resolved delivery-time estimate (e.g. "Up to 3 business days"
-  // for Yerevan vs "Up to 7 business days" elsewhere in Armenia) — resolved
+  // The real, resolved delivery-time estimate (e.g. "3–4 business days"
+  // for Yerevan vs "7–10 business days" elsewhere in Armenia) — resolved
   // here from the customer's actual submitted city via server/delivery.mjs,
   // never guessed. Snapshotted onto the order below (commitOrder) so it
   // survives unchanged even if delivery.mjs's stated estimates are updated

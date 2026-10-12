@@ -18,17 +18,20 @@ export const FREE_US_SHIPPING_THRESHOLD = 150;
 // never silently drift from server/delivery.mjs's qualifiesForFree check.
 export const qualifiesForFreeUsShipping = (subtotal) => Number(subtotal) >= FREE_US_SHIPPING_THRESHOLD;
 
-// Delivery-time estimates — mirror server/delivery.mjs's real zone
-// descriptions ("Up to 3 business days" for Yerevan, "Up to 7" for the rest
-// of Armenia, "Up to 15" for the U.S.); never invented independently here.
-// These two are the pre-checkout display values ONLY, for a surface (Cart,
-// Product Page) that knows a visitor's country but not their actual
-// shipping city yet — ARMENIA_MAX_DELIVERY_DAYS is the honest ceiling that
-// holds for either Armenian zone, so showing it never claims Yerevan-speed
-// delivery for a shopper who turns out to be elsewhere in the country. The
-// real, address-aware estimate (which really can say "Up to 3") only ever
-// comes from the backend once a real city is known — see Checkout's live
-// /api/delivery-methods fetch and the deliveryEstimate snapshotted onto
-// every order at checkout (server/order-api.mjs).
-export const ARMENIA_MAX_DELIVERY_DAYS = 7;
-export const US_MAX_DELIVERY_DAYS = 15;
+// Delivery-time estimates (business days) — mirror server/delivery.mjs's
+// real zone descriptions, which are what checkout and every order actually
+// use; never invented independently here. These are the pre-checkout
+// display values only (Cart, Product Page), for surfaces that know a
+// visitor's country but not their shipping city yet — so Armenia always
+// shows both Yerevan and the regions rather than claiming Yerevan speed.
+export const DELIVERY_ESTIMATES = {
+  yerevan: '3–4',
+  armeniaRegions: '7–10',
+  unitedStates: '15–20',
+  russia: '7–15',
+};
+
+// Countries where the $150 free-shipping threshold applies (flat fee below
+// it) — mirrors server/delivery.mjs's 'united_states' and 'russia' zones.
+// Armenia always ships free, so it never shows threshold progress.
+export const FREE_SHIPPING_THRESHOLD_COUNTRIES = ['US', 'RU'];

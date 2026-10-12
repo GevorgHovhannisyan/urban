@@ -1,6 +1,6 @@
 const ITEMS = [
   {
-    label: 'Free U.S. Shipping',
+    label: 'Free U.S. & Russia Shipping',
     desc: 'On orders $150+',
     icon: <path d="M3 7h11v10H3zM14 10h4l3 3v4h-7zM7 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />,
   },
