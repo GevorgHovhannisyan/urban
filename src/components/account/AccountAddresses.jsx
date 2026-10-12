@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ListRowsSkeleton } from '../Skeleton';
 import CountrySelect from '../CountrySelect';
+import CitySelect from '../CitySelect';
 import { getCountryName, SUPPORTED_SHIPPING_COUNTRIES } from '../../data/countries';
 
 const emptyForm = { firstName: '', lastName: '', phone: '', country: 'AM', city: '', postalCode: '', address: '', apartment: '' };
@@ -92,9 +93,9 @@ export default function AccountAddresses() {
             <input name="lastName" required placeholder="Last name" value={form.lastName} onChange={update} className="up-input" />
           </div>
           <input name="phone" required placeholder="Phone" value={form.phone} onChange={update} className="up-input" />
-          <CountrySelect name="country" value={form.country} onChange={(code) => setForm((f) => ({ ...f, country: code }))} countries={SUPPORTED_SHIPPING_COUNTRIES} />
+          <CountrySelect name="country" value={form.country} onChange={(code) => setForm((f) => ({ ...f, country: code, city: code === f.country ? f.city : '' }))} countries={SUPPORTED_SHIPPING_COUNTRIES} />
           <div className="grid sm:grid-cols-2 gap-4">
-            <input name="city" required placeholder="City" value={form.city} onChange={update} className="up-input" />
+            <CitySelect country={form.country} name="city" required placeholder="City" value={form.city} onChange={update} />
             <input name="postalCode" required placeholder="Postal code" value={form.postalCode} onChange={update} className="up-input" />
           </div>
           <input name="address" required placeholder="Address" value={form.address} onChange={update} className="up-input" />

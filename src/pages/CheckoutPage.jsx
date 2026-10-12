@@ -7,6 +7,7 @@ import StripePaymentForm from '../components/StripePaymentForm';
 import PaymentBadge from '../components/PaymentBadge';
 import { useMagnetic } from '../hooks/useMagnetic';
 import CountrySelect from '../components/CountrySelect';
+import CitySelect from '../components/CitySelect';
 import { getCountryName, getCountryCode, SUPPORTED_SHIPPING_COUNTRIES, isSupportedShippingCountry } from '../data/countries';
 
 // A gift card's remaining balance is shown in its OWN currency here (not
@@ -365,7 +366,9 @@ export default function CheckoutPage() {
   const update = (event) => {
     const { name, value } = event.target;
     if (name === 'country') countryTouched.current = true;
-    setForm((current) => ({ ...current, [name]: value }));
+    // A new country means the old city no longer belongs to it — clear it so
+    // the City field's suggestions start fresh for the new country.
+    setForm((current) => ({ ...current, [name]: value, ...(name === 'country' && value !== current.country ? { city: '' } : {}) }));
     setFieldErrors((current) => ({ ...current, [name]: '' }));
     setRequestError('');
     setEditionConflictProduct(null);
@@ -676,7 +679,7 @@ export default function CheckoutPage() {
                       countries={SUPPORTED_SHIPPING_COUNTRIES}
                     />
                   </label>
-                  <CheckoutInput name="city" placeholder="City" value={form.city} error={fieldErrors.city} onChange={update} />
+                  <CitySelect country={form.country} name="city" placeholder="City" value={form.city} error={fieldErrors.city} onChange={update} />
                   <CheckoutInput name="postalCode" placeholder="Postal code (optional)" value={form.postalCode} error={fieldErrors.postalCode} onChange={update} />
                   <CheckoutInput name="address" placeholder="Street address" value={form.address} error={fieldErrors.address} onChange={update} className="sm:col-span-2" />
                   <CheckoutInput name="apartment" placeholder="Apartment / building (optional)" value={form.apartment} onChange={update} />
