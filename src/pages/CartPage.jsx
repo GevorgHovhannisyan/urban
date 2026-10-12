@@ -5,13 +5,16 @@ import { handleImgError } from '../utils/imageFallback';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping, ARMENIA_MAX_DELIVERY_DAYS, US_MAX_DELIVERY_DAYS } from '../data/shippingRules';
 export default function CartPage() {
-    const { cart, formatMoney, removeFromCart, updateQuantity, cartTotal, navigate, promo, discountAmount, applyPromoCode, removePromoCode, visitorCountry, isUnitedStates } = useApp();
+    const { cart, formatMoney, removeFromCart, updateQuantity, cartTotal, navigate, promo, discountAmount, applyPromoCode, removePromoCode, giftCard, giftCardAmount, applyGiftCard, removeGiftCard, visitorCountry, isUnitedStates } = useApp();
     const checkoutBtnRef = useMagnetic(4);
     const [promoInput, setPromoInput] = useState('');
     const [promoError, setPromoError] = useState('');
     const [promoChecking, setPromoChecking] = useState(false);
+    const [giftCardInput, setGiftCardInput] = useState('');
+    const [giftCardError, setGiftCardError] = useState('');
+    const [giftCardChecking, setGiftCardChecking] = useState(false);
     const shipping = 0; // Delivery cost is chosen and computed server-side at checkout (server/delivery.mjs).
-    const total = Math.max(0, cartTotal - discountAmount) + shipping;
+    const total = Math.max(0, cartTotal - discountAmount - giftCardAmount) + shipping;
     // Detected region only — a pre-checkout UX hint, never a promise. The
     // real shipping cost AND delivery estimate are always calculated at
     // checkout from the address the customer actually enters there
@@ -46,6 +49,21 @@ export default function CartPage() {
         removePromoCode();
         setPromoInput('');
         setPromoError('');
+    };
+    // Same global gift card state Checkout uses — applied here, it carries
+    // straight through to checkout (and can be removed there too).
+    const applyGiftCardCode = async () => {
+        if (!giftCardInput.trim() || giftCardChecking) return;
+        setGiftCardChecking(true);
+        setGiftCardError('');
+        const result = await applyGiftCard(giftCardInput);
+        if (!result.ok) setGiftCardError(result.error);
+        setGiftCardChecking(false);
+    };
+    const removeGiftCardCode = () => {
+        removeGiftCard();
+        setGiftCardInput('');
+        setGiftCardError('');
     };
 
     return (<main className="bg-bg min-h-screen pt-[var(--site-header-h,68px)]">
@@ -149,6 +167,21 @@ export default function CartPage() {
                   </div>)}
                 {promoError && <p className="text-[10px] font-mono status-error mt-2 tracking-wide">{promoError}</p>}
               </div>
+
+              {/* Gift card */}
+              <div className="mt-6">
+                <p className="text-[10px] font-mono text-muted tracking-[0.2em] uppercase mb-3">Gift Card</p>
+                {giftCard ? (<div className="flex items-center gap-3 border border-accent px-4 py-3 w-fit">
+                    <span className="text-[11px] font-mono text-accent tracking-widest uppercase">{giftCard.code} applied</span>
+                    <button onClick={removeGiftCardCode} className="text-[10px] font-mono text-muted hover:text-fg underline tracking-widest uppercase">Remove</button>
+                  </div>) : (<div className="flex gap-0">
+                    <input type="text" value={giftCardInput} onChange={e => { setGiftCardInput(e.target.value); setGiftCardError(''); }} onKeyDown={e => { if (e.key === 'Enter') applyGiftCardCode(); }} placeholder="Gift card code" aria-label="Gift card code" className="flex-1 max-w-[220px] bg-transparent border border-border px-4 py-3 text-sm font-mono text-fg placeholder:text-muted/40 focus:outline-none focus:border-accent transition-colors uppercase tracking-widest"/>
+                    <button onClick={applyGiftCardCode} disabled={giftCardChecking || !giftCardInput.trim()} className="border border-border border-l-0 px-5 py-3 text-[10px] font-mono text-muted hover:text-fg hover:border-fg/30 transition-colors tracking-widest uppercase disabled:opacity-50">
+                      {giftCardChecking ? '…' : 'Apply'}
+                    </button>
+                  </div>)}
+                {giftCardError && <p className="text-[10px] font-mono status-error mt-2 tracking-wide" role="alert">{giftCardError}</p>}
+              </div>
             </div>
 
             {/* Order summary */}
@@ -164,6 +197,10 @@ export default function CartPage() {
                   {discountAmount > 0 && (<div className="flex justify-between">
                       <span className="text-sm font-mono text-accent">Discount</span>
                       <span className="text-sm font-mono text-accent">−{formatMoney(discountAmount, { regional: false })}</span>
+                    </div>)}
+                  {giftCardAmount > 0 && (<div className="flex justify-between">
+                      <span className="text-sm font-mono text-accent">Gift card</span>
+                      <span className="text-sm font-mono text-accent">−{formatMoney(giftCardAmount, { regional: false })}</span>
                     </div>)}
                   <div className="flex justify-between">
                     <span className="text-sm font-mono text-muted">Shipping</span>
