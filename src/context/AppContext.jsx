@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { translate, translateDocument } from '../i18n/translations';
 import { RATES } from '../data/currency';
+import { LIVE_CATEGORIES } from '../data/categories';
 
 const AppContext = createContext(null);
 const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
@@ -437,7 +438,11 @@ export function AppProvider({ children }) {
       .then(res => (res.ok ? res.json() : Promise.reject(new Error('Failed to load products'))))
       .then(data => {
         if (isCancelled()) return;
-        const list = Array.isArray(data?.products) ? data.products : [];
+        // Only products in a live category reach the storefront (see
+        // LIVE_CATEGORIES in MegaMenu.jsx) — anything else stays hidden from
+        // Shop, Search, Home and product pages until that category is opened.
+        const list = (Array.isArray(data?.products) ? data.products : [])
+          .filter(p => LIVE_CATEGORIES.includes(p.category));
         setProducts(list);
         setProductsStatus('success');
       })

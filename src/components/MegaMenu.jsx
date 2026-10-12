@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, pageToPath } from '../context/AppContext';
 
-// Hoodies split out as its own category (previously lumped in with "tops")
-// since it's currently the only category with live/purchasable products —
-// the others stay in navigation but render a "coming soon" state on the
-// Shop page instead of an empty grid.
-export const CATEGORIES = ['hoodies', 'tops', 'bottoms', 'outerwear', 'accessories'];
-export const CATEGORY_LABELS = { hoodies: 'Hoodies', tops: 'T-Shirts', bottoms: 'Pants', outerwear: 'Outerwear', accessories: 'Accessories' };
+// Only live categories (see data/categories.js) appear in navigation.
+export { CATEGORIES, CATEGORY_LABELS, LIVE_CATEGORIES } from '../data/categories';
+import { CATEGORIES, CATEGORY_LABELS } from '../data/categories';
 
 // JS-controlled open state rather than pure CSS :hover — a CSS-only
 // group-hover version left the panel visually stuck open after the page

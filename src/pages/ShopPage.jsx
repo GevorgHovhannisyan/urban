@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import ProductCard from '../components/ProductCard';
 import ScrollReveal from '../components/ScrollReveal';
 import CategoryComingSoon from '../components/CategoryComingSoon';
-import { CATEGORIES, CATEGORY_LABELS } from '../components/MegaMenu';
+import { CATEGORIES, CATEGORY_LABELS, LIVE_CATEGORIES } from '../components/MegaMenu';
 import { useApp } from '../context/AppContext';
 import { useDialogBehavior } from '../hooks/useDialogBehavior';
 import { ProductGridSkeleton } from '../components/Skeleton';
@@ -16,7 +16,6 @@ import ProductsUnavailable, { EmptyCatalog } from '../components/ProductsUnavail
 // new category is actually for sale — availableCategories (below, in the
 // component) still ANDs this against real product data, so a listed
 // category with zero live products still won't show an empty pill.
-const LIVE_CATEGORIES = ['hoodies'];
 // Canonical vocab + display order for sizes/colors — NOT the source of truth
 // for what's shown. availableSizes/availableColors (below, in the component)
 // filter these down to values actually present on a real product, and

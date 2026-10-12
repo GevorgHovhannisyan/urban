@@ -3,16 +3,23 @@ import { useApp, pageToPath } from '../context/AppContext';
 import Icon from './Icon';
 import PaymentBadge from './PaymentBadge';
 import ScrollReveal from './ScrollReveal';
+import { CATEGORIES } from './MegaMenu';
 import './Footer.css';
 
+// Hidden while only Hoodies are on sale — set to true to show again.
+const SHOW_ALL_PRODUCTS_LINK = false;
+const SHOW_GIFT_CARDS_LINK = false;
+
 const shopLinks = [
-  ['All Products', 'shop'],
-  ['Hoodies', 'shop', { category: 'hoodies' }],
-  ['T-Shirts', 'shop', { category: 'tops' }],
-  ['Pants', 'shop', { category: 'bottoms' }],
-  ['Outerwear', 'shop', { category: 'outerwear' }],
-  ['Accessories', 'shop', { category: 'accessories' }],
-  ['Gift Cards', 'gift-cards'],
+  ...(SHOW_ALL_PRODUCTS_LINK ? [['All Products', 'shop']] : []),
+  ...[
+    ['Hoodies', 'shop', { category: 'hoodies' }],
+    ['T-Shirts', 'shop', { category: 'tops' }],
+    ['Pants', 'shop', { category: 'bottoms' }],
+    ['Outerwear', 'shop', { category: 'outerwear' }],
+    ['Accessories', 'shop', { category: 'accessories' }],
+  ].filter(([, , params]) => CATEGORIES.includes(params.category)),
+  ...(SHOW_GIFT_CARDS_LINK ? [['Gift Cards', 'gift-cards']] : []),
 ];
 
 const brandLinks = [
