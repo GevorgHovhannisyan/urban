@@ -38,6 +38,7 @@ import {
   getEditionSerials,
   setEditionSerialStatus,
 } from "./edition-api.mjs";
+import { getEmailStatus, sendTestEmail } from "./email-test.mjs";
 import {
   validatePromoCode,
   listPromoCodes,
@@ -832,6 +833,11 @@ export function createApp({ allowFraming = false } = {}) {
   adminApi.get("/editions", async (req, res) =>
     res.json({ editions: await listAllEditionSales() }),
   );
+  adminApi.get("/email/status", async (req, res) => res.json(await getEmailStatus()));
+  adminApi.post("/email/test", async (req, res) => {
+    const result = await sendTestEmail(req.body || {});
+    res.status(result.status).json(result.status === 200 ? result.body : { ...result.body, error: result.body.error });
+  });
   adminApi.get("/edition-serials", async (req, res) =>
     res.json({ products: await listLimitedEditionProducts() }),
   );

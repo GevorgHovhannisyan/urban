@@ -2,7 +2,7 @@ import { randomUUID, randomInt, randomBytes } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { all, get, run } from './db.mjs';
 import { hashPassword, verifyPassword, verifyPasswordConstantTime, JWT_SECRET } from './password.mjs';
-import { sendVerificationCode, sendPasswordResetEmail, getPublicUrl } from './mailer.mjs';
+import { sendVerificationCode, sendPasswordResetEmail, sendWelcomeEmail, getPublicUrl } from './mailer.mjs';
 import { isProduction } from './env.mjs';
 
 // The dev-preview code/link is only ever safe to hand back to the client
@@ -118,6 +118,8 @@ export async function verifyCode(email, code) {
 
   await run('UPDATE customers SET emailVerified = 1, verificationToken = NULL, verificationExpires = NULL, verificationAttempts = 0 WHERE id = ?', [customer.id]);
   const updated = await get('SELECT * FROM customers WHERE id = ?', [customer.id]);
+  // Welcome email — fire-and-forget; never blocks or fails the sign-in.
+  sendWelcomeEmail({ to: updated.email, name: updated.firstName || updated.name || '' }).catch(() => {});
   // Verifying logs the customer in immediately — no need to re-enter their password.
   return { status: 200, body: { token: issueToken(updated), user: serialize(updated) } };
 }

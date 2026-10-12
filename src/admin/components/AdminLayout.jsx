@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { id: 'newsletter', label: 'Newsletter', icon: 'M4 4h16v16H4zM22 6l-10 7L2 6' },
   { id: 'content', label: 'Site Content', icon: 'M4 7V4h16v3M9 20h6M12 4v16' },
   { id: 'community', label: 'Community', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM17 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.87' },
+  { id: 'email', label: 'Email', icon: 'M4 4h16v16H4zM22 6l-10 7L2 6' },
   { id: 'media', label: 'Media Library', icon: 'M3 3h18v18H3zM3 15l5-5 4 4 5-5 4 4M8.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z' },
 ];
 

@@ -1,6 +1,6 @@
 import { randomUUID, randomInt } from 'node:crypto';
 import { all, get, run } from './db.mjs';
-import { sendGiftCardEmail } from './mailer.mjs';
+import { sendGiftCardEmail, sendGiftCardPurchaseReceipt } from './mailer.mjs';
 import { RATES, GIFT_CARD_LIMITS, isSupportedCurrency } from '../src/data/currency.js';
 
 const clean = (value, max = 200) => String(value ?? '').trim().slice(0, max);
@@ -140,6 +140,17 @@ export async function completeGiftCardPurchase(draft, pendingPurchaseId) {
 
   const row = await get('SELECT * FROM gift_cards WHERE id = ?', [id]);
   await deliverGiftCardEmail(row);
+  // Purchase receipt for the buyer (skipped when they bought it for
+  // themselves — the card email already reaches them).
+  if (row.purchaserEmail && row.purchaserEmail.toLowerCase() !== String(row.recipientEmail || '').toLowerCase()) {
+    sendGiftCardPurchaseReceipt({
+      to: row.purchaserEmail,
+      amount: row.initialValue,
+      currency: row.currency || 'USD',
+      recipientEmail: row.recipientEmail,
+      recipientName: row.recipientName,
+    }).catch(() => {});
+  }
 
   return { status: 201, body: { giftCard: serialize(await get('SELECT * FROM gift_cards WHERE id = ?', [id])) } };
 }

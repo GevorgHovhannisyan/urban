@@ -5,7 +5,7 @@ import { claimEditions, releaseEditionsForOrder } from './edition-api.mjs';
 import { validatePromoCode, tryCommitPromoUsage, revertPromoUsage } from './promo-api.mjs';
 import { checkGiftCard, tryRedeemGiftCard, revertGiftCardRedemption } from './gift-card-api.mjs';
 import { grantLoyaltyPoints, getLoyaltyPoints, pointsValueInDollars, tryRedeemLoyaltyPoints, refundLoyaltyPoints, revokeLoyaltyPoints, REDEMPTION_UNIT_VALUE, POINTS_PER_REDEMPTION_UNIT } from './loyalty.mjs';
-import { sendOrderConfirmationEmail, sendOrderStatusEmail } from './mailer.mjs';
+import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendAdminNewOrderEmail } from './mailer.mjs';
 import { validateDeliveryMethod, defaultDeliveryMethod } from './delivery.mjs';
 import { isSupportedShippingCountry } from '../src/data/countries.js';
 
@@ -491,11 +491,16 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
   // that matters and is already committed above; email delivery is tracked
   // (confirmationEmailSentAt/confirmationEmailError) but never blocks or
   // rolls back a successful order.
-  const emailResult = await sendOrderConfirmationEmail({ order: serializeOrder(row) });
+  // serializeOrderSingle (not bare serializeOrder) so each item carries its
+  // real product image in the email instead of the monogram placeholder.
+  const emailOrder = await serializeOrderSingle(row);
+  const emailResult = await sendOrderConfirmationEmail({ order: emailOrder });
   await run(
     'UPDATE orders SET confirmationEmailSentAt = ?, confirmationEmailError = ? WHERE id = ?',
     [emailResult.sent ? now.toISOString().slice(0, 19).replace('T', ' ') : null, emailResult.sent ? null : (emailResult.error || 'not sent'), id]
   );
+  // Store-owner alert — fire-and-forget, never affects the customer's order.
+  sendAdminNewOrderEmail({ order: emailOrder }).catch(() => {});
 
   return { status: 201, body: successBody(row) };
 }
@@ -678,8 +683,11 @@ export async function updateOrderStatus(id, { status, paymentStatus }) {
 
   // Captured before the UPDATE so these reflect an actual transition (not
   // just "the admin saved the same status again"), preventing a duplicate
-  // shipped/cancelled/refunded email on a re-save or retried request.
+  // confirmed/shipped/delivered/cancelled/refunded email on a re-save or
+  // retried request.
+  const justConfirmed = status === 'confirmed' && existing.status !== 'confirmed';
   const justShipped = status === 'shipped' && existing.status !== 'shipped';
+  const justDelivered = status === 'delivered' && existing.status !== 'delivered';
   const justCancelled = status === 'cancelled' && existing.status !== 'cancelled';
   const justRefunded = paymentStatus === 'refunded' && existing.paymentStatus !== 'refunded';
 
@@ -691,7 +699,21 @@ export async function updateOrderStatus(id, { status, paymentStatus }) {
   // here must never undo it or fail this request, so each send is
   // fire-and-forget with its own catch (sendOrderStatusEmail also never
   // throws, but this is defense-in-depth against an unexpected error).
+  if (justConfirmed) {
+    // An order that already got its full confirmation email at checkout
+    // gets a short "confirmed" update; one that never did (e.g. an admin
+    // confirming a payment_pending order) gets the full confirmation.
+    if (existing.confirmationEmailSentAt) {
+      sendOrderStatusEmail({ order: row, event: 'confirmed' }).catch(() => {});
+    } else {
+      serializeOrderSingle(row)
+        .then((order) => sendOrderConfirmationEmail({ order }))
+        .then((r) => r.sent && run('UPDATE orders SET confirmationEmailSentAt = CURRENT_TIMESTAMP, confirmationEmailError = NULL WHERE id = ?', [orderId]))
+        .catch(() => {});
+    }
+  }
   if (justShipped) sendOrderStatusEmail({ order: row, event: 'shipped' }).catch(() => {});
+  if (justDelivered) sendOrderStatusEmail({ order: row, event: 'delivered' }).catch(() => {});
   if (justCancelled) sendOrderStatusEmail({ order: row, event: 'cancelled' }).catch(() => {});
   if (justRefunded) sendOrderStatusEmail({ order: row, event: 'refunded' }).catch(() => {});
 

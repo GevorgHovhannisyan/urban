@@ -18,8 +18,9 @@ import AdminContent from './pages/AdminContent';
 import AdminCommunity from './pages/AdminCommunity';
 import AdminDrops from './pages/AdminDrops';
 import AdminMedia from './pages/AdminMedia';
+import AdminEmail from './pages/AdminEmail';
 
-const SECTIONS = ['dashboard', 'products', 'drops', 'orders', 'returns', 'reviews', 'editions', 'promos', 'gift-cards', 'reports', 'journal', 'customers', 'newsletter', 'content', 'community', 'media'];
+const SECTIONS = ['dashboard', 'products', 'drops', 'orders', 'returns', 'reviews', 'editions', 'promos', 'gift-cards', 'reports', 'journal', 'customers', 'newsletter', 'content', 'community', 'media', 'email'];
 
 function sectionFromPath() {
   const seg = window.location.pathname.replace(/^\/admin\/?/, '').split('/')[0];
@@ -43,6 +44,7 @@ const PAGES = {
   content: AdminContent,
   community: AdminCommunity,
   media: AdminMedia,
+  email: AdminEmail,
 };
 
 function AdminRoutes() {

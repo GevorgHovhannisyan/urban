@@ -151,96 +151,169 @@ export function getPublicUrl() {
   return (PUBLIC_URL || "http://localhost:4173").replace(/\/$/, "");
 }
 
+// Every send in this file goes through deliver(): it treats a recipient the
+// SMTP server rejected as a failure (not just a thrown error), and if the
+// provider refuses the From alias (Zoho only lets a mailbox send as itself or
+// a configured alias — e.g. support@/orders@ that were never added as aliases
+// of SMTP_USER), it retries once from the authenticated mailbox so the
+// customer still gets the email. Never throws.
+const SENDER_REFUSED = /(553|550 5\.7|5\.7\.1|not allowed|relay|sender|from address|unauthori[sz]ed)/i;
+
+async function deliver(mail, label) {
+  if (!transporter) return { sent: false, reason: "unconfigured", error: "SMTP is not configured." };
+  const attempt = async (message) => {
+    const info = await transporter.sendMail(message);
+    const rejected = info.rejected || [];
+    if (rejected.length) throw Object.assign(new Error(`Recipient rejected: ${rejected.join(", ")} (${info.response})`), { recipientRejected: true });
+    console.log(`[mail] ${label} → ${message.to} accepted (messageId=${info.messageId}, response="${info.response}")`);
+    return { sent: true, messageId: info.messageId, accepted: info.accepted, rejected, response: info.response, from: message.from };
+  };
+  try {
+    return await attempt(mail);
+  } catch (error) {
+    const fromEmail = extractEmail(mail.from);
+    if (!error.recipientRejected && SMTP_USER && fromEmail && fromEmail.toLowerCase() !== SMTP_USER.toLowerCase() && SENDER_REFUSED.test(error.message)) {
+      console.warn(`[mail] ${label}: provider refused sender ${fromEmail} (${error.message}) — retrying from ${SMTP_USER}. Add ${fromEmail} as an alias of ${SMTP_USER} in Zoho to send from it.`);
+      try {
+        const name = String(mail.from).replace(/\s*<[^>]*>\s*$/, "").trim() || "Urban Phoenix";
+        return await attempt({ ...mail, from: `${name} <${SMTP_USER}>` });
+      } catch (retryError) {
+        console.error(`[mail] ${label} → ${mail.to} FAILED after sender fallback: ${retryError.message}`);
+        return { sent: false, reason: "send-failed", error: retryError.message };
+      }
+    }
+    console.error(`[mail] ${label} → ${mail.to} FAILED: ${error.message}`);
+    return { sent: false, reason: "send-failed", error: error.message };
+  }
+}
+
+const FONT = "Arial,Helvetica,sans-serif";
+
+// Branded, mobile-friendly shell shared by every transactional email — the
+// same visual language as the order confirmation below (dark canvas, white
+// logo, burnt-orange accents, uppercase display headline, table-only layout
+// with inline CSS so it survives Gmail/Outlook). `bodyHtml` must already be
+// escaped by the caller.
+function brandedEmail({ preheader = "", eyebrow = "", heading = "", bodyHtml = "", cta = null, note = "" }) {
+  const logoUrl = `${getPublicUrl()}/images/brand/up-logo-email-white.png`;
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>${escapeHtml(heading || "Urban Phoenix")}</title>
+<style>
+  @media only screen and (max-width: 520px) {
+    .up-container { width: 100% !important; }
+    .up-px { padding-left: 22px !important; padding-right: 22px !important; }
+    .up-hero { font-size: 30px !important; }
+    .up-cta { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#050505;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050505;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" class="up-container" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#0a0a0a;border:1px solid #1c1c1c;">
+          <tr>
+            <td align="center" style="padding:40px 32px 0;">
+              <img src="${logoUrl}" alt="Urban Phoenix" width="66" height="60" style="display:block;height:60px;width:66px;border:0;outline:none;" />
+            </td>
+          </tr>
+          ${eyebrow ? `<tr><td align="center" style="padding:22px 32px 0;"><p style="margin:0;font-family:${FONT};font-size:10px;font-weight:700;letter-spacing:0.32em;text-transform:uppercase;color:#c65d1e;">${escapeHtml(eyebrow)}</p></td></tr>` : ""}
+          ${heading ? `<tr><td class="up-px" align="center" style="padding:16px 32px 0;"><p class="up-hero" style="margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:36px;line-height:1.02;letter-spacing:0.01em;text-transform:uppercase;color:#f5f5f3;">${escapeHtml(heading)}</p></td></tr>` : ""}
+          <tr>
+            <td class="up-px" style="padding:26px 48px 0;font-family:${FONT};font-size:14px;line-height:1.7;color:#b5b5b3;">
+              ${bodyHtml}
+            </td>
+          </tr>
+          ${cta ? `<tr><td align="center" style="padding:30px 32px 0;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" class="up-cta" style="background:#c65d1e;"><a href="${escapeHtml(cta.url)}" style="display:block;color:#ffffff;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;text-decoration:none;padding:16px 42px;">${escapeHtml(cta.label)}</a></td></tr></table></td></tr>` : ""}
+          ${note ? `<tr><td class="up-px" align="center" style="padding:26px 48px 0;font-family:${FONT};font-size:12px;line-height:1.6;color:#6a6a6a;">${note}</td></tr>` : ""}
+          <tr>
+            <td class="up-px" style="padding:36px 56px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+                <td width="50%" style="border-top:1px solid #232323;font-size:0;line-height:0;">&nbsp;</td>
+                <td style="white-space:nowrap;padding:0 14px;font-family:${FONT};font-size:9px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#6a6a6a;">Freedom To Become</td>
+                <td width="50%" style="border-top:1px solid #232323;font-size:0;line-height:0;">&nbsp;</td>
+              </tr></table>
+            </td>
+          </tr>
+          <tr>
+            <td class="up-px" align="center" style="padding:28px 32px 40px;">
+              <p style="margin:0 0 14px;font-family:${FONT};font-weight:900;font-size:13px;letter-spacing:0.3em;color:#5c5c5c;">URBAN PHOENIX</p>
+              <p style="margin:0 0 18px;font-family:${FONT};font-size:12px;color:#8a8a8a;">Questions? Reply to this email or write to <a href="mailto:${escapeHtml(EMAIL_SENDERS.support.email || "")}" style="color:#c65d1e;text-decoration:none;">${escapeHtml(EMAIL_SENDERS.support.email || "")}</a></p>
+              <p style="margin:0;font-family:${FONT};font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#454545;">© ${new Date().getFullYear()} Urban Phoenix — Built From Chaos. Built For The Few.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+const para = (html) => `<p style="margin:0 0 14px;">${html}</p>`;
+
 // Returns { sent: boolean, previewLink?: string } so callers can surface a dev-mode link
 // when no SMTP provider is configured yet.
 export async function sendVerificationCode({ to, name, code }) {
   if (!isConfigured) {
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     console.log(`SMTP is not configured — email not actually sent.`);
     console.log(`Verification code for ${to}: ${code}`);
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     return { sent: false, reason: "unconfigured", previewCode: code };
   }
-
-  try {
-    await transporter.sendMail({
-      from: formatSender("support"),
-      to,
-      replyTo: EMAIL_SENDERS.support.email,
-      subject: `${code} is your Urban Phoenix verification code`,
-      text: `Hi ${name},\n\nYour verification code is: ${code}\n\nEnter this code on the site to activate your account. This code expires in 30 minutes.\n\n— Urban Phoenix`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">Urban Phoenix</h2>
-          <p>Hi ${escapeHtml(name)},</p>
-          <p>Enter this code on the site to activate your account:</p>
-          <p style="font-size: 32px; font-weight: 700; letter-spacing: 0.15em; margin: 24px 0;">${code}</p>
-          <p style="color:#666; font-size:13px;">This code expires in 30 minutes. If you didn't request this, you can ignore this email.</p>
-        </div>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    // Deliberately does NOT include previewCode here — unlike the
-    // `!isConfigured` branch above, this is a real, configured SMTP
-    // provider that failed at send time (bad credentials, transient outage,
-    // etc.). That's operationally different from "no SMTP provider on this
-    // machine" and must never leak the actual verification code into an API
-    // response, in any environment — see customer-auth.mjs's issueVerificationCode.
-    console.error("Failed to send verification code:", error.message);
-    console.log(`Verification code for ${to}: ${code}`);
-    return { sent: false, reason: "send-failed" };
-  }
+  // Deliberately never includes previewCode on failure — a configured SMTP
+  // provider that failed must never leak the code into an API response (see
+  // customer-auth.mjs's issueVerificationCode).
+  return deliver({
+    from: formatSender("support"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: `${code} is your Urban Phoenix verification code`,
+    text: `Hi ${name},\n\nWelcome to Urban Phoenix. Your verification code is: ${code}\n\nEnter this code on the site to activate your account. It expires in 30 minutes.\n\nIf you didn't create an account, you can ignore this email.\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: `Your verification code is ${code}`,
+      eyebrow: "Account Registration",
+      heading: "Confirm your email",
+      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("Welcome to Urban Phoenix. Enter this code on the site to activate your account:")}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 18px;"><tr><td align="center" style="background:#131110;border:1px solid #c65d1e;padding:22px 10px;font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:700;letter-spacing:0.3em;color:#ffffff;">${escapeHtml(code)}</td></tr></table>`,
+      note: "This code expires in 30 minutes. If you didn't create an account, you can safely ignore this email.",
+    }),
+  }, "verification code");
 }
 
 export async function sendPasswordResetEmail({ to, name, link }) {
   if (!isConfigured) {
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     console.log(`SMTP is not configured — email not actually sent.`);
     console.log(`Password reset link for ${to}:`);
     console.log(link);
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     return { sent: false, reason: "unconfigured", previewLink: link };
   }
-
-  try {
-    await transporter.sendMail({
-      from: formatSender("support"),
-      to,
-      replyTo: EMAIL_SENDERS.support.email,
-      subject: "Reset your Urban Phoenix password",
-      text: `Hi ${name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n${link}\n\nThis link expires in 60 minutes. If you didn't request this, you can ignore this email — your password won't change.\n\n— Urban Phoenix`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">Urban Phoenix</h2>
-          <p>Hi ${escapeHtml(name)},</p>
-          <p>We received a request to reset your password.</p>
-          <p style="margin: 24px 0;">
-            <a href="${link}" style="background:#111; color:#fff; padding:12px 24px; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em; font-size:13px;">
-              Reset password
-            </a>
-          </p>
-          <p style="color:#666; font-size:13px;">This link expires in 60 minutes. If you didn't request this, you can ignore this email — your password won't change.</p>
-        </div>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    // See the matching comment in sendVerificationCode() above — no
-    // previewLink here. A configured-but-failing SMTP send must never
-    // expose a live password-reset link through the API response.
-    console.error("Failed to send password reset email:", error.message);
-    console.log(`Password reset link for ${to}: ${link}`);
-    return { sent: false, reason: "send-failed" };
-  }
+  // No previewLink on failure — a configured-but-failing send must never
+  // expose a live reset link through the API response.
+  return deliver({
+    from: formatSender("support"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: "Reset your Urban Phoenix password",
+    text: `Hi ${name},\n\nWe received a request to reset your password. Open this link to choose a new one:\n${link}\n\nThis link expires in 60 minutes. If you didn't request this, you can ignore this email — your password won't change.\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: "Choose a new password for your Urban Phoenix account.",
+      eyebrow: "Password Reset",
+      heading: "Reset your password",
+      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("We received a request to reset the password for your Urban Phoenix account. Tap the button below to choose a new one.")}`,
+      cta: { url: link, label: "Reset Password" },
+      note: `This link expires in 60 minutes. If you didn't request a reset, you can ignore this email — your password won't change.<br /><br /><span style="color:#4a4a4a;word-break:break-all;">${escapeHtml(link)}</span>`,
+    }),
+  }, "password reset");
 }
 
 // Mirrors the frontend's formatMoney (src/context/AppContext.jsx) closely
@@ -403,7 +476,7 @@ export async function sendGiftCardEmail({
           <tr>
             <td class="up-px" align="center" style="padding:26px 32px 0;">
               <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:#9a9a9a;">
-                Enter the code above at checkout, under <strong style="color:#f5f5f3;">Gift Card Code</strong>, to redeem it.
+                Add the code above in your bag, under <strong style="color:#f5f5f3;">Gift Card</strong>, before checkout to redeem it.
                 If your order total is less than the card balance, the remaining balance stays on the card for next time.
               </p>
             </td>
@@ -432,41 +505,18 @@ export async function sendGiftCardEmail({
 </body>
 </html>`;
 
-  try {
-    const info = await transporter.sendMail({
-      from: formatSender("orders"),
-      to,
-      replyTo: EMAIL_SENDERS.support.email,
-      // subjectOverride exists only for test tooling to label a test send
-      // distinctly (e.g. "— Real Template Test") — real purchases never
-      // pass it, so this changes nothing about the actual customer subject.
-      subject:
-        subjectOverride || `${fromLine} — ${amountLabel} — Urban Phoenix`,
-      text: `${greeting}\n\n${fromLine}, worth ${amountLabel}.\n${messageBlock}\nGift card code: ${code}\n\nEnter this code at checkout to redeem it.\n\n— Urban Phoenix`,
-      html,
-    });
-    // Same shape of detail the SMTP transport actually reported back — kept
-    // on the result (not just logged) so a caller like the admin
-    // resend-email endpoint can surface real delivery diagnostics instead
-    // of a bare true/false, the same way the standalone diagnostic script
-    // that confirmed the transport itself works did.
-    console.log(
-      `Gift card email accepted by SMTP relay — messageId=${info.messageId} accepted=${JSON.stringify(info.accepted)} rejected=${JSON.stringify(info.rejected)} response="${info.response}"`,
-    );
-    return {
-      sent: true,
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
-      response: info.response,
-    };
-  } catch (error) {
-    console.error("Failed to send gift card email:", error.message);
-    console.log(
-      `Gift card code for ${to} (from ${purchaserEmail}): ${code} (${amountLabel})`,
-    );
-    return { sent: false, error: error.message };
-  }
+  const result = await deliver({
+    from: formatSender("orders"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    // subjectOverride exists only for test tooling to label a test send
+    // distinctly — real purchases never pass it.
+    subject: subjectOverride || `${fromLine} — ${amountLabel} — Urban Phoenix`,
+    text: `${greeting}\n\n${fromLine}, worth ${amountLabel}.\n${messageBlock}\nGift card code: ${code}\n\nAdd this code in your bag (Gift Card field) before checkout to redeem it.\n\n— Urban Phoenix`,
+    html,
+  }, "gift card");
+  if (!result.sent) console.log(`Gift card code for ${to} (from ${purchaserEmail}): ${code} (${amountLabel})`);
+  return result;
 }
 
 const currencyFmt = new Intl.NumberFormat("en-US", {
@@ -894,71 +944,42 @@ export async function sendOrderConfirmationEmail({ order }) {
     return { sent: false };
   }
 
-  try {
-    await transporter.sendMail({
-      from: formatSender("orders"),
-      to,
-      replyTo: EMAIL_SENDERS.support.email,
-      subject: `Urban Phoenix — Order #${order.orderNumber} Confirmed`,
-      text: textLines,
-      html,
-    });
-    return { sent: true };
-  } catch (error) {
-    // The order itself is already committed to the database by this point
-    // (server/order-api.mjs only calls this after the INSERT succeeds) — a
-    // failed email must never look like a failed order, so this only logs
-    // for debugging and returns a normal { sent: false } result rather than
-    // throwing.
-    console.error(
-      `Failed to send order confirmation email for order ${order.orderNumber}:`,
-      error.message,
-    );
-    return { sent: false, error: error.message };
-  }
+  // The order is already committed by the time this runs — deliver() never
+  // throws, so a failed email can never look like a failed order.
+  return deliver({
+    from: formatSender("orders"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: `Urban Phoenix — Order #${order.orderNumber} Confirmed`,
+    text: textLines,
+    html,
+  }, `order confirmation (#${order.orderNumber})`);
 }
 
 export async function sendVerificationEmail({ to, name, link }) {
   if (!isConfigured) {
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     console.log(`SMTP is not configured — email not actually sent.`);
     console.log(`Verification link for ${to}:`);
     console.log(link);
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     return { sent: false, reason: "unconfigured", previewLink: link };
   }
-
-  try {
-    await transporter.sendMail({
-      from: formatSender("support"),
-      to,
-      replyTo: EMAIL_SENDERS.support.email,
-      subject: "Verify your Urban Phoenix account",
-      text: `Hi ${name},\n\nPlease verify your email address by opening this link:\n${link}\n\nThis link expires in 24 hours.\n\n— Urban Phoenix`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">Urban Phoenix</h2>
-          <p>Hi ${escapeHtml(name)},</p>
-          <p>Please verify your email address to activate your account.</p>
-          <p style="margin: 24px 0;">
-            <a href="${link}" style="background:#111; color:#fff; padding:12px 24px; text-decoration:none; text-transform:uppercase; letter-spacing:0.05em; font-size:13px;">
-              Verify email
-            </a>
-          </p>
-          <p style="color:#666; font-size:13px;">This link expires in 24 hours. If you didn't create this account, you can ignore this email.</p>
-        </div>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    console.error("Failed to send verification email:", error.message);
-    console.log(`Verification link for ${to}: ${link}`);
-    return { sent: false, reason: "send-failed" };
-  }
+  return deliver({
+    from: formatSender("support"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: "Verify your Urban Phoenix account",
+    text: `Hi ${name},\n\nPlease verify your email address by opening this link:\n${link}\n\nThis link expires in 24 hours.\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: "Verify your email to activate your account.",
+      eyebrow: "Account Registration",
+      heading: "Verify your email",
+      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("Please verify your email address to activate your Urban Phoenix account.")}`,
+      cta: { url: link, label: "Verify Email" },
+      note: "This link expires in 24 hours. If you didn't create this account, you can ignore this email.",
+    }),
+  }, "verification link");
 }
 
 // Notifies support@ that a visitor submitted the contact form. `replyTo` is
@@ -972,43 +993,28 @@ export async function sendContactNotificationEmail({
   message,
 }) {
   if (!isConfigured) {
-    console.log(
-      "--------------------------------------------------------------",
-    );
-    console.log(
-      "SMTP is not configured — contact form email not actually sent.",
-    );
+    console.log("--------------------------------------------------------------");
+    console.log("SMTP is not configured — contact form email not actually sent.");
     console.log(`From: ${name} <${email}> — Topic: ${topic}`);
     console.log(message);
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
     return { sent: false, reason: "unconfigured" };
   }
-
-  try {
-    await transporter.sendMail({
-      from: formatSender("support"),
-      to: EMAIL_SENDERS.support.email,
-      replyTo: email,
-      subject: `[Contact] ${topic} — ${name}`,
-      text: `New contact form submission\n\nName: ${name}\nEmail: ${email}\nTopic: ${topic}\n\nMessage:\n${message}`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
-          <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">New contact form submission</h2>
-          <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-          <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-          <p><strong>Topic:</strong> ${escapeHtml(topic)}</p>
-          <p><strong>Message:</strong></p>
-          <p style="white-space: pre-wrap; border-left: 3px solid #111; padding-left: 12px;">${escapeHtml(message)}</p>
-        </div>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    console.error("Failed to send contact notification email:", error.message);
-    return { sent: false, reason: "send-failed" };
-  }
+  return deliver({
+    from: formatSender("support"),
+    to: EMAIL_SENDERS.support.email,
+    replyTo: email,
+    subject: `[Contact] ${topic} — ${name}`,
+    text: `New contact form submission\n\nName: ${name}\nEmail: ${email}\nTopic: ${topic}\n\nMessage:\n${message}`,
+    html: brandedEmail({
+      preheader: `${name}: ${topic}`,
+      eyebrow: "Contact Form",
+      heading: "New message",
+      bodyHtml: `${para(`<strong style="color:#f5f5f3;">Name:</strong> ${escapeHtml(name)}<br /><strong style="color:#f5f5f3;">Email:</strong> ${escapeHtml(email)}<br /><strong style="color:#f5f5f3;">Topic:</strong> ${escapeHtml(topic)}`)}
+        <p style="margin:0;white-space:pre-wrap;border-left:2px solid #c65d1e;padding-left:14px;color:#f5f5f3;">${escapeHtml(message)}</p>`,
+      note: "Reply to this email to answer the customer directly.",
+    }),
+  }, "contact notification");
 }
 
 // Confirms receipt to the customer who submitted the contact form. This is a
@@ -1017,28 +1023,19 @@ export async function sendContactNotificationEmail({
 // actually matters and has already been attempted/logged by the time this runs.
 export async function sendContactConfirmationEmail({ name, email, topic }) {
   if (!isConfigured) return { sent: false, reason: "unconfigured" };
-
-  try {
-    await transporter.sendMail({
-      from: formatSender("support"),
-      to: email,
-      replyTo: EMAIL_SENDERS.support.email,
-      subject: "We received your message — Urban Phoenix",
-      text: `Hi ${name},\n\nThanks for reaching out about "${topic}" — our support team has received your message and will get back to you shortly.\n\n— Urban Phoenix Support`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">Urban Phoenix</h2>
-          <p>Hi ${escapeHtml(name)},</p>
-          <p>Thanks for reaching out about <strong>${escapeHtml(topic)}</strong> — our support team has received your message and will get back to you shortly.</p>
-          <p style="color:#666; font-size:13px;">— Urban Phoenix Support</p>
-        </div>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    console.error("Failed to send contact confirmation email:", error.message);
-    return { sent: false, reason: "send-failed" };
-  }
+  return deliver({
+    from: formatSender("support"),
+    to: email,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: "We received your message — Urban Phoenix",
+    text: `Hi ${name},\n\nThanks for reaching out about "${topic}" — our support team has received your message and will get back to you shortly.\n\n— Urban Phoenix Support`,
+    html: brandedEmail({
+      preheader: "Our support team has received your message.",
+      eyebrow: "Support",
+      heading: "Message received",
+      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para(`Thanks for reaching out about <strong style="color:#f5f5f3;">${escapeHtml(topic)}</strong>. Our support team has received your message and will get back to you shortly.`)}`,
+    }),
+  }, "contact confirmation");
 }
 
 // Order lifecycle status-change emails (shipped / cancelled / refunded), sent
@@ -1048,64 +1045,161 @@ export async function sendContactConfirmationEmail({ name, email, topic }) {
 // existing `existing.status !== status` duplicate-prevention guard already used
 // there for loyalty/stock reversal.
 export async function sendOrderStatusEmail({ order, event }) {
-  const to = order.customerEmail;
+  const to = order.customerEmail || order.customer?.email;
   if (!to) return { sent: false, reason: "no-recipient" };
+  const firstName = order.customerFirstName || order.customer?.firstName || "";
+  const num = order.orderNumber;
+  const trackUrl = `${getPublicUrl()}/track?order=${encodeURIComponent(num)}`;
 
   const copy = {
+    confirmed: {
+      subject: `Order confirmed — #${num} — Urban Phoenix`,
+      eyebrow: "Order Confirmed",
+      heading: "Your order is confirmed",
+      body: `Order #${num} is confirmed and is now being prepared. We'll email you again as soon as it ships.`,
+    },
     shipped: {
-      subject: `Your order has shipped — #${order.orderNumber} — Urban Phoenix`,
-      heading: "Your order has shipped",
-      body: `Great news — order #${order.orderNumber} is on its way.`,
+      subject: `Your order has shipped — #${num} — Urban Phoenix`,
+      eyebrow: "Order Shipped",
+      heading: "Your order is on its way",
+      body: `Great news — order #${num} has left our studio and is on its way to you.`,
+    },
+    delivered: {
+      subject: `Your order was delivered — #${num} — Urban Phoenix`,
+      eyebrow: "Order Delivered",
+      heading: "Your order has arrived",
+      body: `Order #${num} has been delivered. We hope you love your new Urban Phoenix piece. If anything isn't right, reply to this email and we'll help.`,
     },
     cancelled: {
-      subject: `Order cancelled — #${order.orderNumber} — Urban Phoenix`,
+      subject: `Order cancelled — #${num} — Urban Phoenix`,
+      eyebrow: "Order Cancelled",
       heading: "Your order was cancelled",
-      body: `Order #${order.orderNumber} has been cancelled. If you didn't request this, please contact support.`,
+      body: `Order #${num} has been cancelled. If you didn't request this, please reply to this email and we'll look into it.`,
     },
     refunded: {
-      subject: `Refund issued — #${order.orderNumber} — Urban Phoenix`,
-      heading: "Your refund has been issued",
-      body: `A refund for order #${order.orderNumber} has been issued and should appear on your original payment method shortly.`,
+      subject: `Refund issued — #${num} — Urban Phoenix`,
+      eyebrow: "Refund Issued",
+      heading: "Your refund is on its way",
+      body: `A refund for order #${num} has been issued and should appear on your original payment method shortly.`,
     },
   }[event];
   if (!copy) return { sent: false, reason: "unknown-event" };
 
   if (!isConfigured) {
-    console.log(
-      "--------------------------------------------------------------",
-    );
-    console.log(
-      `SMTP is not configured — order ${event} email not actually sent.`,
-    );
-    console.log(`Order #${order.orderNumber} → ${to}`);
-    console.log(
-      "--------------------------------------------------------------",
-    );
+    console.log("--------------------------------------------------------------");
+    console.log(`SMTP is not configured — order ${event} email not actually sent.`);
+    console.log(`Order #${num} → ${to}`);
+    console.log("--------------------------------------------------------------");
     return { sent: false, reason: "unconfigured" };
   }
 
-  try {
-    await transporter.sendMail({
-      from: formatSender("orders"),
-      to,
-      replyTo: EMAIL_SENDERS.support.email,
-      subject: copy.subject,
-      text: `Hi ${order.customerFirstName || ""},\n\n${copy.body}\n\nQuestions? Reply to this email or contact ${EMAIL_SENDERS.support.email}.\n\n— Urban Phoenix`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="letter-spacing: 0.05em; text-transform: uppercase;">${escapeHtml(copy.heading)}</h2>
-          <p>Hi ${escapeHtml(order.customerFirstName || "")},</p>
-          <p>${escapeHtml(copy.body)}</p>
-          <p style="color:#666; font-size:13px;">Questions? Reply to this email or contact ${escapeHtml(EMAIL_SENDERS.support.email)}.</p>
-        </div>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    console.error(
-      `Failed to send order ${event} email for order ${order.orderNumber}:`,
-      error.message,
-    );
-    return { sent: false, reason: "send-failed", error: error.message };
-  }
+  return deliver({
+    from: formatSender("orders"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: copy.subject,
+    text: `Hi ${firstName},\n\n${copy.body}\n\nTrack your order: ${trackUrl}\n\nQuestions? Reply to this email or contact ${EMAIL_SENDERS.support.email}.\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: copy.body,
+      eyebrow: copy.eyebrow,
+      heading: copy.heading,
+      bodyHtml: `${para(`Hi ${escapeHtml(firstName)},`)}${para(escapeHtml(copy.body))}${para(`<span style="font-size:12px;letter-spacing:0.12em;color:#f5f5f3;">ORDER #${escapeHtml(num)}</span>`)}`,
+      cta: event === "cancelled" || event === "refunded" ? null : { url: trackUrl, label: "Track Order" },
+    }),
+  }, `order ${event} (#${num})`);
+}
+
+// Sent once an account's email is verified (customer-auth.mjs's verifyCode)
+// — the verification-code email is the registration confirmation itself;
+// this is the welcome that follows a successful sign-up.
+export async function sendWelcomeEmail({ to, name }) {
+  if (!isConfigured) return { sent: false, reason: "unconfigured" };
+  const shopUrl = `${getPublicUrl()}/shop`;
+  return deliver({
+    from: formatSender("support"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: "Welcome to Urban Phoenix",
+    text: `Hi ${name},\n\nYour Urban Phoenix account is ready. Track orders, save your addresses and wishlist, and be first to know about new drops.\n\nShop now: ${shopUrl}\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: "Your Urban Phoenix account is ready.",
+      eyebrow: "Welcome",
+      heading: "Welcome to Urban Phoenix",
+      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("Your account is ready. You can now track your orders, save addresses and your wishlist, and be first to know about new drops and limited editions.")}`,
+      cta: { url: shopUrl, label: "Shop The Collection" },
+    }),
+  }, "welcome");
+}
+
+// New-order alert for the store owner — sent right after an order commits,
+// to ORDERS_EMAIL (falls back to ADMIN_EMAIL / SMTP_USER).
+export async function sendAdminNewOrderEmail({ order, toOverride }) {
+  if (!isConfigured) return { sent: false, reason: "unconfigured" };
+  // toOverride is only used by the admin email test tool.
+  const to = toOverride || ORDERS_EMAIL || ADMIN_EMAIL || SMTP_USER;
+  if (!to) return { sent: false, reason: "no-recipient" };
+  const adminUrl = `${getPublicUrl()}/admin`;
+  const c = order.customer || {};
+  const itemsText = order.items.map((i) => {
+    const serials = i.isLimitedEdition && i.editionNumbers?.length ? ` — piece ${i.editionNumbers.map((n) => String(n).padStart(3, "0")).join(", ")}` : "";
+    return `${i.quantity}× ${i.name} (${i.color} / ${i.size})${serials} — ${fmtMoney(i.lineTotal)}`;
+  });
+  const payment = `${PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod} · ${paymentStatusLabel(order)}`;
+  return deliver({
+    from: formatSender("orders"),
+    to,
+    replyTo: c.email || undefined,
+    subject: `New order #${order.orderNumber} — ${fmtMoney(order.total)} — ${c.firstName || ""} ${c.lastName || ""}`.trim(),
+    text: [
+      `New order #${order.orderNumber} (${fmtDate(order.createdAt)})`,
+      ``,
+      ...itemsText,
+      ``,
+      `Total: ${fmtMoney(order.total)} (shipping ${Number(order.shipping) === 0 ? "free" : fmtMoney(order.shipping)})`,
+      `Payment: ${payment}`,
+      `Delivery: ${deliveryMethodLabel(order)}`,
+      ``,
+      `Customer: ${c.firstName} ${c.lastName} <${c.email}> ${c.phone || ""}`,
+      `Ship to: ${c.address}${c.apartment ? `, ${c.apartment}` : ""}, ${c.city}${c.postalCode ? ` ${c.postalCode}` : ""}, ${getCountryName(c.country)}`,
+      c.deliveryNotes ? `Notes: ${c.deliveryNotes}` : "",
+      ``,
+      `Manage: ${adminUrl}`,
+    ].join("\n"),
+    html: brandedEmail({
+      preheader: `${fmtMoney(order.total)} from ${c.firstName || ""} ${c.lastName || ""}`,
+      eyebrow: "Admin · New Order",
+      heading: `Order #${order.orderNumber}`,
+      bodyHtml: `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:${FONT};">${orderItemsHtml(order)}</table>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:${FONT};margin-bottom:18px;">
+          ${summaryRow("Delivery", Number(order.shipping) === 0 ? "Free" : fmtMoney(order.shipping))}
+          ${summaryRow("Total", fmtMoney(order.total), { strong: true })}
+        </table>
+        ${para(`<strong style="color:#f5f5f3;">Customer</strong><br />${escapeHtml(`${c.firstName || ""} ${c.lastName || ""}`)}<br /><a href="mailto:${escapeHtml(c.email || "")}" style="color:#c65d1e;text-decoration:none;">${escapeHtml(c.email || "")}</a>${c.phone ? `<br />${escapeHtml(c.phone)}` : ""}`)}
+        ${para(`<strong style="color:#f5f5f3;">Ship to</strong><br />${escapeHtml(c.address || "")}${c.apartment ? `, ${escapeHtml(c.apartment)}` : ""}<br />${escapeHtml(c.city || "")}${c.postalCode ? `, ${escapeHtml(c.postalCode)}` : ""}<br />${escapeHtml(getCountryName(c.country))}<br /><span style="color:#8a8a8a;">${escapeHtml(deliveryMethodLabel(order))}</span>${c.deliveryNotes ? `<br /><span style="color:#8a8a8a;">Notes: ${escapeHtml(c.deliveryNotes)}</span>` : ""}`)}
+        ${para(`<strong style="color:#f5f5f3;">Payment</strong><br />${escapeHtml(payment)}`)}`,
+      cta: { url: adminUrl, label: "Open Admin" },
+    }),
+  }, `admin new-order (#${order.orderNumber})`);
+}
+
+// Receipt for whoever bought a gift card — the card itself goes to the
+// recipient via sendGiftCardEmail(); this confirms the purchase to the buyer.
+export async function sendGiftCardPurchaseReceipt({ to, amount, currency = "USD", recipientEmail, recipientName }) {
+  if (!isConfigured) return { sent: false, reason: "unconfigured" };
+  const amountLabel = fmtGiftCardAmount(amount, currency);
+  const who = recipientName ? `${recipientName} (${recipientEmail})` : recipientEmail;
+  return deliver({
+    from: formatSender("orders"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: `Your Urban Phoenix gift card purchase — ${amountLabel}`,
+    text: `Thank you for your purchase.\n\nYour ${amountLabel} Urban Phoenix gift card has been sent to ${who}.\n\nIf they don't see it, ask them to check their spam folder, or reply to this email and we'll resend it.\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: `Your ${amountLabel} gift card has been delivered.`,
+      eyebrow: "Gift Card Purchase",
+      heading: "Gift card sent",
+      bodyHtml: `${para("Thank you for your purchase.")}${para(`Your <strong style="color:#f5f5f3;">${escapeHtml(amountLabel)}</strong> Urban Phoenix gift card has been emailed to <strong style="color:#f5f5f3;">${escapeHtml(who)}</strong>.`)}${para("If they don't see it, ask them to check their spam folder — or reply to this email and we'll resend it.")}`,
+    }),
+  }, "gift card receipt");
 }
