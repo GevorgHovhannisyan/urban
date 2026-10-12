@@ -163,7 +163,7 @@ function HeaderSelect({ selectId, type, value, options, onChange, translateLabel
                   {type === 'language' ? option.short : option.symbol}
                 </span>
                 <span className="header-select__label">
-                  {type === 'language' ? option.label : `${option.value} — ${translateLabel(option.label)}`}
+                  {type === 'language' ? option.label : option.value}
                 </span>
                 {isActive && <CheckIcon />}
               </button>
