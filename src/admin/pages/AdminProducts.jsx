@@ -232,7 +232,7 @@ function toPayload(form) {
 // worth keeping (x/y always have a numeric value from the form, even if
 // never dragged from the default 50/50).
 function garmentExplorerPayload(ge) {
-  if (!ge || !ge.enabled || !clean(ge.frontImage)) return null;
+  if (!ge) return null;
   const hotspots = (ge.hotspots || [])
     .filter((h) => clean(h.label))
     .map((h) => ({
@@ -246,7 +246,10 @@ function garmentExplorerPayload(ge) {
       material: clean(h.material),
       specs: String(h.specs || '').split(',').map((s) => s.trim()).filter(Boolean),
     }));
-  if (hotspots.length === 0) return null;
+  // Disabled must be sent explicitly — null means "auto-generate" and the
+  // storefront would keep showing the explorer.
+  if (ge.enabled === false) return { enabled: false, frontImage: clean(ge.frontImage), backImage: clean(ge.backImage) || null, hotspots };
+  if (!clean(ge.frontImage) || hotspots.length === 0) return null;
   return { enabled: true, frontImage: clean(ge.frontImage), backImage: clean(ge.backImage) || null, hotspots };
 }
 const clean = (v) => String(v ?? '').trim();
@@ -274,7 +277,7 @@ function GarmentExplorerEditor({ form, setForm }) {
         <Checkbox label="Enabled" checked={ge.enabled !== false} onChange={(e) => setGe({ enabled: e.target.checked })} />
       </div>
       <p className="text-[11px] text-white/35 mb-3">
-        Leave the front image blank (or disable) to let the storefront auto-generate a default explorer
+        Untick Enabled to hide the explorer on this product's page. Leave the front image blank to let the storefront auto-generate a default explorer
         from this product's category/garment type and materials instead. Only fill this in to hand-curate
         real hotspot positions and copy — never invent technical specs here; leave a hotspot's spec/material
         blank if there's no verified fact to put there.

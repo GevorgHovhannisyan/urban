@@ -324,6 +324,10 @@ function isValidConfig(config) {
 export function getGarmentExplorer(product) {
   if (!product) return null;
 
+  // Admin switched it off for this product — hide it entirely, never fall
+  // back to the per-product override or the auto-generated default.
+  if (product.garmentExplorer?.enabled === false) return null;
+
   if (isValidConfig(product.garmentExplorer)) return product.garmentExplorer;
 
   const override = garmentExplorerByProductId[product.id];

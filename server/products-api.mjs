@@ -252,8 +252,9 @@ const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
 function sanitizeGarmentExplorer(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
+  const enabled = raw.enabled !== false;
   const frontImage = cleanUrl(raw.frontImage, 500);
-  if (!frontImage) return null;
+  if (!frontImage && enabled) return null;
   const backImage = cleanUrl(raw.backImage, 500) || null;
 
   const seenIds = new Set();
@@ -284,9 +285,13 @@ function sanitizeGarmentExplorer(raw) {
     })
     .filter(Boolean)
     .slice(0, 20);
+  // Disabled is stored as-is (with whatever was filled in, so switching it
+  // back on restores it) — storing null would mean "auto-generate" and the
+  // explorer would keep showing on the storefront.
+  if (!enabled) return { enabled: false, frontImage: frontImage || null, backImage, hotspots };
   if (hotspots.length === 0) return null;
 
-  return { enabled: raw.enabled !== false, frontImage, backImage, hotspots };
+  return { enabled: true, frontImage, backImage, hotspots };
 }
 
 function validateProduct(payload = {}, { partial = false } = {}) {
