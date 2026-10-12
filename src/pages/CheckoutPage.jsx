@@ -109,11 +109,7 @@ export default function CheckoutPage() {
   // "card" option (Cash on Delivery never needs a payment provider at all,
   // see order-api.mjs's createOrder). `null` = not checked yet (render
   // nothing conclusive), true/false once /api/config has answered.
-  // paymentEnv drives a small, honest "Sandbox" indicator only — never fake
-  // payment UI — that disappears entirely once the server is configured with
-  // PAYMENT_ENV=production (see server/payment-config-guard.mjs).
   const [stripeConfigured, setStripeConfigured] = useState(null);
-  const [paymentEnv, setPaymentEnv] = useState(null);
   useEffect(() => {
     let cancelled = false;
     fetch('/api/config')
@@ -121,7 +117,6 @@ export default function CheckoutPage() {
       .then((data) => {
         if (cancelled) return;
         setStripeConfigured(Boolean(data.stripeConfigured));
-        setPaymentEnv(data.paymentEnv || null);
         // Card can't actually be used yet — default to the one payment
         // method that always works, rather than leaving the customer
         // stuck on a selection they can't complete. Only switches the
@@ -628,13 +623,6 @@ export default function CheckoutPage() {
           <div className="checkout-error mb-8" role="alert">
             Online card payment isn't available right now. Please select Cash on Delivery, or check back shortly.
           </div>
-        )}
-
-        {/* Honest, non-fake indicator only — reflects the server's actual
-            PAYMENT_ENV, never a simulated/fake payment path. Automatically
-            disappears once the server is configured with PAYMENT_ENV=production. */}
-        {paymentEnv === 'sandbox' && (
-          <div className="sandbox-banner mb-8">Sandbox payment environment — no real charge will occur</div>
         )}
 
         {/* Rendered here (outside the cart-empty/form branch below) because a
