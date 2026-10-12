@@ -34,6 +34,9 @@ import {
   listEditions,
   listAllEditionSales,
   releaseEdition,
+  listLimitedEditionProducts,
+  getEditionSerials,
+  setEditionSerialStatus,
 } from "./edition-api.mjs";
 import {
   validatePromoCode,
@@ -829,6 +832,17 @@ export function createApp({ allowFraming = false } = {}) {
   adminApi.get("/editions", async (req, res) =>
     res.json({ editions: await listAllEditionSales() }),
   );
+  adminApi.get("/edition-serials", async (req, res) =>
+    res.json({ products: await listLimitedEditionProducts() }),
+  );
+  adminApi.get("/edition-serials/:productId", async (req, res) => {
+    const result = await getEditionSerials(req.params.productId);
+    res.status(result.status).json(result.body);
+  });
+  adminApi.put("/edition-serials/:productId", async (req, res) => {
+    const result = await setEditionSerialStatus(req.params.productId, req.body || {});
+    res.status(result.status).json(result.body);
+  });
   adminApi.delete("/editions/:productId/:number", async (req, res) => {
     const result = await releaseEdition(
       req.params.productId,

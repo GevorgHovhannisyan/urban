@@ -98,6 +98,92 @@ export async function listAllEditionSales() {
   return groups;
 }
 
+// ---- Admin serial-number management ----
+// A number is "Sold Out" whenever it has an edition_sales row: either claimed
+// by a real order (orderId set) or marked sold out by an admin (orderId
+// NULL). Keeping both in the same table means every existing check — the
+// product page's /api/editions, order-api.mjs's pre-check and
+// claimEditions() above — automatically honors admin changes, with no second
+// source of truth to keep in sync.
+
+async function getEditionProduct(productId) {
+  const id = cleanId(productId);
+  const product = id ? await getProduct(id) : null;
+  if (!product || !product.isLimitedEdition) return null;
+  const total = Number(product.limitedEditionTotal) || 0;
+  return total > 0 ? { id, product, total } : null;
+}
+
+export async function listLimitedEditionProducts() {
+  const rows = await all('SELECT id, name, limitedEditionTotal FROM products WHERE isLimitedEdition = 1 AND archived = 0 ORDER BY name');
+  const counts = await all('SELECT productId, COUNT(*) AS sold FROM edition_sales GROUP BY productId');
+  const soldBy = new Map(counts.map((r) => [r.productId, Number(r.sold)]));
+  return rows.map((r) => {
+    const total = Number(r.limitedEditionTotal) || 0;
+    const sold = Math.min(total, soldBy.get(r.id) || 0);
+    return { productId: r.id, productName: r.name, total, sold, available: Math.max(0, total - sold) };
+  });
+}
+
+export async function getEditionSerials(productId) {
+  const found = await getEditionProduct(productId);
+  if (!found) return { status: 404, body: { error: 'Limited edition product not found.' } };
+  const rows = await all(
+    `SELECT e.number, e.orderId, e.soldAt, o.orderNumber
+       FROM edition_sales e LEFT JOIN orders o ON o.id = e.orderId
+      WHERE e.productId = ?`,
+    [found.id],
+  );
+  const byNumber = new Map(rows.map((r) => [Number(r.number), r]));
+  const serials = Array.from({ length: found.total }, (_, i) => {
+    const number = i + 1;
+    const row = byNumber.get(number);
+    if (!row) return { number, status: 'available' };
+    return {
+      number,
+      status: 'sold_out',
+      source: row.orderId ? 'order' : 'manual',
+      orderId: row.orderId || null,
+      orderNumber: row.orderNumber || null,
+      soldAt: row.soldAt,
+    };
+  });
+  return { status: 200, body: { productId: found.id, productName: found.product.name, total: found.total, serials } };
+}
+
+// status 'sold_out' → number can't be selected or bought; 'available' →
+// number is purchasable again (also releases a number an order had claimed,
+// which is how a previously sold piece gets reactivated). Serialized through
+// the same queue as claimEditions() so an admin change and a checkout can
+// never interleave on the same numbers.
+export function setEditionSerialStatus(productId, payload = {}) {
+  const task = queue.then(async () => {
+    const found = await getEditionProduct(productId);
+    if (!found) return { status: 404, body: { error: 'Limited edition product not found.' } };
+    const status = payload.status;
+    if (status !== 'available' && status !== 'sold_out') {
+      return { status: 400, body: { error: 'Status must be "available" or "sold_out".' } };
+    }
+    const numbers = [...new Set((Array.isArray(payload.numbers) ? payload.numbers : []).map(Number))]
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= found.total);
+    if (!numbers.length) return { status: 400, body: { error: 'Select at least one serial number.' } };
+
+    const placeholders = numbers.map(() => '?').join(', ');
+    if (status === 'available') {
+      await run(`DELETE FROM edition_sales WHERE productId = ? AND number IN (${placeholders})`, [found.id, ...numbers]);
+    } else {
+      const soldAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      for (const number of numbers) {
+        // INSERT IGNORE: a number an order already claimed keeps its order link.
+        await run('INSERT IGNORE INTO edition_sales (productId, number, orderId, soldAt) VALUES (?, ?, NULL, ?)', [found.id, number, soldAt]);
+      }
+    }
+    return getEditionSerials(found.id);
+  });
+  queue = task.catch(() => {});
+  return task;
+}
+
 export async function releaseEdition(productId, number) {
   const id = cleanId(productId);
   const num = Number(number);

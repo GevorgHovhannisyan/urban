@@ -19,20 +19,22 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
   const [open, setOpen] = useState(false);
   const [sold, setSold] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
   const selected = Array.isArray(value) ? value : [];
   const modalRef = useRef(null);
   useDialogBehavior(open, () => setOpen(false), modalRef);
 
-  const loadEditions = async () => {
-    setLoading(true);
+  // `quiet` refreshes (polling) never flash the loading state.
+  const loadEditions = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     try {
-      const response = await fetch(`/api/editions?productId=${encodeURIComponent(productId)}`);
+      const response = await fetch(`/api/editions?productId=${encodeURIComponent(productId)}`, { cache: 'no-store' });
       const data = await response.json();
       if (response.ok) setSold(Array.isArray(data.sold) ? data.sold : []);
     } catch {
       // Availability is a convenience here — checkout re-validates anyway.
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   };
 
@@ -52,6 +54,33 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Live availability: serials an admin marks sold out / available (or that
+  // another customer buys) show up here without a reload — polled faster
+  // while the picker is open, and refreshed whenever the tab regains focus.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') loadEditions({ quiet: true }); };
+    const timer = setInterval(refresh, open ? 5000 : 15000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, productId]);
+
+  // A number the customer already picked that has since become unavailable
+  // is dropped from their selection, with a visible explanation.
+  useEffect(() => {
+    if (!sold || !selected.length) return;
+    const gone = selected.filter((n) => sold.includes(n));
+    if (!gone.length) return;
+    onChange(selected.filter((n) => !sold.includes(n)));
+    setNotice(`${gone.map(pad).join(', ')} ${gone.length === 1 ? 'is' : 'are'} no longer available — please choose another number.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sold]);
+
   const soldList = sold || [];
   const remaining = useMemo(() => Math.max(0, total - soldList.length), [soldList, total]);
   const isComplete = selected.length === quantity;
@@ -65,6 +94,7 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
     // Already picked enough — swap out the most recent pick instead of
     // blocking the tap, so changing your mind is a single click.
     const base = selected.length >= quantity ? selected.slice(0, quantity - 1) : selected;
+    setNotice('');
     onChange([...base, number].sort((a, b) => a - b));
   };
 
@@ -136,6 +166,8 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
         </span>
       </button>
 
+      {notice && <p className="limited-edition__notice" role="status">{notice}</p>}
+
       {open && createPortal(
         <div ref={modalRef} className="edition-modal" role="dialog" aria-modal="true" aria-label={t('Choose Your Number')}>
           <button className="edition-modal__overlay" type="button" onClick={() => setOpen(false)} aria-label={t('Close')} />
@@ -156,6 +188,8 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
                 </svg>
               </button>
             </header>
+
+            {notice && <p className="edition-modal__notice" role="status">{notice}</p>}
 
             <div className="edition-modal__legend">
               <span><i className="edition-swatch" />{t('Available')}</span>
