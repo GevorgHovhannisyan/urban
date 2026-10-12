@@ -2161,6 +2161,21 @@ body.size-guide-open .site-header {
   left: 0;
   right: auto;
 }
+/* Currency rows are just symbol + 3-letter code, so the panel shrinks to
+   its content instead of the wider min-width sized for full names. */
+.header-select--currency .header-select__menu,
+.mobile-preferences .header-select--currency .header-select__menu {
+  min-width: 0;
+  padding: 4px;
+}
+.header-select--currency .header-select__option {
+  min-height: 32px;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.header-select--currency .header-select__option .header-select__label {
+  padding-right: 14px;
+}
 @keyframes preferenceMenuIn {
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: translateY(0); }
