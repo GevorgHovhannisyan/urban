@@ -1,17 +1,10 @@
-import { useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useRef } from 'react';
 import { useApp, pageToPath } from '../context/AppContext';
 import { handleImgError, FALLBACK_SRC } from '../utils/imageFallback';
-import { useDialogBehavior } from '../hooks/useDialogBehavior';
 import { triggerProductContinuity } from '../utils/productContinuity';
-export default function ProductCard({ product, showQuickAdd = true }) {
-    const { navigate, addToCart, toggleWishlist, isWishlisted, formatMoney } = useApp();
-    const [showSizes, setShowSizes] = useState(false);
-    const [sheetOpen, setSheetOpen] = useState(false);
-    const [activeColor, setActiveColor] = useState(product.colors[0]);
-    const sheetRef = useRef(null);
+export default function ProductCard({ product }) {
+    const { navigate, toggleWishlist, isWishlisted, formatMoney } = useApp();
     const imgRef = useRef(null);
-    useDialogBehavior(sheetOpen, () => setSheetOpen(false), sheetRef);
     const wishlisted = isWishlisted(product.id);
     const href = pageToPath('product', product);
     // Real product images only — a product with none configured yet (or
@@ -25,11 +18,6 @@ export default function ProductCard({ product, showQuickAdd = true }) {
     const hasValidPrice = Number(product.price) > 0;
     const onSale = hasValidPrice && Number(product.compareAtPrice) > Number(product.price);
     const discountPct = onSale ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
-    const variantStock = (size, color) => {
-        if (!product.stockTracked) return null;
-        const qty = product.stock?.[`${size}|${color}`];
-        return Number.isFinite(qty) ? qty : 0;
-    };
     const handleNavigate = (e) => {
         e.preventDefault();
         navigate('product', product);
@@ -50,35 +38,6 @@ export default function ProductCard({ product, showQuickAdd = true }) {
             triggerProductContinuity(product.images[0], imgRef.current.getBoundingClientRect());
         }
         navigate('product', product);
-    };
-    const handleQuickAdd = (e) => {
-        e.stopPropagation();
-        if (!showQuickAdd)
-            return;
-        // Limited-edition pieces require picking a numbered edition, which only
-        // the full product page can do — quick-add can't silently skip that step.
-        if (product.isLimitedEdition) {
-            navigate('product', product);
-            return;
-        }
-        setActiveColor(product.colors[0]);
-        // Mobile gets a proper bottom-sheet (matches the rest of the site's
-        // overlay pattern) instead of an inline row that pushes card content —
-        // desktop keeps the hover-reveal inline row, which has room for it.
-        if (window.innerWidth < 1024) {
-            setSheetOpen(true);
-        }
-        else {
-            setShowSizes(true);
-        }
-    };
-    const handleSelectSize = (e, size, color = product.colors[0]) => {
-        e.stopPropagation();
-        if (variantStock(size, color) === 0)
-            return;
-        addToCart({ product, size, color, quantity: 1 });
-        setShowSizes(false);
-        setSheetOpen(false);
     };
     const handleWishlist = (e) => {
         e.stopPropagation();
@@ -126,62 +85,7 @@ export default function ProductCard({ product, showQuickAdd = true }) {
           </svg>
         </button>
 
-        {/* Quick add (desktop inline row) — never offered for a product
-            that isn't really purchasable yet (sold out, or no valid price
-            configured). */}
-        {showQuickAdd && !product.isSoldOut && hasValidPrice && (<div className="absolute bottom-0 left-0 right-0 z-10">
-            {showSizes ? (<div className="bg-bg/95 backdrop-blur-sm border-t border-border flex">
-                {product.sizes.map(size => {
-                const soldOut = variantStock(size, product.colors[0]) === 0;
-                return (<button key={size} disabled={soldOut} onClick={e => handleSelectSize(e, size)} className={`flex-1 py-2.5 text-[10px] font-mono tracking-widest uppercase transition-colors border-r border-border last:border-r-0 ${soldOut ? 'text-muted/30 line-through cursor-not-allowed' : 'text-fg hover:bg-accent hover:text-white'}`}>
-                    {size}
-                  </button>);
-            })}
-              </div>) : (<button onClick={handleQuickAdd} className="w-full py-3 bg-bg/90 backdrop-blur-sm border-t border-border text-[10px] font-mono tracking-[0.2em] uppercase text-fg opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 hover:bg-accent hover:text-white hover:border-accent transition-colors">
-                Quick Add
-              </button>)}
-          </div>)}
       </div>
-
-      {/* Quick add (mobile bottom sheet) — portaled to <body>: this component
-          renders from inside a page's `.page-transition` wrapper, whose fade
-          animation leaves a `transform` on that ancestor after it finishes
-          (animation-fill-mode: both), which makes it a new containing block
-          for any `position: fixed` descendant — breaking the sheet's
-          positioning. Escaping via a portal keeps it truly viewport-fixed. */}
-      {sheetOpen && createPortal(<div className="fixed inset-0 z-[200] lg:hidden">
-          <button className="absolute inset-0 bg-[var(--overlay-scrim)] backdrop-blur-sm border-0" aria-label="Close" onClick={() => setSheetOpen(false)} />
-          <div ref={sheetRef} role="dialog" aria-modal="true" aria-label={`Quick add ${product.name}`} className="quick-add-sheet absolute inset-x-0 bottom-0 bg-bg border-t border-border p-6 pb-8">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-1">{product.subtitle}</p>
-                <h3 className="font-display font-black uppercase text-xl leading-tight">{product.name}</h3>
-              </div>
-              <button onClick={() => setSheetOpen(false)} aria-label="Close" className="shrink-0 w-9 h-9 flex items-center justify-center border border-border">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </div>
-
-            {product.colors.length > 1 && (<div className="mb-5">
-                <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-2">Colour: <span className="text-fg">{activeColor}</span></p>
-                <div className="flex gap-2">
-                  {product.colors.map(color => (<button key={color} onClick={(e) => { e.stopPropagation(); setActiveColor(color); }} className={`text-[10px] font-mono tracking-widest uppercase px-3 py-2 border ${activeColor === color ? 'border-fg text-fg bg-[var(--active-overlay)]' : 'border-border text-muted'}`}>
-                      {color}
-                    </button>))}
-                </div>
-              </div>)}
-
-            <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-2">Size</p>
-            <div className="grid grid-cols-6 gap-1.5">
-              {product.sizes.map(size => {
-            const soldOut = variantStock(size, activeColor) === 0;
-            return (<button key={size} disabled={soldOut} onClick={e => handleSelectSize(e, size, activeColor)} className={`py-3 text-[11px] font-mono tracking-wide uppercase border transition-colors ${soldOut ? 'border-border text-muted/30 line-through cursor-not-allowed' : 'border-border text-muted hover:border-fg/40 hover:text-fg'}`}>
-                  {size}
-                </button>);
-        })}
-            </div>
-          </div>
-        </div>, document.body)}
 
       {/* Info */}
       <a href={href} onClick={handleNavigate} className="block pt-3 pb-1 cursor-pointer">

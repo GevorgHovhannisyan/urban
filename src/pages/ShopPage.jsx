@@ -443,7 +443,7 @@ export default function ShopPage() {
             role="dialog"
             aria-modal="true"
             aria-label="Filters"
-            className="quick-add-sheet fixed inset-x-0 bottom-0 top-16 z-[300] bg-bg overflow-y-auto p-6 pb-28 grid grid-cols-2 gap-6 content-start">
+            className="sheet-slide-in fixed inset-x-0 bottom-0 top-16 z-[300] bg-bg overflow-y-auto p-6 pb-28 grid grid-cols-2 gap-6 content-start">
             {isMobile && (
               <div className="col-span-2 flex items-center justify-between -mt-1 mb-2 pb-4 border-b border-border">
                 <p className="font-display font-black uppercase text-xl">Filters</p>

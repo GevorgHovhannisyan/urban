@@ -893,11 +893,11 @@ body {
   }
 }
 
-@keyframes quickAddSheetSlideIn {
+@keyframes sheetSlideIn {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
-.quick-add-sheet { animation: quickAddSheetSlideIn .28s cubic-bezier(.22,1,.36,1) both; }
+.sheet-slide-in { animation: sheetSlideIn .28s cubic-bezier(.22,1,.36,1) both; }
 
 @keyframes sizeGuideSlideIn {
   from { transform: translateX(100%); }
