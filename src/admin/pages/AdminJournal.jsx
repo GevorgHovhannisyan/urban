@@ -3,6 +3,7 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 import AdminLayout, { Badge, Button, Input, Textarea, Select } from '../components/AdminLayout';
 import Modal, { ConfirmModal } from '../components/Modal';
+import ImageUploadField from '../components/ImageUploadField';
 
 const EMPTY_POST = {
   title: '', slug: '', excerpt: '', body: '', coverImage: '', author: 'Urban Phoenix',
@@ -141,10 +142,8 @@ export default function AdminJournal({ onNavigate }) {
         </div>
         <Textarea label="Excerpt" rows={2} value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} />
         <Textarea label="Body (blank lines separate paragraphs)" rows={8} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Cover image URL" value={form.coverImage} onChange={(e) => setForm({ ...form, coverImage: e.target.value })} />
-          <Input label="Author" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
-        </div>
+        <ImageUploadField label="Cover image" hint="Shown at the top of the post and on the Journal page. A wide (landscape) image works best." value={form.coverImage} onChange={(url) => setForm({ ...form, coverImage: url })} />
+        <Input label="Author" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Related product IDs (comma separated)" placeholder="p001, p002" value={form.relatedProductIds} onChange={(e) => setForm({ ...form, relatedProductIds: e.target.value })} />
           <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>

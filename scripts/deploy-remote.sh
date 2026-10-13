@@ -14,7 +14,10 @@ APP_PORT=4173                                  # port your server.mjs listens on
 HEALTH_URL="http://127.0.0.1:${APP_PORT}/"     # better: add /api/health to your app
 KEEP_BACKUPS=14
 # Files/folders on the server that a deploy must NEVER overwrite or delete:
-PROTECT=(".env" "uploads")
+# public/uploads = admin-uploaded images/videos (server/uploads.mjs);
+# data = runtime data. Both exist only on the server, never in git, so
+# rsync --delete below would wipe them on every deploy if not protected.
+PROTECT=(".env" "uploads" "public/uploads" "data")
 # -------------------------------------------
 
 SHA="${1:?commit SHA required}"
