@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import PasswordInput from '../components/PasswordInput';
 
 export default function ResetPasswordPage() {
   const { resetPassword, navigate } = useApp();
@@ -59,8 +60,7 @@ export default function ResetPasswordPage() {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-5">
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength="8"
               placeholder="New password"
@@ -70,8 +70,7 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               autoFocus
             />
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength="8"
               placeholder="Confirm new password"

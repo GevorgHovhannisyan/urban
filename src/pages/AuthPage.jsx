@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { handleImgError } from '../utils/imageFallback';
 import CountrySelect from '../components/CountrySelect';
+import PasswordInput from '../components/PasswordInput';
 
 function AuthImagePanel() {
   return (
@@ -264,9 +265,9 @@ export default function AuthPage() {
               still what actually authenticates it, so client-side length
               validation must not block a legitimately-short existing
               password from even being submitted. */}
-          <input name="password" type="password" required minLength={mode === 'register' ? '8' : undefined} placeholder="Password" className="up-input" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+          <PasswordInput name="password" required minLength={mode === 'register' ? '8' : undefined} placeholder="Password" className="up-input" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
           {mode === 'register' && (
-            <input name="confirmPassword" type="password" required minLength="8" placeholder="Confirm password" className="up-input" autoComplete="new-password" />
+            <PasswordInput name="confirmPassword" required minLength="8" placeholder="Confirm password" className="up-input" autoComplete="new-password" />
           )}
           {mode === 'login' && (
             <button type="button" onClick={() => { setMode('forgot'); setError(''); }} className="text-xs text-muted underline block -mt-2">

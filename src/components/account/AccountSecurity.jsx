@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import PasswordInput from '../PasswordInput';
 
 export default function AccountSecurity() {
   const { accountFetch } = useApp();
@@ -64,9 +65,9 @@ export default function AccountSecurity() {
 
       <form onSubmit={submit} className="space-y-4">
         <p className="text-[10px] font-mono text-muted tracking-widest uppercase">Change Password</p>
-        <input name="currentPassword" type="password" required placeholder="Current password" value={form.currentPassword} onChange={update} className="up-input" autoComplete="current-password" />
-        <input name="newPassword" type="password" required minLength="8" placeholder="New password" value={form.newPassword} onChange={update} className="up-input" autoComplete="new-password" />
-        <input name="confirmPassword" type="password" required minLength="8" placeholder="Confirm new password" value={form.confirmPassword} onChange={update} className="up-input" autoComplete="new-password" />
+        <PasswordInput name="currentPassword" required placeholder="Current password" value={form.currentPassword} onChange={update} className="up-input" autoComplete="current-password" />
+        <PasswordInput name="newPassword" required minLength="8" placeholder="New password" value={form.newPassword} onChange={update} className="up-input" autoComplete="new-password" />
+        <PasswordInput name="confirmPassword" required minLength="8" placeholder="Confirm new password" value={form.confirmPassword} onChange={update} className="up-input" autoComplete="new-password" />
         {error && <p className="text-sm status-error">{error}</p>}
         {message && <p className="text-sm text-accent">{message}</p>}
         <button disabled={saving} className="btn-primary px-6 py-3 text-[11px] font-mono uppercase tracking-widest disabled:opacity-50">
