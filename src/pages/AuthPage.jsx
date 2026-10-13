@@ -199,7 +199,7 @@ export default function AuthPage() {
           <p className="text-sm text-muted mb-6 leading-relaxed">
             We sent a 6-digit verification code to <strong className="text-fg">{pendingEmail}</strong>. Enter it
             below to activate your account.
-            <span className="block mt-2 text-xs">Can't find it? Check your Spam or Promotions folder. The code is valid for 30 minutes.</span>
+            <span className="block mt-2 text-xs">Can't find it? Check your Spam or Promotions folder. The code is valid for 10 minutes.</span>
           </p>
 
           {devCode && (

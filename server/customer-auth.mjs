@@ -16,7 +16,7 @@ function canExposeDevPreview(emailResult) {
 }
 
 const TOKEN_TTL = '30d';
-const VERIFICATION_TTL_MINUTES = 30;
+const VERIFICATION_TTL_MINUTES = 10;
 const MAX_VERIFICATION_ATTEMPTS = 5;
 const RESET_TTL_MINUTES = 60;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,7 +53,7 @@ async function issueVerificationCode(customer, { isResend = false } = {}) {
   const code = generateCode();
   const expires = toMysqlDatetime(new Date(Date.now() + VERIFICATION_TTL_MINUTES * 60 * 1000));
   await run('UPDATE customers SET verificationToken = ?, verificationExpires = ?, verificationAttempts = 0 WHERE id = ?', [code, expires, customer.id]);
-  const emailResult = await sendVerificationCode({ to: customer.email, name: customer.firstName || customer.name, code });
+  const emailResult = await sendVerificationCode({ to: customer.email, name: customer.firstName || customer.name, code, expiresInMinutes: VERIFICATION_TTL_MINUTES });
   return {
     message: isResend
       ? 'A new verification code has been sent to your email.'

@@ -77,20 +77,59 @@ export function describeSmtpConfig() {
   };
 }
 
-let transporter = null;
-if (isConfigured) {
-  transporter = nodemailer.createTransport({
+// Short timeouts so a blocked/unreachable mail server fails in seconds (with
+// a clear error) instead of hanging a request for minutes.
+const SMTP_TIMEOUTS = { connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 };
+
+function createSmtpTransport({ port, secure }) {
+  return nodemailer.createTransport({
     host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    // Explicit SMTP_SECURE wins when set (Zoho: 465/true). Falls back to the
-    // port-465-implies-TLS heuristic this file already used, so an existing
-    // deployment that only ever set SMTP_PORT keeps working unchanged.
-    secure:
-      SMTP_SECURE !== undefined
-        ? SMTP_SECURE === "true"
-        : Number(SMTP_PORT) === 465,
+    port,
+    secure,
+    // STARTTLS on 587 must actually upgrade — never send credentials in clear.
+    requireTLS: !secure,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    ...SMTP_TIMEOUTS,
   });
+}
+
+const primarySmtp = isConfigured
+  ? {
+      port: Number(SMTP_PORT),
+      // Explicit SMTP_SECURE wins when set (Zoho: 465/true). Falls back to the
+      // port-465-implies-TLS heuristic, so a deployment that only ever set
+      // SMTP_PORT keeps working unchanged.
+      secure: SMTP_SECURE !== undefined ? SMTP_SECURE === "true" : Number(SMTP_PORT) === 465,
+    }
+  : null;
+// Many VPS/cloud hosts block one of the two submission ports. Zoho (and most
+// providers) accept both 465 (TLS) and 587 (STARTTLS), so if the configured
+// one can't even connect, the other is tried automatically.
+const alternateSmtp = primarySmtp
+  ? primarySmtp.port === 465
+    ? { port: 587, secure: false }
+    : primarySmtp.port === 587
+      ? { port: 465, secure: true }
+      : null
+  : null;
+
+let transporter = primarySmtp ? createSmtpTransport(primarySmtp) : null;
+let activeSmtp = primarySmtp;
+const CONNECTION_FAILED = /(ETIMEDOUT|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|ESOCKET|ECONNECTION|Greeting never received|Connection timeout|connect)/i;
+
+// Switches to the alternate port once if the current one can't connect.
+// Returns true if a switch happened (caller should retry).
+function switchToAlternateSmtp(error) {
+  if (!alternateSmtp || activeSmtp === alternateSmtp) return false;
+  if (!CONNECTION_FAILED.test(`${error?.code || ""} ${error?.message || ""}`)) return false;
+  console.warn(`[mail] Cannot reach ${SMTP_HOST}:${activeSmtp.port} (${error.code || error.message}) — switching to port ${alternateSmtp.port}.`);
+  transporter = createSmtpTransport(alternateSmtp);
+  activeSmtp = alternateSmtp;
+  return true;
+}
+
+export function getActiveSmtpPort() {
+  return activeSmtp?.port || null;
 }
 
 // Backend-only, never exposed over HTTP — confirms the transporter can
@@ -102,9 +141,17 @@ export async function verifySmtpConnection() {
   if (!transporter) return { ok: false, reason: "unconfigured" };
   try {
     await transporter.verify();
-    return { ok: true };
+    return { ok: true, port: activeSmtp.port };
   } catch (error) {
-    return { ok: false, reason: "connection-failed", message: error.message };
+    if (switchToAlternateSmtp(error)) {
+      try {
+        await transporter.verify();
+        return { ok: true, port: activeSmtp.port, note: `Port ${primarySmtp.port} is blocked on this server; using ${activeSmtp.port} instead.` };
+      } catch (retryError) {
+        return { ok: false, reason: "connection-failed", message: `Port ${primarySmtp.port}: ${error.code || error.message}. Port ${alternateSmtp.port}: ${retryError.code || retryError.message}.` };
+      }
+    }
+    return { ok: false, reason: "connection-failed", message: `${error.code ? `${error.code}: ` : ""}${error.message}` };
   }
 }
 
@@ -170,7 +217,15 @@ async function deliver(mail, label) {
   };
   try {
     return await attempt(mail);
-  } catch (error) {
+  } catch (firstError) {
+    let error = firstError;
+    if (switchToAlternateSmtp(error)) {
+      try {
+        return await attempt(mail);
+      } catch (portError) {
+        error = portError;
+      }
+    }
     const fromEmail = extractEmail(mail.from);
     if (!error.recipientRejected && SMTP_USER && fromEmail && fromEmail.toLowerCase() !== SMTP_USER.toLowerCase() && SENDER_REFUSED.test(error.message)) {
       console.warn(`[mail] ${label}: provider refused sender ${fromEmail} (${error.message}) — retrying from ${SMTP_USER}. Add ${fromEmail} as an alias of ${SMTP_USER} in Zoho to send from it.`);
@@ -260,7 +315,7 @@ const para = (html) => `<p style="margin:0 0 14px;">${html}</p>`;
 
 // Returns { sent: boolean, previewLink?: string } so callers can surface a dev-mode link
 // when no SMTP provider is configured yet.
-export async function sendVerificationCode({ to, name, code }) {
+export async function sendVerificationCode({ to, name, code, expiresInMinutes = 10 }) {
   if (!isConfigured) {
     console.log("--------------------------------------------------------------");
     console.log(`SMTP is not configured — email not actually sent.`);
@@ -276,14 +331,14 @@ export async function sendVerificationCode({ to, name, code }) {
     to,
     replyTo: EMAIL_SENDERS.support.email,
     subject: `${code} is your Urban Phoenix verification code`,
-    text: `Hi ${name},\n\nWelcome to Urban Phoenix. Your verification code is: ${code}\n\nEnter this code on the site to activate your account. It expires in 30 minutes.\n\nIf you didn't create an account, you can ignore this email.\n\n— Urban Phoenix`,
+    text: `Hi ${name},\n\nWelcome to Urban Phoenix. Your verification code is: ${code}\n\nEnter this code on the site to activate your account. It expires in ${expiresInMinutes} minutes.\n\nIf you didn't create an account, you can ignore this email.\n\n— Urban Phoenix`,
     html: brandedEmail({
       preheader: `Your verification code is ${code}`,
       eyebrow: "Account Registration",
       heading: "Confirm your email",
       bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("Welcome to Urban Phoenix. Enter this code on the site to activate your account:")}
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 18px;"><tr><td align="center" style="background:#131110;border:1px solid #c65d1e;padding:22px 10px;font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:700;letter-spacing:0.3em;color:#ffffff;">${escapeHtml(code)}</td></tr></table>`,
-      note: "This code expires in 30 minutes. If you didn't create an account, you can safely ignore this email.",
+      note: `This code expires in ${expiresInMinutes} minutes. If you didn't create an account, you can safely ignore this email.`,
     }),
   }, "verification code");
 }

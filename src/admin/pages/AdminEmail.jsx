@@ -58,7 +58,7 @@ export default function AdminEmail({ onNavigate }) {
           ) : (
             <div className="px-5 py-4 space-y-2 text-sm">
               <StatusRow ok={configured} label="SMTP settings" detail={status.config.message} />
-              <StatusRow ok={connected} label="Mail server login" detail={connected ? 'Logged in successfully.' : `Failed${status.connection.message ? ` — ${status.connection.message}` : ''}`} />
+              <StatusRow ok={connected} label="Mail server login" detail={connected ? `Logged in successfully (port ${status.connection.port})${status.connection.note ? ` — ${status.connection.note}` : ''}.` : `Failed${status.connection.message ? ` — ${status.connection.message}` : ''}`} />
               <StatusRow ok={!status.publicUrlLooksLocal} label="Website address in emails" detail={status.publicUrlLooksLocal
                 ? `PUBLIC_URL is ${status.publicUrl} — links and images in emails won't work for customers. Set PUBLIC_URL to your real domain in the server's .env.`
                 : status.publicUrl} />

@@ -87,3 +87,29 @@ fi
 
 rm -rf "$STAGING"
 log "Deployed $SHORT successfully"
+
+# 8. Email diagnostics (never fails the deploy) — shows in the GitHub Actions
+#    log which SMTP settings the live .env has (names only, never values) and
+#    whether the Zoho login actually works from this server.
+log "Email check"
+cd "$APP_DIR"
+if [ -f .env ]; then
+  for key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SUPPORT_EMAIL ORDERS_EMAIL ADMIN_EMAIL PUBLIC_URL; do
+    if grep -qE "^${key}=.+" .env; then log "  $key: set"; else log "  $key: MISSING"; fi
+  done
+  grep -E '^(SMTP_HOST|SMTP_PORT|PUBLIC_URL)=' .env | sed 's/^/[deploy]   /' || true
+else
+  log "  .env not found in $APP_DIR"
+fi
+for port in 465 587; do
+  if timeout 8 bash -c "exec 3<>/dev/tcp/smtp.zoho.eu/$port" 2>/dev/null; then
+    log "  smtp.zoho.eu:$port reachable"
+  else
+    log "  smtp.zoho.eu:$port BLOCKED/unreachable from this server"
+  fi
+done
+if [ "$(id -u)" -eq 0 ]; then
+  sudo -u "$APP_USER" node --env-file=.env scripts/verify-smtp.mjs 2>&1 | sed 's/^/[deploy]   /' || true
+else
+  node --env-file=.env scripts/verify-smtp.mjs 2>&1 | sed 's/^/[deploy]   /' || true
+fi
