@@ -262,7 +262,10 @@ export function createApp({ allowFraming = false } = {}) {
 
   // Admin-uploaded images (Site Content banners, community grid, etc.) —
   // served from public/uploads so they remain available as public assets.
-  app.use("/uploads", express.static(uploadsDir));
+  // Every upload gets a unique, never-reused filename (server/uploads.mjs),
+  // so a given URL's bytes never change — safe to cache for a year. Without
+  // this, browsers re-checked large files like the hero video on every visit.
+  app.use("/uploads", express.static(uploadsDir, { maxAge: "365d", immutable: true }));
 
   // ---------- Public API ----------
   const publicApi = express.Router();

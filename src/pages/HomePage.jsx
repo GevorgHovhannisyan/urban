@@ -19,6 +19,18 @@ function HeroSection() {
     const primaryCtaRef = useMagnetic(5);
     const secondaryCtaRef = useMagnetic(5);
     const [scrollY, setScrollY] = useState(0);
+    // Phones get the portrait hero video when one is set — a landscape
+    // video has to be enlarged several times to cover a tall phone screen,
+    // which is what made it look pixelated there. Same 767px breakpoint as
+    // the mobile hero image's <picture> source below.
+    const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 767px)');
+        const onChange = () => setIsPhone(mq.matches);
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
+    }, []);
+    const heroVideoUrl = (isPhone && hero.mobileVideoUrl) || hero.videoUrl;
     useEffect(() => {
         // Reduced motion: skip the scroll listener entirely rather than
         // just zeroing the math below — scrollY stays 0 for the section's
@@ -40,8 +52,14 @@ function HeroSection() {
     return (<section className="relative w-full h-screen min-h-[600px] overflow-hidden flex items-end noise-overlay">
       {/* BG image/video with parallax */}
       <div className="absolute inset-0" style={{ transform: `translateY(${scrollY * 0.3}px) scale(${heroScale})` }}>
-        {hero.videoUrl ? (
-          <video src={hero.videoUrl} poster={hero.imageUrl} autoPlay muted loop playsInline className="w-full h-full up-photo object-cover scale-110" />
+        {heroVideoUrl ? (
+          // No extra scale-110 here (the still image below keeps its own):
+          // object-cover already fills the hero edge to edge, and the
+          // parallax wrapper's transform never exposes an edge, so any
+          // fixed zoom only enlarged — and softened — the video further.
+          // key: switching between the desktop and phone source must load
+          // the new file, not keep playing the old one.
+          <video key={heroVideoUrl} src={heroVideoUrl} poster={(isPhone && hero.mobileImageUrl) || hero.imageUrl} autoPlay muted loop playsInline preload="auto" disablePictureInPicture className="w-full h-full up-photo object-cover" />
         ) : (
           // A dedicated mobile crop is optional (Admin → Site Content →
           // Home Hero) — <picture>'s media-query source only ever swaps

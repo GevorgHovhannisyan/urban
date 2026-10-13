@@ -53,6 +53,11 @@ const DEFAULTS = {
     // static hero image (imageUrl still renders as its poster frame while
     // the video loads, and stays as the background if this is left blank).
     videoUrl: '',
+    // Optional portrait video for phones (≤767px wide). A landscape video
+    // has to be enlarged several times to cover a tall phone screen, which
+    // is what makes it look pixelated there; when blank, phones fall back to
+    // videoUrl.
+    mobileVideoUrl: '',
   },
   homeBanner: {
     eyebrow: 'Collection 001',

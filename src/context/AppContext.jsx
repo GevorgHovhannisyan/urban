@@ -38,6 +38,7 @@ const DEFAULT_CONTENT = {
     imageAlt: 'Urban Phoenix Collection 001 campaign photo',
     mobileImageUrl: '',
     videoUrl: '',
+    mobileVideoUrl: '',
   },
   homeBanner: {
     eyebrow: 'Collection 001',

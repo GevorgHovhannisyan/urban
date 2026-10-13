@@ -39,7 +39,8 @@ const SECTIONS = [
       { key: 'imageUrl', label: 'Background image (desktop)', type: 'image' },
       { key: 'imageAlt', label: 'Image alt text', type: 'text' },
       { key: 'mobileImageUrl', label: 'Background image (mobile, optional — falls back to the desktop image above when empty)', type: 'image' },
-      { key: 'videoUrl', label: 'Background video (optional — replaces the image when set)', type: 'video' },
+      { key: 'videoUrl', label: 'Background video (desktop, optional — replaces the image when set). Use at least 1920×1080 (landscape) for a sharp result.', type: 'video', minWidth: 1920, minHeight: 1080 },
+      { key: 'mobileVideoUrl', label: 'Background video (mobile, optional — portrait, at least 1080×1920; falls back to the desktop video when empty)', type: 'video', minWidth: 1080, minHeight: 1920 },
     ],
   },
   {
@@ -120,9 +121,14 @@ const SECTIONS = [
 // the admin either paste an external URL (unchanged behavior) or upload a
 // file directly, which fills the same URL field with the resulting
 // /uploads/... path.
-function MediaField({ label, kind, value, onChange, token, toast }) {
+function MediaField({ label, kind, value, onChange, token, toast, minWidth, minHeight }) {
   const [uploading, setUploading] = useState(false);
+  const [videoSize, setVideoSize] = useState(null);
   const inputRef = useRef(null);
+  // Real pixel size of the selected video, read in the browser — a small
+  // source is the #1 cause of a blurry, pixelated full-screen background.
+  const tooSmall = videoSize && minWidth && minHeight
+    && (videoSize.w < minWidth * 0.95 || videoSize.h < minHeight * 0.95);
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -148,6 +154,25 @@ function MediaField({ label, kind, value, onChange, token, toast }) {
         </button>
         <input ref={inputRef} type="file" accept={kind === 'video' ? 'video/mp4,video/webm' : 'image/*'} className="hidden" onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
+      {kind === 'video' && value && (
+        <>
+          <video
+            key={value}
+            src={value}
+            muted
+            preload="metadata"
+            className="hidden"
+            onLoadedMetadata={(e) => setVideoSize({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })}
+            onError={() => setVideoSize(null)}
+          />
+          {videoSize && (
+            <p className={`text-[11px] mt-1.5 ${tooSmall ? 'text-[#e5484d]' : 'text-white/45'}`}>
+              {`Video size: ${videoSize.w}×${videoSize.h}px`}
+              {tooSmall && ` — too small, it will look blurry when stretched to fill the screen. Upload the original at ${minWidth}×${minHeight} or larger.`}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -470,7 +495,7 @@ function SectionPanel({ section, initial, adminFetch, toast }) {
             return <Textarea key={f.key} label={f.label} rows={3} value={values[f.key] || ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />;
           }
           if (f.type === 'image' || f.type === 'video') {
-            return <MediaField key={f.key} label={f.label} kind={f.type} value={values[f.key]} onChange={(v) => setValues({ ...values, [f.key]: v })} token={token} toast={toast} />;
+            return <MediaField key={f.key} label={f.label} kind={f.type} value={values[f.key]} onChange={(v) => setValues({ ...values, [f.key]: v })} token={token} toast={toast} minWidth={f.minWidth} minHeight={f.minHeight} />;
           }
           return <Input key={f.key} label={f.label} value={values[f.key] || ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />;
         })}
