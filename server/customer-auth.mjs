@@ -146,7 +146,27 @@ export async function loginCustomer({ email, password }) {
     return { status: 401, body: { error: 'Invalid email or password.' } };
   }
   if (!customer.emailVerified) {
-    return { status: 403, body: { error: 'Please verify your email before signing in. Check your inbox for the verification code.', needsVerification: true } };
+    // Correct password but never verified — the code from registration has
+    // usually expired by now, so send a fresh one automatically instead of
+    // leaving the customer on a code screen with nothing in their inbox.
+    // Throttled to one email per minute so repeated sign-in clicks can't spam.
+    const expiresAt = customer.verificationExpires ? new Date(customer.verificationExpires).getTime() : 0;
+    const issuedAt = expiresAt - VERIFICATION_TTL_MINUTES * 60 * 1000;
+    const recentlySent = customer.verificationToken && expiresAt > Date.now() && Date.now() - issuedAt < 60 * 1000;
+    const issued = recentlySent ? null : await issueVerificationCode(customer, { isResend: true });
+    const emailFailed = issued && !issued.emailSent && !issued.devVerificationCode;
+    return {
+      status: 403,
+      body: {
+        error: emailFailed
+          ? "Your email isn't verified yet, and we couldn't send a new code just now. Please try \"Resend code\" in a moment."
+          : `Your email isn't verified yet. We've sent a new 6-digit code to ${customer.email}.`,
+        needsVerification: true,
+        codeSent: Boolean(issued?.emailSent) || recentlySent,
+        email: customer.email,
+        devVerificationCode: issued?.devVerificationCode,
+      },
+    };
   }
   return { status: 200, body: { token: issueToken(customer), user: serialize(customer) } };
 }

@@ -90,11 +90,16 @@ export default function AuthPage() {
       setDevCode(data.devVerificationCode || '');
       setMode('verify');
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
       setNeedsVerification(Boolean(err.needsVerification));
       if (err.needsVerification) {
-        setPendingEmail(email);
+        // A fresh code was just emailed — that's an instruction, not an
+        // error, so it isn't shown in red on the code screen.
+        setPendingEmail(err.email || String(email).trim().toLowerCase());
+        setDevCode(err.devVerificationCode || '');
+        setError(err.codeSent ? '' : (err.message || ''));
         setMode('verify');
+      } else {
+        setError(err.message || 'Something went wrong. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -194,6 +199,7 @@ export default function AuthPage() {
           <p className="text-sm text-muted mb-6 leading-relaxed">
             We sent a 6-digit verification code to <strong className="text-fg">{pendingEmail}</strong>. Enter it
             below to activate your account.
+            <span className="block mt-2 text-xs">Can't find it? Check your Spam or Promotions folder. The code is valid for 30 minutes.</span>
           </p>
 
           {devCode && (

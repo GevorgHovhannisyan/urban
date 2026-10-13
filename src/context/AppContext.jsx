@@ -835,6 +835,9 @@ export function AppProvider({ children }) {
     if (!res.ok) {
       const err = new Error(data.error || 'Invalid email or password.');
       err.needsVerification = Boolean(data.needsVerification);
+      err.codeSent = Boolean(data.codeSent);
+      err.email = data.email;
+      err.devVerificationCode = data.devVerificationCode;
       throw err;
     }
     setUser({ ...data.user, sessionToken: data.token });
