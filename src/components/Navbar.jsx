@@ -323,7 +323,16 @@ export default function Navbar() {
     ['About', 'about'],
   ];
 
-  const go = (page) => (e) => { e.preventDefault(); navigate(page); };
+  // Header links (logo, account, wishlist…) close any open overlay first —
+  // otherwise on mobile the full-screen menu stayed open on top of the page
+  // just navigated to, so tapping the logo looked like it did nothing.
+  const go = (page) => (e) => {
+    e.preventDefault();
+    setMenu(false);
+    setSearchOpen(false);
+    setCartOpen(false);
+    navigate(page);
+  };
 
   return (
     <>
