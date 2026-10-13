@@ -17,13 +17,30 @@ function stockSummary(stockMap) {
   return { tracked: true, total, isSoldOut, isLowStock };
 }
 
+// Drop dates are stored in MySQL DATETIME columns as UTC wall-clock text
+// ("YYYY-MM-DD HH:MM:SS") and come back that way (db.mjs uses dateStrings).
+// Clients send/receive full ISO-8601 UTC strings ("...Z"). These two helpers
+// are the only place the conversion happens: a raw ISO string with "T"/"Z"
+// is rejected by MySQL in strict mode (the usual production setting), and a
+// stored value without a timezone marker would otherwise be parsed as the
+// reader's local time and drift by hours.
+function parseUtcDatetime(value) {
+  if (!value) return null;
+  const str = String(value).trim();
+  const isoish = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(str) ? `${str.replace(' ', 'T')}Z` : str;
+  const date = new Date(isoish);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+const toMysqlUtc = (date) => date.toISOString().slice(0, 19).replace('T', ' ');
+const toIsoUtc = (value) => parseUtcDatetime(value)?.toISOString() || null;
+
 // Drop gating: unreleased -> early-access window (logged-in only) ->
 // members-only override (logged-in only, persists past public release) ->
 // public. A product with no releaseAt is always live (matches every product
 // created before this feature existed).
 function dropStatus(row, now = new Date()) {
-  const releaseAt = row.releaseAt ? new Date(row.releaseAt) : null;
-  const earlyAccessAt = row.earlyAccessAt ? new Date(row.earlyAccessAt) : releaseAt;
+  const releaseAt = parseUtcDatetime(row.releaseAt);
+  const earlyAccessAt = parseUtcDatetime(row.earlyAccessAt) || releaseAt;
   const membersOnly = Boolean(row.membersOnly);
 
   if (releaseAt && earlyAccessAt && now < earlyAccessAt) return 'upcoming';
@@ -75,8 +92,8 @@ function serializeRow(row, { isLoggedIn } = {}) {
     totalStock: total,
     isSoldOut,
     isLowStock,
-    releaseAt: row.releaseAt || null,
-    earlyAccessAt: row.earlyAccessAt || null,
+    releaseAt: toIsoUtc(row.releaseAt),
+    earlyAccessAt: toIsoUtc(row.earlyAccessAt),
     membersOnly: Boolean(row.membersOnly),
     // null = no admin-configured override; the frontend auto-generates a
     // default Garment Explorer from garmentType/category/materials instead
@@ -109,8 +126,8 @@ export async function listDropTeasers() {
       name: row.name,
       subtitle: row.subtitle,
       images: fromJson(row.images, []),
-      releaseAt: row.releaseAt,
-      earlyAccessAt: row.earlyAccessAt,
+      releaseAt: toIsoUtc(row.releaseAt),
+      earlyAccessAt: toIsoUtc(row.earlyAccessAt),
       dropStatus: status,
     }))
     .sort((a, b) => new Date(a.releaseAt) - new Date(b.releaseAt));
@@ -355,8 +372,16 @@ function validateProduct(payload = {}, { partial = false } = {}) {
     }
   }
   if (!partial || payload.archived !== undefined) fields.archived = Boolean(payload.archived);
-  if (!partial || payload.releaseAt !== undefined) fields.releaseAt = payload.releaseAt ? clean(payload.releaseAt, 40) : null;
-  if (!partial || payload.earlyAccessAt !== undefined) fields.earlyAccessAt = payload.earlyAccessAt ? clean(payload.earlyAccessAt, 40) : null;
+  for (const key of ['releaseAt', 'earlyAccessAt']) {
+    if (partial && payload[key] === undefined) continue;
+    if (!payload[key]) { fields[key] = null; continue; }
+    const date = parseUtcDatetime(clean(payload[key], 40));
+    if (!date) errors.push(`${key === 'releaseAt' ? 'Release date' : 'Early access date'} is not a valid date.`);
+    else fields[key] = toMysqlUtc(date);
+  }
+  if (fields.releaseAt && fields.earlyAccessAt && fields.earlyAccessAt > fields.releaseAt) {
+    errors.push('Early access must start before the release date.');
+  }
   if (!partial || payload.membersOnly !== undefined) fields.membersOnly = Boolean(payload.membersOnly);
   if (!partial || payload.garmentExplorer !== undefined) fields.garmentExplorer = sanitizeGarmentExplorer(payload.garmentExplorer);
 

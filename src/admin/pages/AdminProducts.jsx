@@ -3,7 +3,8 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 import AdminLayout, { Badge, Button, Input, Textarea, Checkbox } from '../components/AdminLayout';
 import Modal, { ConfirmModal } from '../components/Modal';
-import { ARMENIA_LABEL, toArmeniaDatetimeLocal as toDatetimeLocal, fromArmeniaDatetimeLocal } from '../armeniaTime';
+import { toArmeniaDatetimeLocal as toDatetimeLocal, fromArmeniaDatetimeLocal } from '../armeniaTime';
+import ArmeniaDateField from '../components/ArmeniaDateField';
 
 const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
 
@@ -354,6 +355,14 @@ export default function AdminProducts({ onNavigate }) {
       toast('Name and a valid price are required.', true);
       return;
     }
+    if (form.earlyAccessAt && !form.releaseAt) {
+      toast('Set a release date too — early access only applies before a release date.', true);
+      return;
+    }
+    if (form.earlyAccessAt && form.releaseAt && form.earlyAccessAt > form.releaseAt) {
+      toast('Early access must start before the release date.', true);
+      return;
+    }
     setSaving(true);
     try {
       const payload = toPayload(form);
@@ -475,8 +484,8 @@ export default function AdminProducts({ onNavigate }) {
           <Textarea label="Returns" rows={2} value={form.returns} onChange={(e) => setForm({ ...form, returns: e.target.value })} />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Input label={`Release date/time (${ARMENIA_LABEL})`} type="datetime-local" value={form.releaseAt} onChange={(e) => setForm({ ...form, releaseAt: e.target.value })} />
-          <Input label={`Early access from (${ARMENIA_LABEL})`} type="datetime-local" value={form.earlyAccessAt} onChange={(e) => setForm({ ...form, earlyAccessAt: e.target.value })} />
+          <ArmeniaDateField label="Release date/time" value={form.releaseAt} onChange={(v) => setForm({ ...form, releaseAt: v })} />
+          <ArmeniaDateField label="Early access from" value={form.earlyAccessAt} onChange={(v) => setForm({ ...form, earlyAccessAt: v })} />
         </div>
         <p className="text-[11px] text-white/35 -mt-1">Leave both blank for an always-live product. Early access (signed-in customers only) opens before the release date; after release, "Members only" keeps it gated to signed-in customers permanently.</p>
         <div className="space-y-2 pt-1">
