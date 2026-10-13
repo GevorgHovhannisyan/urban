@@ -114,6 +114,8 @@ const DEFAULT_CONTENT = {
     instagram: 'https://www.instagram.com/urbanphoenixofficial/',
     tiktok: 'https://www.tiktok.com/@karenzadelyan328',
     twitter: 'https://x.com/urbanphoenix_',
+    facebook: '',
+    youtube: '',
   },
   shippingInfo: {
     intro: 'Urban Phoenix ships from Armenia to Armenia, the United States and Russia. Delivery estimates begin after an order has been processed and dispatched.',

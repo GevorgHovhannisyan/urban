@@ -102,6 +102,8 @@ const SECTIONS = [
       { key: 'instagram', label: 'Instagram URL', type: 'text' },
       { key: 'tiktok', label: 'TikTok URL', type: 'text' },
       { key: 'twitter', label: 'Twitter / X URL', type: 'text' },
+      { key: 'facebook', label: 'Facebook URL', type: 'text' },
+      { key: 'youtube', label: 'YouTube URL', type: 'text' },
     ],
   },
   {

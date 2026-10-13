@@ -187,6 +187,8 @@ const DEFAULTS = {
     instagram: 'https://www.instagram.com/urbanphoenixofficial/',
     tiktok: 'https://www.tiktok.com/@karenzadelyan328',
     twitter: 'https://x.com/urbanphoenix_',
+    facebook: '',
+    youtube: '',
   },
   // Presentational-only supporting copy for the Shipping Policy page —
   // deliberately does NOT include the actual day-count estimates or prices;
@@ -227,7 +229,7 @@ const clean = (value, max = 4000) => String(value ?? '').trim().slice(0, max);
 // stands between "admin pastes a URL" and "admin (or a compromised admin
 // session) pastes javascript:alert(1) or data:text/html,..." — rejected
 // outright rather than saved, so it can never reach a page as a live link.
-const KNOWN_URL_FIELDS = new Set(['instagram', 'tiktok', 'twitter']);
+const KNOWN_URL_FIELDS = new Set(['instagram', 'tiktok', 'twitter', 'facebook', 'youtube']);
 function isUrlField(fieldName) {
   return /url$/i.test(fieldName) || /link$/i.test(fieldName) || KNOWN_URL_FIELDS.has(fieldName);
 }

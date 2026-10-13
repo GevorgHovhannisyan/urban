@@ -92,7 +92,7 @@ export default function Footer() {
               {/* Only a network with an actual configured URL renders at
                   all — never a dead/empty social icon (Admin → Site Content
                   → Social Links; see content-api.mjs's socialLinks). */}
-              {[['Instagram', 'instagram', socialLinks.instagram], ['TikTok', 'tiktok', socialLinks.tiktok], ['Twitter', 'twitter', socialLinks.twitter]]
+              {[['Instagram', 'instagram', socialLinks.instagram], ['TikTok', 'tiktok', socialLinks.tiktok], ['Twitter', 'twitter', socialLinks.twitter], ['Facebook', 'facebook', socialLinks.facebook], ['YouTube', 'youtube', socialLinks.youtube]]
                 .filter(([, , href]) => href)
                 .map(([network, icon, href]) => (
                 <a key={network} href={href} target="_blank" rel="noopener noreferrer" className="site-footer__social-link" aria-label={network}>
