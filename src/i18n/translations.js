@@ -1,3 +1,5 @@
+import { storefrontHy, storefrontRu, PATTERNS } from './storefront.js';
+
 export const translations = {
   "hy": {
     "Shop": "Խանութ",
@@ -729,35 +731,80 @@ Object.assign(translations.ru, {
   "For legal or business enquiries, contact support@urbanphoenix.com.": "По юридическим и деловым вопросам пишите на support@urbanphoenix.com."
 });
 
+// ---- Translation engine ----------------------------------------------------
+// The storefront is written in English; translateDocument() swaps each text
+// node / placeholder / aria-label / title for its translation after React
+// renders (AppContext re-runs it on every DOM mutation). Exact keys come from
+// the dictionaries above; text with numbers, prices or names goes through
+// PATTERNS (src/i18n/storefront.js).
+
+// Translated text → English source, built once (lazily, after every
+// Object.assign block in this file has run). Used when a node arrives
+// already translated (e.g. a component rendered t('…')), so switching
+// hy ↔ ru still finds the English original.
+let reverseIndex = null;
+function getReverseIndex() {
+  if (reverseIndex) return reverseIndex;
+  reverseIndex = new Map();
+  // Reviewed catalog first, so a translation shared by several English keys
+  // maps back to the current storefront wording.
+  for (const dictionary of [storefrontHy, storefrontRu]) {
+    for (const [source, value] of Object.entries(dictionary)) {
+      if (value && value !== source && !reverseIndex.has(value)) reverseIndex.set(value, source);
+    }
+  }
+  for (const lang of ['hy', 'ru']) {
+    for (const [source, value] of Object.entries(translations[lang])) {
+      if (value && value !== source && !reverseIndex.has(value)) reverseIndex.set(value, source);
+    }
+  }
+  return reverseIndex;
+}
+
 function resolveSourceText(text) {
   if (typeof text !== 'string') return text;
   if (Object.prototype.hasOwnProperty.call(translations.hy, text) ||
       Object.prototype.hasOwnProperty.call(translations.ru, text)) return text;
+  return getReverseIndex().get(text) || text;
+}
 
-  for (const dictionary of [translations.hy, translations.ru]) {
-    const source = Object.keys(dictionary).find((key) => dictionary[key] === text);
-    if (source) return source;
+function translatePattern(language, source) {
+  const patterns = PATTERNS[language];
+  if (!patterns) return null;
+  const tr = (fragment) => translate(language, fragment);
+  for (const [regex, build] of patterns) {
+    const match = source.match(regex);
+    if (match) return build(match, tr);
   }
-  return text;
+  return null;
 }
 
 export function translate(language, text) {
   if (typeof text !== 'string') return text;
   const source = resolveSourceText(text);
-  return translations[language]?.[source] || source;
+  const dictionary = translations[language];
+  if (dictionary && Object.prototype.hasOwnProperty.call(dictionary, source)) return dictionary[source];
+  return translatePattern(language, source) ?? source;
+}
+
+// Remembers each node's / attribute's English source and the value last
+// written, so re-translating (e.g. switching hy → ru → en) always starts from
+// the real English text instead of guessing it back from a translation. If
+// React has since rendered new text into the node, that new text becomes the
+// source.
+const nodeSources = new WeakMap();
+const attrSources = new WeakMap();
+let titleState = { source: null, rendered: null };
+
+function translatePreservingSpace(language, value) {
+  if (typeof value !== 'string' || !value.trim()) return value;
+  const leading = value.match(/^\s*/)?.[0] || '';
+  const trailing = value.match(/\s*$/)?.[0] || '';
+  return `${leading}${translate(language, value.trim())}${trailing}`;
 }
 
 export function translateDocument(language, root = document.body) {
   if (!root) return;
-
-  const translateValue = (value) => {
-    if (typeof value !== 'string' || !value.trim()) return value;
-    const leading = value.match(/^\s*/)?.[0] || '';
-    const trailing = value.match(/\s*$/)?.[0] || '';
-    const core = value.trim();
-    const next = translate(language, core);
-    return `${leading}${next}${trailing}`;
-  };
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes = [];
@@ -765,19 +812,40 @@ export function translateDocument(language, root = document.body) {
 
   textNodes.forEach((node) => {
     const parent = node.parentElement;
-    if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) return;
-    const next = translateValue(node.nodeValue);
-    if (next !== node.nodeValue) node.nodeValue = next;
+    if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA'].includes(parent.tagName)) return;
+    if (parent.closest('[translate="no"]')) return;
+    const current = node.nodeValue;
+    const known = nodeSources.get(node);
+    const source = known && known.rendered === current ? known.source : current;
+    const next = translatePreservingSpace(language, source);
+    nodeSources.set(node, { source, rendered: next });
+    if (next !== current) node.nodeValue = next;
   });
 
   root.querySelectorAll?.('[placeholder], [aria-label], [title]').forEach((element) => {
+    if (element.closest('[translate="no"]')) return;
+    let memo = attrSources.get(element);
+    if (!memo) { memo = {}; attrSources.set(element, memo); }
     ['placeholder', 'aria-label', 'title'].forEach((attribute) => {
       if (!element.hasAttribute(attribute)) return;
       const current = element.getAttribute(attribute);
-      const next = translateValue(current);
+      const known = memo[attribute];
+      const source = known && known.rendered === current ? known.source : current;
+      const next = translatePreservingSpace(language, source);
+      memo[attribute] = { source, rendered: next };
       if (next !== current) element.setAttribute(attribute, next);
     });
   });
+
+  // Browser tab title ("Shop All — Urban Phoenix" etc.) — set in English by
+  // AppContext's setDocumentMeta on every navigation.
+  if (typeof document !== 'undefined' && root === document.body) {
+    const current = document.title;
+    const source = titleState.rendered === current ? titleState.source : current;
+    const next = translate(language, source);
+    titleState = { source, rendered: next };
+    if (next !== current) document.title = next;
+  }
 }
 
 // ---- Account system (added) ----
@@ -1065,3 +1133,9 @@ Object.assign(translations.hy, {
 Object.assign(translations.ru, {
   "Free shipping on orders delivered within Armenia. International orders add a flat 10,000 AMD shipping fee, calculated at checkout.": "Бесплатная доставка по Армении. Международные заказы облагаются фиксированной доставкой в 10 000 драм, рассчитывается при оформлении заказа.",
 });
+
+// ---- Full storefront review (October 2026) — must stay LAST ----
+// Corrects earlier mixed-language/inconsistent entries and fills every gap
+// found by crawling the site; see src/i18n/storefront.js.
+Object.assign(translations.hy, storefrontHy);
+Object.assign(translations.ru, storefrontRu);

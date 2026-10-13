@@ -73,7 +73,7 @@ export default function CartPage() {
           <div className="flex items-end justify-between mb-10">
             <div>
               <p className="text-[10px] font-mono text-muted tracking-[0.25em] uppercase mb-2">
-                {cart.length} Item{cart.length !== 1 ? 's' : ''}
+                {`${cart.length} ${cart.length === 1 ? 'Item' : 'Items'}`}
               </p>
               <h1 className="font-display font-black uppercase text-fg leading-none" style={{ fontSize: 'clamp(3rem, 6vw, 6rem)', letterSpacing: '-0.02em' }}>
                 Your Bag
@@ -121,10 +121,10 @@ export default function CartPage() {
                         <p className="text-sm font-mono text-fg shrink-0">{formatMoney(item.product.price * item.quantity)}</p>
                       </div>
                       <p className="text-[11px] font-mono text-muted mb-4">
-                        {item.color} · Size {item.size} · {formatMoney(item.product.price)} each
+                        {`${item.color} · Size ${item.size} · ${formatMoney(item.product.price)} each`}
                       </p>
                       {item.editionNumbers?.length > 0 && (
-                        <p className="cart-editions">Piece {item.editionNumbers.map((number) => String(number).padStart(3, '0')).join(', ')} / {String(item.product.limitedEditionTotal || 100).padStart(3, '0')}</p>
+                        <p className="cart-editions">{`Piece ${item.editionNumbers.map((number) => String(number).padStart(3, '0')).join(', ')} / ${String(item.product.limitedEditionTotal || 100).padStart(3, '0')}`}</p>
                       )}
                       <div className="flex items-center justify-between mt-auto">
                         {item.editionNumbers?.length > 0 ? (

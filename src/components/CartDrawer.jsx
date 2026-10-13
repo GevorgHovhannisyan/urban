@@ -48,7 +48,7 @@ export default function CartDrawer() {
           <div>
             <h2 className="font-display font-black text-xl uppercase tracking-wider text-fg">Your Bag</h2>
             {cart.length > 0 && (<p className="text-[11px] font-mono text-muted mt-0.5 tracking-widest uppercase">
-                {cart.reduce((s, i) => s + i.quantity, 0)} Item{cart.reduce((s, i) => s + i.quantity, 0) !== 1 ? 's' : ''}
+                {(() => { const n = cart.reduce((s, i) => s + i.quantity, 0); return `${n} ${n === 1 ? 'Item' : 'Items'}`; })()}
               </p>)}
           </div>
           <button onClick={() => setCartOpen(false)} aria-label="Close bag" className="text-muted hover:text-fg transition-colors p-1">
@@ -102,14 +102,14 @@ export default function CartDrawer() {
                       <p key={item.quantity} className="text-sm font-mono text-fg shrink-0 cart-value-pop">{formatMoney(item.product.price * item.quantity)}</p>
                     </div>
                     <p className="text-[11px] font-mono text-muted tracking-wide mb-3">
-                      {item.color} · Size {item.size}
+                      {`${item.color} · Size ${item.size}`}
                     </p>
                     {item.editionNumbers?.length > 0 && (
-                      <p className="cart-editions">Edition {item.editionNumbers.map((number) => String(number).padStart(3, '0')).join(', ')} / {String(item.product.limitedEditionTotal || 100).padStart(3, '0')}</p>
+                      <p className="cart-editions">{`Piece ${item.editionNumbers.map((number) => String(number).padStart(3, '0')).join(', ')} / ${String(item.product.limitedEditionTotal || 100).padStart(3, '0')}`}</p>
                     )}
                     <div className="flex items-center justify-between">
                       {item.editionNumbers?.length > 0 ? (
-                        <span className="text-[10px] font-mono text-muted">Qty {item.quantity} · fixed</span>
+                        <span className="text-[10px] font-mono text-muted">{`Qty ${item.quantity} · fixed`}</span>
                       ) : (
                         <div className="flex items-center border border-border">
                           <button onClick={() => updateQuantity(item.product.id, item.size, item.color, item.quantity - 1, item.editionNumbers)} className="w-7 h-7 flex items-center justify-center text-muted hover:text-fg transition-colors text-sm">

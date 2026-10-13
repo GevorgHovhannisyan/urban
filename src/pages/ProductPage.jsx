@@ -309,7 +309,7 @@ export default function ProductPage({ product }) {
                   })}
                 </div>
                 {selectedSize && selectedVariantStock !== null && selectedVariantStock > 0 && selectedVariantStock <= 5 && (
-                  <p className="mt-2 text-[10px] font-mono text-accent-light tracking-wide uppercase">Only {selectedVariantStock} left</p>
+                  <p className="mt-2 text-[10px] font-mono text-accent-light tracking-wide uppercase">{`Only ${selectedVariantStock} left`}</p>
                 )}
               </>) : (
                 // Real DB state: no sizes have been configured for this

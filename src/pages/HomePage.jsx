@@ -193,7 +193,7 @@ function LimitedEditionSpotlight() {
           <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-accent mb-6">Limited Edition</p>
           <h2 className="font-display font-black uppercase text-fg leading-[0.95] mb-6" style={{ fontSize: 'clamp(2rem, 4.5vw, 4rem)', letterSpacing: '-0.015em' }}>
             {limitedProduct.name}.<br />
-            <span className="text-accent">Limited To {limitedProduct.limitedEditionTotal} Pieces.</span>
+            <span className="text-accent">{`Limited To ${limitedProduct.limitedEditionTotal} Pieces.`}</span>
           </h2>
           <p className="text-sm font-body font-light text-muted leading-relaxed max-w-md mx-auto mb-8">
             Each piece is individually numbered. No restock.

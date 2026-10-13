@@ -2704,3 +2704,13 @@ button:disabled {
     animation: none !important;
   }
 }
+
+
+/* i18n long-word wrapping — Armenian and Russian words are often much longer
+   than English ones; in large display headings a single word could exceed a
+   phone's width and widen the whole page (pushing header icons off-screen).
+   `anywhere` only breaks a word when it genuinely doesn't fit. */
+html:lang(hy) :is(h1, h2, h3, h4, .font-display),
+html:lang(ru) :is(h1, h2, h3, h4, .font-display) {
+  overflow-wrap: anywhere;
+}

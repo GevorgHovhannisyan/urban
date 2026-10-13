@@ -113,7 +113,7 @@ export default function TrackOrderPage() {
                   )}
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{item.name}</p>
-                    <p className="text-xs text-muted font-mono uppercase">{item.color} / {item.size} · Qty {item.quantity}</p>
+                    <p className="text-xs text-muted font-mono uppercase">{`${item.color} / ${item.size} · Qty ${item.quantity}`}</p>
                   </div>
                 </div>
               ))}

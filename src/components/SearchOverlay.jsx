@@ -76,7 +76,7 @@ export default function SearchOverlay({ open, onClose }) {
               </div>
             </div>
           ) : results.length === 0 ? (
-            <p className="text-sm text-muted max-w-screen-md mx-auto">No results for "{query}".</p>
+            <p className="text-sm text-muted max-w-screen-md mx-auto">{`No results for "${query}".`}</p>
           ) : (
             <div className="max-w-screen-md mx-auto space-y-1">
               <p key={results.length} className="text-[10px] font-mono text-muted tracking-[0.25em] uppercase mb-4">{results.length} Result{results.length === 1 ? '' : 's'}</p>

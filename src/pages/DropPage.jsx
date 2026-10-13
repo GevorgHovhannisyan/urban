@@ -159,7 +159,7 @@ export default function DropPage() {
           <ScrollReveal>
             <p className="text-[10px] font-mono text-muted tracking-[0.25em] uppercase mb-2">Coming Up</p>
             <h2 className="font-display font-black uppercase text-fg leading-none mb-12" style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', letterSpacing: '-0.015em' }}>
-              {drops.length} Piece{drops.length === 1 ? '' : 's'} Revealed
+              {`${drops.length} ${drops.length === 1 ? 'Piece' : 'Pieces'} Revealed`}
             </h2>
           </ScrollReveal>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">

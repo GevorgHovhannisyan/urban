@@ -515,7 +515,7 @@ export default function CheckoutPage() {
                       {item.image && <img src={item.image} onError={handleImgError} alt="" className="w-14 h-18 up-photo object-cover" />}
                       <div className="flex-1">
                         <p className="text-sm">{item.name}</p>
-                        <p className="text-xs text-muted">Size: {item.size} · Qty {item.quantity}</p>
+                        <p className="text-xs text-muted">{`Size: ${item.size} · Qty ${item.quantity}`}</p>
                         {item.isLimitedEdition && item.editionNumbers?.length > 0 && (
                           <p className="text-xs font-mono uppercase tracking-widest text-accent mt-1">
                             {item.editionNumbers.length > 1
@@ -722,10 +722,10 @@ export default function CheckoutPage() {
                       <p>{item.product.name}</p>
                       <p className="text-xs text-muted">{item.size} / {item.color}</p>
                       {item.editionNumbers?.length > 0 && (
-                        <p className="checkout-editions">Piece {item.editionNumbers.map((number) => String(number).padStart(3, '0')).join(', ')} / {String(item.product.limitedEditionTotal || 100).padStart(3, '0')}</p>
+                        <p className="checkout-editions">{`Piece ${item.editionNumbers.map((number) => String(number).padStart(3, '0')).join(', ')} / ${String(item.product.limitedEditionTotal || 100).padStart(3, '0')}`}</p>
                       )}
                       {item.editionNumbers?.length > 0 ? (
-                        <p className="text-xs text-muted mt-1">Qty {item.quantity} — fixed for limited editions</p>
+                        <p className="text-xs text-muted mt-1">{`Qty ${item.quantity} — fixed for limited editions`}</p>
                       ) : (
                         <div className="checkout-quantity">
                           <button

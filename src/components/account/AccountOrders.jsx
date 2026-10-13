@@ -111,7 +111,7 @@ export default function AccountOrders({ onNavigate }) {
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-muted font-mono uppercase">{item.color} / {item.size} · Qty {item.quantity}</p>
+                      <p className="text-xs text-muted font-mono uppercase">{`${item.color} / ${item.size} · Qty ${item.quantity}`}</p>
                       {item.editionNumbers?.length > 0 && (
                         <p className="text-xs font-mono text-accent uppercase">
                           Piece {item.editionNumbers.map((n) => `${String(n).padStart(3, '0')}/${String(item.editionTotal || 100).padStart(3, '0')}`).join(', ')}

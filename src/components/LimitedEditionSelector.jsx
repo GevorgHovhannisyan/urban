@@ -119,7 +119,7 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
           </svg>
           <div>
             <span className="limited-edition__eyebrow">LIMITED EDITION</span>
-            <strong>LIMITED TO {total} PIECES.</strong>
+            <strong>{`LIMITED TO ${total} PIECES.`}</strong>
           </div>
         </div>
         {sold && (

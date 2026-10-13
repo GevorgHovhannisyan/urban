@@ -65,8 +65,7 @@ export default function LimitedPiecesArchive() {
               )}
               <p className="font-display font-black uppercase text-lg leading-tight mb-1">{piece.name}</p>
               <p className="text-xs text-muted font-mono uppercase mb-4">
-                {piece.color} / Size {piece.size}
-                {piece.number === null && piece.quantity > 1 ? ` · Qty ${piece.quantity}` : ''}
+                {`${piece.color} / Size ${piece.size}${piece.number === null && piece.quantity > 1 ? ` · Qty ${piece.quantity}` : ''}`}
               </p>
 
               {/* Serial/piece numbering only ever renders when this exact
