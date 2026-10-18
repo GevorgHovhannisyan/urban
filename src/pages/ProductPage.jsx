@@ -32,10 +32,13 @@ function StarRating({ rating }) {
     </div>);
 }
 export default function ProductPage({ product }) {
-    const { addToCart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView, visitorCountry, isUnitedStates, isRussia } = useApp();
+    const { addToCart, cart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView, visitorCountry, isUnitedStates, isRussia } = useApp();
     const [selectedSize, setSelectedSize] = useState('');
     const [selectedColor, setSelectedColor] = useState(product.colors[0]);
     const [quantity, setQuantity] = useState(1);
+    // One size per piece when buying more than one (e.g. one M and one L).
+    // Index i is piece i; the main size grid fills every piece at once.
+    const [pieceSizes, setPieceSizes] = useState(['']);
     const [editionNumbers, setEditionNumbers] = useState([]);
     const [editionError, setEditionError] = useState(false);
     const [activeImage, setActiveImage] = useState(0);
@@ -70,6 +73,7 @@ export default function ProductPage({ product }) {
       setSelectedSize('');
       setSelectedColor(product.colors[0]);
       setQuantity(1);
+      setPieceSizes(['']);
       setEditionNumbers([]);
       setEditionError(false);
       setActiveImage(0);
@@ -144,31 +148,74 @@ export default function ProductPage({ product }) {
       .map((id) => products.find((p) => p.id === id))
       .filter(Boolean)
       .slice(0, 4);
-    const handleAddToCart = () => {
-        if (effectiveSoldOut || !hasSizes) return;
-        if (!selectedSize) {
-            setSizeError(true);
-            return;
-        }
-        if (selectedVariantStock === 0) return;
-        if (product.isLimitedEdition && editionNumbers.length !== quantity) { setEditionError(true); return; }
+    // Sizes actually being bought, one entry per piece.
+    const sizesForPieces = quantity === 1 ? [selectedSize] : pieceSizes;
+    const missingPieceSize = sizesForPieces.some((size) => !size);
+    // Per-size stock check (only for stock-tracked products): buying 2 × M
+    // needs 2 in stock in M, regardless of what's chosen for other pieces.
+    const sizeCounts = sizesForPieces.reduce((acc, size) => (size ? { ...acc, [size]: (acc[size] || 0) + 1 } : acc), {});
+    const overStock = Object.entries(sizeCounts).find(([size, count]) => {
+      const stock = variantStock(size, selectedColor);
+      return stock !== null && count > stock;
+    });
+    // Limited-edition numbers already sitting in the bag for this product —
+    // shown as taken in the picker so the same serial can't be picked twice.
+    const numbersInBag = useMemo(() => cart
+      .filter((item) => item.product.id === product.id)
+      .flatMap((item) => item.editionNumbers || []), [cart, product.id]);
+
+    const setQuantitySafe = (next) => {
+      const q = Math.min(100, Math.max(1, Number(next) || 1));
+      setQuantity(q);
+      // New pieces start in the main size (or the last piece's size).
+      setPieceSizes((prev) => Array.from({ length: q }, (_, i) => prev[i] || selectedSize || prev[prev.length - 1] || ''));
+    };
+    const chooseMainSize = (size) => {
+      setSelectedSize(size);
+      setPieceSizes((prev) => prev.map(() => size));
+      setSizeError(false);
+    };
+    const choosePieceSize = (index, size) => {
+      setPieceSizes((prev) => prev.map((s, i) => (i === index ? size : s)));
+      setSizeError(false);
+    };
+
+    // Turns the per-piece choices into one bag line per size, each with the
+    // edition numbers of its own pieces (piece i gets editionNumbers[i]).
+    const addSelectionToBag = () => {
+        if (effectiveSoldOut || !hasSizes) return false;
+        if (missingPieceSize) { setSizeError(true); return false; }
+        if (overStock) return false;
+        if (product.isLimitedEdition && editionNumbers.length !== quantity) { setEditionError(true); return false; }
         setSizeError(false);
         setEditionError(false);
-        addToCart({ product, size: selectedSize, color: selectedColor, quantity, editionNumbers });
+        const groups = new Map();
+        sizesForPieces.forEach((size, i) => {
+            const group = groups.get(size) || { size, quantity: 0, editionNumbers: [] };
+            group.quantity += 1;
+            if (product.isLimitedEdition) group.editionNumbers.push(editionNumbers[i]);
+            groups.set(size, group);
+        });
+        for (const group of groups.values()) {
+            addToCart({
+                product,
+                size: group.size,
+                color: selectedColor,
+                quantity: group.quantity,
+                editionNumbers: group.editionNumbers.sort((a, b) => a - b),
+            });
+        }
+        // Those serials are now in the bag — never let the same ones be added again.
+        if (product.isLimitedEdition) setEditionNumbers([]);
+        return true;
+    };
+    const handleAddToCart = () => {
+        if (!addSelectionToBag()) return;
         setAddedMsg(true);
         setTimeout(() => setAddedMsg(false), 2500);
     };
     const handleBuyNow = () => {
-        if (effectiveSoldOut || !hasSizes) return;
-        if (!selectedSize) {
-            setSizeError(true);
-            return;
-        }
-        if (selectedVariantStock === 0) return;
-        if (product.isLimitedEdition && editionNumbers.length !== quantity) { setEditionError(true); return; }
-        setEditionError(false);
-        addToCart({ product, size: selectedSize, color: selectedColor, quantity, editionNumbers });
-        navigate('cart');
+        if (addSelectionToBag()) navigate('cart');
     };
     const tabContent = {
         details: product.description,
@@ -284,7 +331,7 @@ export default function ProductPage({ product }) {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
                 <p className={`text-[10px] font-mono tracking-[0.2em] uppercase ${sizeError ? 'text-accent' : 'text-muted'}`}>
-                  {sizeError ? 'Please select a size' : 'Size'}
+                  {sizeError ? (quantity > 1 ? 'Please choose a size for every piece' : 'Please select a size') : (quantity > 1 ? 'Size for all pieces' : 'Size')}
                 </p>
                 {hasSizes && (
                   <button type="button" onClick={() => setSizeGuideOpen(true)} className="text-[10px] font-mono text-muted underline underline-offset-2 hover:text-fg transition-colors tracking-wide">
@@ -297,7 +344,7 @@ export default function ProductPage({ product }) {
                   {product.sizes.map(size => {
                     const qty = variantStock(size, selectedColor);
                     const soldOut = qty === 0;
-                    return (<button key={size} disabled={soldOut} onClick={() => { setSelectedSize(size); setSizeError(false); }} className={`relative py-3 text-[11px] font-mono tracking-wide uppercase border transition-all duration-150 ${selectedSize === size
+                    return (<button key={size} disabled={soldOut} onClick={() => chooseMainSize(size)} className={`relative py-3 text-[11px] font-mono tracking-wide uppercase border transition-all duration-150 ${selectedSize === size
                     ? 'border-fg bg-fg text-bg'
                     : soldOut
                         ? 'border-border text-muted/30 cursor-not-allowed line-through'
@@ -326,7 +373,7 @@ export default function ProductPage({ product }) {
             <div className="mb-8">
               <p className="text-[10px] font-mono text-muted tracking-[0.2em] uppercase mb-3">Quantity</p>
               <div className="flex items-center border border-border w-fit">
-                <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-r border-border">
+                <button onClick={() => setQuantitySafe(quantity - 1)} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-r border-border">
                   −
                 </button>
                 <input
@@ -335,13 +382,61 @@ export default function ProductPage({ product }) {
                   min="1"
                   max="100"
                   value={quantity}
-                  onChange={(event) => setQuantity(Math.min(100, Math.max(1, Number(event.target.value) || 1)))}
+                  onChange={(event) => setQuantitySafe(event.target.value)}
                   aria-label="Quantity"
                 />
-                <button disabled={quantity >= 100} onClick={() => setQuantity(q => Math.min(100, q + 1))} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-l border-border">
+                <button disabled={quantity >= 100} onClick={() => setQuantitySafe(quantity + 1)} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-l border-border">
                   +
                 </button>
               </div>
+
+              {/* Different size per piece — only when buying more than one. */}
+              {quantity > 1 && hasSizes && !effectiveSoldOut && (
+                <div className="mt-5 border border-border p-4">
+                  <p className="text-[10px] font-mono text-muted tracking-[0.2em] uppercase">Size for each piece</p>
+                  <p className="text-[11px] text-muted mt-1 mb-3">Pieces can be different sizes — e.g. one M and one L.</p>
+                  <div className="space-y-2.5">
+                    {pieceSizes.map((pieceSize, index) => (
+                      <div key={index} className="flex items-center gap-3">
+                        <span className="w-[4.5rem] shrink-0 text-[10px] font-mono text-muted tracking-widest uppercase">
+                          {`Piece ${index + 1}`}
+                          {product.isLimitedEdition && editionNumbers[index] != null && (
+                            <span className="block text-accent normal-case tracking-normal">{`№ ${String(editionNumbers[index]).padStart(3, '0')}`}</span>
+                          )}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {product.sizes.map((size) => {
+                            const soldOut = variantStock(size, selectedColor) === 0;
+                            const active = pieceSize === size;
+                            return (
+                              <button
+                                key={size}
+                                type="button"
+                                disabled={soldOut}
+                                aria-pressed={active}
+                                aria-label={`Piece ${index + 1}: ${size}`}
+                                onClick={() => choosePieceSize(index, size)}
+                                className={`min-w-[2.6rem] px-2 py-2 text-[10px] font-mono uppercase border transition-colors ${active
+                                  ? 'border-fg bg-fg text-bg'
+                                  : soldOut
+                                    ? 'border-border text-muted/30 line-through cursor-not-allowed'
+                                    : sizeError && !pieceSize
+                                      ? 'border-accent/50 text-muted hover:text-fg'
+                                      : 'border-border text-muted hover:border-fg/40 hover:text-fg'}`}
+                              >
+                                {size}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {overStock && (
+                    <p className="mt-3 text-[10px] font-mono text-accent tracking-wide uppercase">{`Only ${variantStock(overStock[0], selectedColor)} left in size ${overStock[0]}`}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* CTAs — Limited Edition selection is a required choice, same as
@@ -356,6 +451,7 @@ export default function ProductPage({ product }) {
                     total={product.limitedEditionTotal || 100}
                     quantity={quantity}
                     value={editionNumbers}
+                    reserved={numbersInBag}
                     onChange={(numbers) => { setEditionNumbers(numbers); setEditionError(false); }}
                     error={editionError}
                   />

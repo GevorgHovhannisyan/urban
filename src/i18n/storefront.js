@@ -15,6 +15,11 @@
 // Dynamic text (numbers, prices, names) is handled by PATTERNS at the bottom.
 
 export const storefrontHy = {
+  // ---------- Size per piece (buying more than one) ----------
+  "Size for each piece": "Չափսը յուրաքանչյուր իրի համար",
+  "Pieces can be different sizes — e.g. one M and one L.": "Իրերը կարող են լինել տարբեր չափսերի, օրինակ՝ մեկը M, մյուսը L։",
+  "Size for all pieces": "Չափս բոլոր իրերի համար",
+  "Please choose a size for every piece": "Խնդրում ենք ընտրել չափսը յուրաքանչյուր իրի համար",
   "Collection": "Հավաքածու",
   "Freedom To Become": "Freedom To Become",
   "Freedom To Become.": "Freedom To Become.",
@@ -727,6 +732,11 @@ export const storefrontHy = {
 };
 
 export const storefrontRu = {
+  // ---------- Size per piece (buying more than one) ----------
+  "Size for each piece": "Размер для каждой вещи",
+  "Pieces can be different sizes — e.g. one M and one L.": "Вещи могут быть разных размеров — например, одна M и одна L.",
+  "Size for all pieces": "Размер для всех вещей",
+  "Please choose a size for every piece": "Пожалуйста, выберите размер для каждой вещи",
   "Collection": "Коллекция",
   "Freedom To Become": "Freedom To Become",
   "Freedom To Become.": "Freedom To Become.",
@@ -1454,6 +1464,9 @@ const ruPlural = (n, one, few, many) => {
 export const PATTERNS = {
   hy: [
     [/^(.+) — Urban Phoenix$/, (m, tr) => `${tr(m[1])} — Urban Phoenix`],
+    [/^Piece (\d+)$/, (m) => `Իր ${m[1]}`],
+    [/^Piece (\d+): (.+)$/, (m) => `Իր ${m[1]}՝ ${m[2]}`],
+    [/^Only (\d+) left in size (.+)$/, (m) => `${m[2]} չափսից մնացել է ընդամենը ${m[1]} հատ`],
     [/^(\d+) Pieces?$/, (m) => `${m[1]} իր`],
     [/^All (\d+) Pieces$/, (m) => `Բոլոր ${m[1]} իրերը`],
     [/^(\d+) Pieces? Revealed$/, (m) => `Բացահայտված է ${m[1]} իր`],
@@ -1489,6 +1502,9 @@ export const PATTERNS = {
   ],
   ru: [
     [/^(.+) — Urban Phoenix$/, (m, tr) => `${tr(m[1])} — Urban Phoenix`],
+    [/^Piece (\d+)$/, (m) => `Вещь ${m[1]}`],
+    [/^Piece (\d+): (.+)$/, (m) => `Вещь ${m[1]}: ${m[2]}`],
+    [/^Only (\d+) left in size (.+)$/, (m) => `В размере ${m[2]} ${ruPlural(m[1], 'остался', 'осталось', 'осталось')} всего ${m[1]} шт.`],
     [/^(\d+) Pieces?$/, (m) => `${m[1]} ${ruPlural(m[1], 'вещь', 'вещи', 'вещей')}`],
     [/^All (\d+) Pieces$/, (m) => `Все ${m[1]} ${ruPlural(m[1], 'вещь', 'вещи', 'вещей')}`],
     [/^(\d+) Pieces? Revealed$/, (m) => `${ruPlural(m[1], 'Представлена', 'Представлены', 'Представлено')} ${m[1]} ${ruPlural(m[1], 'вещь', 'вещи', 'вещей')}`],

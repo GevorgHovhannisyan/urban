@@ -14,7 +14,9 @@ const pad = (number) => String(number).padStart(3, '0');
 // the race first, checkout surfaces a clear "no longer available" error and
 // (CheckoutPage.jsx) sends the shopper back here to pick again — nothing
 // this component shows is ever treated as a guarantee by the backend.
-export default function LimitedEditionSelector({ productId, total, quantity, value, onChange, error = false }) {
+// `reserved`: numbers of this product already in the shopper's bag — shown
+// as taken so the same serial can't be picked twice across bag lines.
+export default function LimitedEditionSelector({ productId, total, quantity, value, onChange, error = false, reserved = [] }) {
   const { t } = useApp();
   const [open, setOpen] = useState(false);
   const [sold, setSold] = useState(null);
@@ -81,7 +83,7 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sold]);
 
-  const soldList = sold || [];
+  const soldList = useMemo(() => [...new Set([...(sold || []), ...reserved])], [sold, reserved]);
   const remaining = useMemo(() => Math.max(0, total - soldList.length), [soldList, total]);
   const isComplete = selected.length === quantity;
 
