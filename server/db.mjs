@@ -476,6 +476,9 @@ export function initDb() {
       // re-derived, possibly different, current value. NULL for any order
       // placed before this column existed.
       await ensureColumn("orders", "deliveryEstimate", "VARCHAR(160) NULL");
+      // When the order was marked Delivered — starts the 15-day return window
+      // (src/data/returnPolicy.js).
+      await ensureColumn("orders", "deliveredAt", "DATETIME NULL");
       await ensureColumn("orders", "customerApartment", "TEXT NULL");
       await ensureColumn("orders", "deliveryNotes", "TEXT NULL");
       await ensureColumn("orders", "paymentProvider", "VARCHAR(32) NULL");

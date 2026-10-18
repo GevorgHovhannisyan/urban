@@ -32,7 +32,7 @@ function StarRating({ rating }) {
     </div>);
 }
 export default function ProductPage({ product }) {
-    const { addToCart, cart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView, visitorCountry, isUnitedStates, isRussia } = useApp();
+    const { addToCart, cart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView } = useApp();
     const [selectedSize, setSelectedSize] = useState('');
     const [selectedColor, setSelectedColor] = useState(product.colors[0]);
     const [quantity, setQuantity] = useState(1);
@@ -491,26 +491,17 @@ export default function ProductPage({ product }) {
             </button>
 
             {/* USPs */}
-            <div className="grid grid-cols-4 gap-4 border-t border-border pt-6 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-6 border-t border-border pt-6 mb-6">
               {[
-            { icon: 'returns', label: 'Free Returns', sub: '14-day policy' },
-            { icon: 'truck', label: 'Fast Local Delivery', sub: '1–2 day dispatch' },
-            // Real, region-aware shipping messaging — Urban Phoenix currently
-            // ships only to Armenia, the United States and Russia
-            // (SUPPORTED_SHIPPING_COUNTRIES, src/data/countries.js), never a
-            // blanket "worldwide"/generic "international" claim. visitorCountry
-            // is a detected/UX default only; the real charge and real
-            // delivery estimate are always decided by the full address
-            // entered at checkout. Armenia shows both the Yerevan and the
-            // regional estimate — this page has no shipping city yet, only a
-            // detected country, so it can't tell Yerevan from another region.
-            visitorCountry === 'AM'
-              ? { icon: 'globe', label: 'Armenia — Free Shipping', sub: `Yerevan ${DELIVERY_ESTIMATES.yerevan} · Regions ${DELIVERY_ESTIMATES.armeniaRegions} business days` }
-              : isUnitedStates
-                ? { icon: 'globe', label: 'United States — Free Shipping', sub: `On orders $${FREE_US_SHIPPING_THRESHOLD}+ · ${DELIVERY_ESTIMATES.unitedStates} business days` }
-                : isRussia
-                  ? { icon: 'globe', label: 'Russia — Free Shipping', sub: `On orders $${FREE_US_SHIPPING_THRESHOLD}+ · ${DELIVERY_ESTIMATES.russia} business days` }
-                  : { icon: 'globe', label: 'Ships To Armenia, U.S. & Russia', sub: 'Select your country at checkout' },
+            { icon: 'returns', label: 'Free Returns', sub: 'Within 15 days of delivery' },
+            // Both shipping zones are always shown — Armenia and international
+            // (Urban Phoenix ships only to Armenia, the United States and
+            // Russia: SUPPORTED_SHIPPING_COUNTRIES, src/data/countries.js).
+            // The real charge and estimate are decided by the address entered
+            // at checkout; this page has no city yet, so Armenia shows both the
+            // Yerevan and the regional estimate.
+            { icon: 'globe', label: 'Armenia — Free Shipping', sub: `Yerevan ${DELIVERY_ESTIMATES.yerevan} · Regions ${DELIVERY_ESTIMATES.armeniaRegions} business days` },
+            { icon: 'truck', label: 'International Shipping', sub: `U.S. & Russia · ${DELIVERY_ESTIMATES.unitedStates} business days · free on $${FREE_US_SHIPPING_THRESHOLD}+` },
             { icon: 'shieldCheck', label: 'Authentic', sub: 'Quality guaranteed' },
         ].map(item => (<div key={item.label} className="text-center">
                   <Icon name={item.icon} size={20} strokeWidth={1.4} className="text-muted mx-auto mb-1.5" />

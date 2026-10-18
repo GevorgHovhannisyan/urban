@@ -107,8 +107,8 @@ const EMPTY_GARMENT_EXPLORER = { enabled: true, frontImage: '', backImage: '', h
 const EMPTY_PRODUCT = {
   name: '', price: '', compareAtPrice: '', category: '', garmentType: '', subtitle: '', collection: '',
   colors: '', sizes: '', images: [], description: '', materials: '', care: '',
-  shipping: 'Free shipping within Armenia. Orders dispatched within 1–2 business days.',
-  returns: 'Free returns within 14 days of delivery. Items must be unworn with original tags attached.',
+  shipping: 'Yerevan: 3–4 business days. Other regions of Armenia: 7–10 business days. International: 15–20 business days.',
+  returns: 'Returns accepted within 15 days of delivery, subject to our return policy. Items must be unworn with original tags attached.',
   isNew: false, isFeatured: false, isLimitedEdition: false, limitedEditionTotal: '', archived: false,
   stock: {}, releaseAt: '', earlyAccessAt: '', membersOnly: false,
   garmentExplorer: EMPTY_GARMENT_EXPLORER,

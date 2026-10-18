@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { all, get, run, toJson, fromJson } from './db.mjs';
+import { RETURN_WINDOW_DAYS, isReturnWindowOpen } from '../src/data/returnPolicy.js';
 
 const clean = (value, max = 200) => String(value ?? '').trim().slice(0, max);
-const RETURN_WINDOW_DAYS = 30;
 const ALLOWED_STATUSES = new Set(['requested', 'approved', 'rejected', 'refunded']);
 
 function serialize(row) {
@@ -31,8 +31,8 @@ export async function createReturnRequest(customerEmail, payload = {}) {
   const deliveredOrConfirmed = ['confirmed', 'processing', 'shipped', 'delivered'].includes(order.status);
   if (!deliveredOrConfirmed) return { status: 400, body: { error: 'This order is not eligible for a return yet.' } };
 
-  const daysSinceOrder = (Date.now() - new Date(order.createdAt).getTime()) / 86400000;
-  if (daysSinceOrder > RETURN_WINDOW_DAYS) {
+  // 15 days from delivery (src/data/returnPolicy.js — same rule the account page uses).
+  if (!isReturnWindowOpen(order)) {
     return { status: 400, body: { error: `The ${RETURN_WINDOW_DAYS}-day return window for this order has passed.` } };
   }
 

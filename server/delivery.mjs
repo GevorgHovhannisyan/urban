@@ -87,7 +87,7 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       const qualifiesForFree = subtotal >= FREE_US_SHIPPING_THRESHOLD;
       const standardCost = qualifiesForFree ? 0 : FLAT_INTERNATIONAL_FEE_USD;
       return [
-        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 7–15 business days' : '7–15 business days', cost: standardCost },
+        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost },
       ];
     }
     default: // 'international'

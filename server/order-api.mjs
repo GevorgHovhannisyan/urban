@@ -139,6 +139,7 @@ function serializeOrder(row, productMap) {
     paymentStatus: row.paymentStatus,
     currency: row.currency,
     region: row.region,
+    deliveredAt: row.deliveredAt || null,
     priceMultiplier: Number(row.priceMultiplier),
     customer: {
       firstName: row.customerFirstName,
@@ -690,6 +691,11 @@ export async function updateOrderStatus(id, { status, paymentStatus }) {
   const justDelivered = status === 'delivered' && existing.status !== 'delivered';
   const justCancelled = status === 'cancelled' && existing.status !== 'cancelled';
   const justRefunded = paymentStatus === 'refunded' && existing.paymentStatus !== 'refunded';
+
+  // Start the return window the first time an order becomes Delivered.
+  if (status === 'delivered' && existing.status !== 'delivered' && !existing.deliveredAt) {
+    updates.push('deliveredAt = CURRENT_TIMESTAMP');
+  }
 
   values.push(orderId);
   await run(`UPDATE orders SET ${updates.join(', ')} WHERE id = ?`, values);

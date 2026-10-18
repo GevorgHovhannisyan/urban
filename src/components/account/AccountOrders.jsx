@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isReturnWindowOpen } from '../../data/returnPolicy';
 import { useApp } from '../../context/AppContext';
 import { ListRowsSkeleton } from '../Skeleton';
 import Icon from '../Icon';
@@ -14,7 +15,6 @@ const STATUS_LABELS = {
 };
 
 const RETURN_ELIGIBLE_STATUSES = new Set(['confirmed', 'processing', 'shipped', 'delivered']);
-const RETURN_WINDOW_DAYS = 30;
 
 export default function AccountOrders({ onNavigate }) {
   const { accountFetch, formatMoney, navigate, user } = useApp();
@@ -131,8 +131,7 @@ export default function AccountOrders({ onNavigate }) {
                 </button>
                 {(() => {
                   const existingReturn = returnForOrder(order.orderNumber);
-                  const daysSince = (Date.now() - new Date(order.createdAt).getTime()) / 86400000;
-                  const eligible = RETURN_ELIGIBLE_STATUSES.has(order.status) && daysSince <= RETURN_WINDOW_DAYS;
+                  const eligible = RETURN_ELIGIBLE_STATUSES.has(order.status) && isReturnWindowOpen(order);
                   if (existingReturn) {
                     return <span className="text-[11px] font-mono uppercase tracking-widest text-accent">Return: {existingReturn.status}</span>;
                   }

@@ -15,6 +15,12 @@
 // Dynamic text (numbers, prices, names) is handled by PATTERNS at the bottom.
 
 export const storefrontHy = {
+  "International Shipping": "Միջազգային առաքում",
+  "U.S. & Russia · 15–20 business days · free on $150+": "ԱՄՆ և Ռուսաստան · 15–20 աշխատանքային օր · անվճար՝ $150-ից",
+  "Yerevan: 3–4 business days. Other regions of Armenia: 7–10 business days. International: 15–20 business days.": "Երևան՝ 3–4 աշխատանքային օր։ Հայաստանի մյուս մարզեր՝ 7–10 աշխատանքային օր։ Միջազգային առաքում՝ 15–20 աշխատանքային օր։",
+  "Returns accepted within 15 days of delivery, subject to our return policy. Items must be unworn with original tags attached.": "Վերադարձն ընդունվում է առաքումից հետո 15 օրվա ընթացքում՝ համաձայն մեր վերադարձի քաղաքականության։ Իրերը պետք է լինեն չկրած և սկզբնական պիտակներով։",
+  "Orders are dispatched after successful payment. Delivery takes 3–4 business days in Yerevan, 7–10 business days in other regions of Armenia, and 15–20 business days internationally.": "Պատվերներն ուղարկվում են հաջող վճարումից հետո։ Առաքումը Երևանում տևում է 3–4 աշխատանքային օր, Հայաստանի մյուս մարզերում՝ 7–10, միջազգային առաքումը՝ 15–20 աշխատանքային օր։",
+  "When will my order ship?": "Ե՞րբ կուղարկվի իմ պատվերը",
   // ---------- Size per piece (buying more than one) ----------
   "Size for each piece": "Չափսը յուրաքանչյուր իրի համար",
   "Pieces can be different sizes — e.g. one M and one L.": "Իրերը կարող են լինել տարբեր չափսերի, օրինակ՝ մեկը M, մյուսը L։",
@@ -162,9 +168,7 @@ export const storefrontHy = {
   "Your History": "Ձեր դիտածները",
   "Recently Viewed": "Վերջերս դիտված",
   "Free Returns": "Անվճար վերադարձ",
-  "14-day policy": "14 օրվա ընթացքում",
-  "Fast Local Delivery": "Արագ առաքում Հայաստանում",
-  "1–2 day dispatch": "Ուղարկում 1–2 օրում",
+  "Within 15 days of delivery": "Առաքումից հետո 15 օրվա ընթացքում",
   "Armenia — Free Shipping": "Հայաստան — անվճար առաքում",
   "United States — Free Shipping": "ԱՄՆ — անվճար առաքում",
   "Russia — Free Shipping": "Ռուսաստան — անվճար առաքում",
@@ -588,7 +592,7 @@ export const storefrontHy = {
   "View Collection 001": "Դիտել Հավաքածու 001-ը",
   "Free U.S. & Russia Shipping": "Անվճար առաքում ԱՄՆ և Ռուսաստան",
   "On orders $150+": "$150-ից բարձր պատվերների դեպքում",
-  "14-Day Returns": "Վերադարձ 14 օրում",
+  "15-Day Returns": "Վերադարձ 15 օրում",
   "Free & unworn": "Անվճար, չկրած իրերի համար",
   "Secure Checkout": "Անվտանգ վճարում",
   "Encrypted payment": "Կոդավորված վճարում",
@@ -732,6 +736,12 @@ export const storefrontHy = {
 };
 
 export const storefrontRu = {
+  "International Shipping": "Международная доставка",
+  "U.S. & Russia · 15–20 business days · free on $150+": "США и Россия · 15–20 рабочих дней · бесплатно от $150",
+  "Yerevan: 3–4 business days. Other regions of Armenia: 7–10 business days. International: 15–20 business days.": "Ереван: 3–4 рабочих дня. Другие регионы Армении: 7–10 рабочих дней. Международная доставка: 15–20 рабочих дней.",
+  "Returns accepted within 15 days of delivery, subject to our return policy. Items must be unworn with original tags attached.": "Возврат принимается в течение 15 дней после доставки в соответствии с нашей политикой возврата. Вещи должны быть неношеными и с оригинальными бирками.",
+  "Orders are dispatched after successful payment. Delivery takes 3–4 business days in Yerevan, 7–10 business days in other regions of Armenia, and 15–20 business days internationally.": "Заказы отправляются после успешной оплаты. Доставка по Еревану занимает 3–4 рабочих дня, по другим регионам Армении — 7–10, международная доставка — 15–20 рабочих дней.",
+  "When will my order ship?": "Когда будет отправлен мой заказ?",
   // ---------- Size per piece (buying more than one) ----------
   "Size for each piece": "Размер для каждой вещи",
   "Pieces can be different sizes — e.g. one M and one L.": "Вещи могут быть разных размеров — например, одна M и одна L.",
@@ -879,9 +889,7 @@ export const storefrontRu = {
   "Your History": "Ваша история",
   "Recently Viewed": "Вы недавно смотрели",
   "Free Returns": "Бесплатный возврат",
-  "14-day policy": "В течение 14 дней",
-  "Fast Local Delivery": "Быстрая доставка по Армении",
-  "1–2 day dispatch": "Отправка за 1–2 дня",
+  "Within 15 days of delivery": "В течение 15 дней после доставки",
   "Armenia — Free Shipping": "Армения — бесплатная доставка",
   "United States — Free Shipping": "США — бесплатная доставка",
   "Russia — Free Shipping": "Россия — бесплатная доставка",
@@ -1305,7 +1313,7 @@ export const storefrontRu = {
   "View Collection 001": "Смотреть коллекцию 001",
   "Free U.S. & Russia Shipping": "Бесплатная доставка в США и Россию",
   "On orders $150+": "При заказе от $150",
-  "14-Day Returns": "Возврат 14 дней",
+  "15-Day Returns": "Возврат в течение 15 дней",
   "Free & unworn": "Бесплатно, для неношеных вещей",
   "Secure Checkout": "Безопасная оплата",
   "Encrypted payment": "Защищённый платёж",
@@ -1452,6 +1460,9 @@ export const storefrontRu = {
 // [English regex, (match, tr) => translated string]. `tr` translates a
 // fragment through the dictionary (e.g. a colour name). Only used when the
 // whole text has no direct dictionary entry.
+// For ranges like "3–4" Russian agrees with the last number (3–4 дня, 7–10 дней).
+const lastNumber = (range) => String(range).split(/[–-]/).pop();
+const ruDays = (range) => ruPlural(lastNumber(range), 'рабочий день', 'рабочих дня', 'рабочих дней');
 const ruPlural = (n, one, few, many) => {
   const a = Math.abs(Number(n)) % 100;
   const b = a % 10;
@@ -1523,12 +1534,12 @@ export const PATTERNS = {
     [/^No results for "(.*)"\.$/, (m) => `По запросу «${m[1]}» ничего не найдено.`],
     [/^Continue to payment — (.+)$/, (m) => `Перейти к оплате — ${m[1]}`],
     [/^(.+) away from free (?:U\.S\.|Russia) shipping\.$/, (m) => `До бесплатной доставки осталось ${m[1]}.`],
-    [/^You've unlocked free (?:U\.S\.|Russia) shipping — (.+) business days\.$/, (m) => `Доставка бесплатная — ${m[1]} рабочих дней.`],
-    [/^Armenia — free shipping\. Yerevan (.+), other regions (.+) business days\.$/, (m) => `Армения — бесплатная доставка. Ереван: ${m[1]}, другие регионы: ${m[2]} рабочих дней.`],
-    [/^Yerevan (.+) · Regions (.+) business days$/, (m) => `Ереван ${m[1]} · регионы ${m[2]} рабочих дней`],
-    [/^On orders \$(\d+)\+ · (.+) business days$/, (m) => `При заказе от $${m[1]} · ${m[2]} рабочих дней`],
-    [/^Free on orders \$(\d+)\+ — (.+) business days$/, (m) => `Бесплатно при заказе от $${m[1]} — ${m[2]} рабочих дней`],
-    [/^(\d+(?:[–-]\d+)?) business days$/, (m) => `${m[1]} ${/[–-]/.test(m[1]) ? 'рабочих дней' : ruPlural(m[1], 'рабочий день', 'рабочих дня', 'рабочих дней')}`],
+    [/^You've unlocked free (?:U\.S\.|Russia) shipping — (.+) business days\.$/, (m) => `Доставка бесплатная — ${m[1]} ${ruDays(m[1])}.`],
+    [/^Armenia — free shipping\. Yerevan (.+), other regions (.+) business days\.$/, (m) => `Армения — бесплатная доставка. Ереван: ${m[1]} ${ruDays(m[1])}, другие регионы: ${m[2]} ${ruDays(m[2])}.`],
+    [/^Yerevan (.+) · Regions (.+) business days$/, (m) => `Ереван ${m[1]} ${ruDays(m[1])} · регионы ${m[2]} ${ruDays(m[2])}`],
+    [/^On orders \$(\d+)\+ · (.+) business days$/, (m) => `При заказе от $${m[1]} · ${m[2]} ${ruDays(m[2])}`],
+    [/^Free on orders \$(\d+)\+ — (.+) business days$/, (m) => `Бесплатно при заказе от $${m[1]} — ${m[2]} ${ruDays(m[2])}`],
+    [/^(\d+(?:[–-]\d+)?) business days$/, (m) => `${m[1]} ${ruDays(m[1])}`],
     [/^Up to (\d+) business days$/, (m) => `До ${m[1]} ${ruPlural(m[1], 'рабочего дня', 'рабочих дней', 'рабочих дней')}`],
     [/^Your email isn't verified yet\. We've sent a new 6-digit code to (.+)\.$/, (m) => `Ваша почта ещё не подтверждена. Мы отправили новый 6-значный код на ${m[1]}.`],
     [/^Incorrect code\. (\d+) attempt\(s\) left\.$/, (m) => `Неверный код. ${ruPlural(m[1], 'Осталась', 'Осталось', 'Осталось')} ${m[1]} ${ruPlural(m[1], 'попытка', 'попытки', 'попыток')}.`],

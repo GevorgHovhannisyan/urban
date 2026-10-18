@@ -28,7 +28,7 @@ export const DELIVERY_ESTIMATES = {
   yerevan: '3–4',
   armeniaRegions: '7–10',
   unitedStates: '15–20',
-  russia: '7–15',
+  russia: '15–20',
 };
 
 // Countries where the $150 free-shipping threshold applies (flat fee below
