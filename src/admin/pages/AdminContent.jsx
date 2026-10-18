@@ -267,7 +267,8 @@ function SizeGuideEditor({ initial, adminFetch, toast }) {
             </button>
           ))}
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[480px]" data-keep-table>
           <thead>
             <tr className="text-left text-white/40 text-xs">
               <th className="pb-2 pr-3">Size</th>
@@ -297,6 +298,7 @@ function SizeGuideEditor({ initial, adminFetch, toast }) {
             ))}
           </tbody>
         </table>
+        </div>
         <Button variant="primary" disabled={saving} onClick={save} className="mt-4">{saving ? 'Saving…' : 'Save changes'}</Button>
       </div>
     </div>

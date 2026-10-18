@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 
 export const NAV_ITEMS = [
@@ -28,25 +29,91 @@ function Icon({ path, className = 'w-[18px] h-[18px]' }) {
   );
 }
 
+// Desktop (lg+): fixed sidebar + sticky page header, unchanged.
+// Phones/tablets: the sidebar becomes an off-canvas drawer opened from a
+// compact top bar, so page content gets the full screen width.
 export default function AdminLayout({ section, onNavigate, title, subtitle, actions, children }) {
   const { email, logout } = useAdminAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const currentLabel = NAV_ITEMS.find((item) => item.id === section)?.label || 'Admin';
+
+  // Close the drawer on Escape, and stop the page behind it from scrolling.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', onKey); };
+  }, [menuOpen]);
+
+  const go = (id) => { setMenuOpen(false); onNavigate(id); };
+
+  // Phones show admin list tables as stacked cards (see .admin-main in
+  // index.css). Each cell needs its column heading as a label, so copy every
+  // <th> text onto the matching <td data-label> whenever the tables render.
+  const mainRef = useRef(null);
+  useEffect(() => {
+    const root = mainRef.current;
+    if (!root) return undefined;
+    const label = () => {
+      root.querySelectorAll('table:not([data-keep-table])').forEach((table) => {
+        const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+          [...tr.children].forEach((td, i) => {
+            const text = td.hasAttribute('colspan') ? '' : (heads[i] || '');
+            if (td.getAttribute('data-label') !== text) td.setAttribute('data-label', text);
+          });
+        });
+      });
+    };
+    label();
+    const observer = new MutationObserver(label);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-[#F5F5F3] flex font-body" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-white/8 flex flex-col h-screen sticky top-0">
-        <div className="px-6 py-6 border-b border-white/8">
-          <p className="font-display font-black tracking-[0.25em] uppercase text-lg" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            Urban Phoenix
-          </p>
-          <p className="text-[10px] font-mono text-white/40 tracking-[0.2em] uppercase mt-1">Admin</p>
+    <div className="min-h-screen bg-[#0A0A0A] text-[#F5F5F3] lg:flex font-body" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Mobile top bar */}
+      <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between gap-3 px-4 h-14 border-b border-white/8 bg-[#0A0A0A]/95 backdrop-blur">
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open admin menu"
+          aria-expanded={menuOpen}
+          className="-ml-2 w-10 h-10 flex items-center justify-center text-white/70 hover:text-white"
+        >
+          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+        <p className="flex-1 min-w-0 truncate text-[11px] font-mono uppercase tracking-[0.2em] text-white/60">
+          Urban Phoenix <span className="text-white/30">/</span> <span className="text-white">{currentLabel}</span>
+        </p>
+      </div>
+
+      {/* Drawer backdrop (mobile only) */}
+      {menuOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/70" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
+
+      {/* Sidebar — static on desktop, slide-in drawer on mobile */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-[#0A0A0A] border-r border-white/8 flex flex-col h-[100dvh] transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:w-64 lg:max-w-none lg:h-screen lg:shrink-0 lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        aria-label="Admin navigation"
+      >
+        <div className="px-6 py-6 border-b border-white/8 flex items-start justify-between gap-3">
+          <div>
+            <p className="font-display font-black tracking-[0.25em] uppercase text-lg" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+              Urban Phoenix
+            </p>
+            <p className="text-[10px] font-mono text-white/40 tracking-[0.2em] uppercase mt-1">Admin</p>
+          </div>
+          <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close admin menu" className="lg:hidden -mr-2 w-9 h-9 flex items-center justify-center text-white/50 hover:text-white text-2xl leading-none">×</button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => go(item.id)}
               className={`w-full flex items-center gap-3 px-6 py-3 text-sm transition-colors ${
                 section === item.id
                   ? 'text-white bg-white/[0.06] border-r-2 border-[#C65D1E]'
@@ -69,14 +136,14 @@ export default function AdminLayout({ section, onNavigate, title, subtitle, acti
 
       {/* Main */}
       <div className="flex-1 min-w-0">
-        <header className="border-b border-white/8 px-8 py-6 flex items-center justify-between gap-4 sticky top-0 bg-[#0A0A0A]/95 backdrop-blur z-10">
-          <div>
-            <h1 className="text-2xl font-display font-black uppercase tracking-wide" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</h1>
+        <header className="border-b border-white/8 px-4 py-4 sm:px-8 sm:py-6 flex flex-wrap items-center justify-between gap-3 sm:gap-4 lg:sticky lg:top-0 bg-[#0A0A0A]/95 backdrop-blur z-10">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-display font-black uppercase tracking-wide break-words" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</h1>
             {subtitle && <p className="text-sm text-white/40 mt-0.5">{subtitle}</p>}
           </div>
-          {actions && <div className="flex items-center gap-3 shrink-0">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 sm:gap-3">{actions}</div>}
         </header>
-        <main className="p-8">{children}</main>
+        <main ref={mainRef} className="admin-main p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
@@ -84,9 +151,9 @@ export default function AdminLayout({ section, onNavigate, title, subtitle, acti
 
 export function StatCard({ label, value, accent = false }) {
   return (
-    <div className="bg-white/[0.03] border border-white/8 p-5">
-      <p className="text-[11px] font-mono uppercase tracking-widest text-white/40 mb-2">{label}</p>
-      <p className={`text-3xl font-display font-black ${accent ? 'text-[#C65D1E]' : 'text-white'}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</p>
+    <div className="bg-white/[0.03] border border-white/8 p-4 sm:p-5 min-w-0">
+      <p className="text-[10px] sm:text-[11px] font-mono uppercase tracking-widest text-white/40 mb-2 break-words">{label}</p>
+      <p className={`text-2xl sm:text-3xl font-display font-black break-words ${accent ? 'text-[#C65D1E]' : 'text-white'}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</p>
     </div>
   );
 }

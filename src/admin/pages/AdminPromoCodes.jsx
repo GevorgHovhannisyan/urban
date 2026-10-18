@@ -143,18 +143,18 @@ export default function AdminPromoCodes({ onNavigate }) {
         title={editing === 'new' ? 'Add promo code' : `Edit ${editing?.code || ''}`}
         footer={<><Button variant="secondary" onClick={close}>Cancel</Button><Button variant="primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button></>}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="SUMMER20" />
           <Select label="Discount type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
             <option value="percentage">Percentage (%)</option>
             <option value="fixed">Fixed amount ($)</option>
           </Select>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Value" type="number" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="e.g. 20" />
           <Input label="Minimum order ($)" type="number" step="0.01" value={form.minSubtotal} onChange={(e) => setForm({ ...form, minSubtotal: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Max uses (blank = unlimited)" type="number" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} />
           <Input label="Expires (blank = never)" type="date" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} />
         </div>

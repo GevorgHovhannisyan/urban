@@ -8,21 +8,21 @@ export default function Modal({ open, onClose, title, children, footer }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative bg-[#0F0F0F] border border-white/10 w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        className="relative bg-[#0F0F0F] border border-white/10 w-full sm:max-w-lg max-h-[92dvh] sm:max-h-[85vh] overflow-y-auto overflow-x-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 sticky top-0 bg-[#0F0F0F]">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-white/8 sticky top-0 z-10 bg-[#0F0F0F]">
           <h2 className="text-lg font-display font-black uppercase" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="text-white/40 hover:text-white transition-colors text-xl leading-none">×</button>
+          <button onClick={onClose} aria-label="Close" className="-mr-2 w-9 h-9 flex items-center justify-center text-white/40 hover:text-white transition-colors text-2xl leading-none">×</button>
         </div>
-        <div className="px-6 py-5 space-y-4">{children}</div>
-        {footer && <div className="px-6 py-4 border-t border-white/8 flex justify-end gap-3">{footer}</div>}
+        <div className="px-4 sm:px-6 py-5 space-y-4">{children}</div>
+        {footer && <div className="px-4 sm:px-6 py-4 border-t border-white/8 flex flex-wrap justify-end gap-3 sticky bottom-0 bg-[#0F0F0F]">{footer}</div>}
       </div>
     </div>
   );

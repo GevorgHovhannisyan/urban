@@ -136,7 +136,7 @@ export default function AdminJournal({ onNavigate }) {
         title={editing === 'new' ? 'New post' : `Edit ${editing?.title || ''}`}
         footer={<><Button variant="secondary" onClick={close}>Cancel</Button><Button variant="primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button></>}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <Input label="Slug (blank = auto from title)" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
         </div>
@@ -144,7 +144,7 @@ export default function AdminJournal({ onNavigate }) {
         <Textarea label="Body (blank lines separate paragraphs)" rows={8} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
         <ImageUploadField label="Cover image" hint="Shown at the top of the post and on the Journal page. A wide (landscape) image works best." value={form.coverImage} onChange={(url) => setForm({ ...form, coverImage: url })} />
         <Input label="Author" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Related product IDs (comma separated)" placeholder="p001, p002" value={form.relatedProductIds} onChange={(e) => setForm({ ...form, relatedProductIds: e.target.value })} />
           <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
             <option value="published">Published</option>

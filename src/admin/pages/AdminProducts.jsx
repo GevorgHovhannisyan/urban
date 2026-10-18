@@ -161,7 +161,8 @@ function StockGrid({ form, setForm }) {
     <div>
       <p className="text-[11px] uppercase tracking-wide text-white/45 mb-2">Inventory (units per size / color — leave blank for untracked)</p>
       <div className="overflow-x-auto border border-white/10">
-        <table className="w-full text-xs">
+        <div className="overflow-x-auto">
+        <table className="w-full text-xs" data-keep-table>
           <thead>
             <tr className="border-b border-white/10">
               <th className="px-2 py-1.5 text-left text-white/45"></th>
@@ -190,6 +191,7 @@ function StockGrid({ form, setForm }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
@@ -284,7 +286,7 @@ function GarmentExplorerEditor({ form, setForm }) {
         blank if there's no verified fact to put there.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <Input label="Front image URL" value={ge.frontImage} onChange={(e) => setGe({ frontImage: e.target.value })} />
         <Input label="Back image URL (optional — enables FRONT/BACK toggle)" value={ge.backImage} onChange={(e) => setGe({ backImage: e.target.value })} />
       </div>
@@ -296,11 +298,11 @@ function GarmentExplorerEditor({ form, setForm }) {
               <p className="text-[11px] uppercase tracking-wide text-white/45">Hotspot {i + 1}</p>
               <Button variant="danger" onClick={() => removeHotspot(i)}>Remove</Button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input label="Label (short, e.g. Cuff)" value={h.label} onChange={(e) => setHotspot(i, { label: e.target.value })} />
               <Input label="Title (defaults to label)" value={h.title} onChange={(e) => setHotspot(i, { title: e.target.value })} />
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <label className="text-xs text-white/60">
                 View
                 <select
@@ -455,18 +457,18 @@ export default function AdminProducts({ onNavigate }) {
         title={editing === 'new' ? 'Add product' : `Edit ${editing?.name || ''}`}
         footer={<><Button variant="secondary" onClick={close}>Cancel</Button><Button variant="primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</Button></>}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <Input label="Price (USD)" type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Compare-at price (USD)" placeholder="Leave blank for no sale" type="number" step="0.01" min="0" value={form.compareAtPrice} onChange={(e) => setForm({ ...form, compareAtPrice: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Category" placeholder="hoodies, tops, bottoms, outerwear, accessories…" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           <Input label="Garment type" placeholder="tshirt, hoodie…" value={form.garmentType} onChange={(e) => setForm({ ...form, garmentType: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input label="Subtitle" value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} />
           <Input label="Collection" value={form.collection} onChange={(e) => setForm({ ...form, collection: e.target.value })} />
         </div>
@@ -475,15 +477,15 @@ export default function AdminProducts({ onNavigate }) {
         <StockGrid form={form} setForm={setForm} />
         <ImageGallery images={form.images || []} setImages={(images) => setForm({ ...form, images })} token={token} toast={toast} />
         <Textarea label="Description" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Textarea label="Materials" rows={2} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} />
           <Textarea label="Care" rows={2} value={form.care} onChange={(e) => setForm({ ...form, care: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Textarea label="Shipping" rows={2} value={form.shipping} onChange={(e) => setForm({ ...form, shipping: e.target.value })} />
           <Textarea label="Returns" rows={2} value={form.returns} onChange={(e) => setForm({ ...form, returns: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <ArmeniaDateField label="Release date/time" value={form.releaseAt} onChange={(v) => setForm({ ...form, releaseAt: v })} />
           <ArmeniaDateField label="Early access from" value={form.earlyAccessAt} onChange={(v) => setForm({ ...form, earlyAccessAt: v })} />
         </div>

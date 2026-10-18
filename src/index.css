@@ -2714,3 +2714,64 @@ html:lang(hy) :is(h1, h2, h3, h4, .font-display),
 html:lang(ru) :is(h1, h2, h3, h4, .font-display) {
   overflow-wrap: anywhere;
 }
+
+
+/* Admin: list tables as cards on phones — each row becomes a card and each
+   cell shows its column heading (copied into data-label by AdminLayout), so
+   nothing is cut off or needs sideways scrolling. Tables marked
+   data-keep-table (editing grids) stay tables and scroll instead.
+   Desktop/tablet (>= 640px) is untouched. */
+@media (max-width: 639px) {
+  .admin-main table:not([data-keep-table]),
+  .admin-main table:not([data-keep-table]) tbody,
+  .admin-main table:not([data-keep-table]) tr,
+  .admin-main table:not([data-keep-table]) td {
+    display: block;
+    width: 100%;
+  }
+  .admin-main table:not([data-keep-table]) thead { display: none; }
+  .admin-main table:not([data-keep-table]) tbody tr {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  /* label in a fixed left column; everything in the cell stacks on the right */
+  .admin-main table:not([data-keep-table]) td {
+    display: grid;
+    grid-template-columns: 34% minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 0; /* empty implicit rows (label span) must not add space */
+    justify-items: end;
+    align-items: start;
+    padding: 6px 14px !important;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .admin-main table:not([data-keep-table]) td::before {
+    content: attr(data-label);
+    grid-column: 1;
+    grid-row: 1 / span 20;
+    justify-self: start;
+    text-align: left;
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+    padding-top: 2px;
+  }
+  .admin-main table:not([data-keep-table]) td > * { grid-column: 2; min-width: 0; max-width: 100%; }
+  .admin-main table:not([data-keep-table]) td > * + * { margin-top: 4px; }
+  .admin-main table:not([data-keep-table]) td > label { justify-self: stretch; }
+  /* cells without a heading (action buttons) and empty-state rows: full width */
+  .admin-main table:not([data-keep-table]) td[data-label=""],
+  .admin-main table:not([data-keep-table]) td:not([data-label]) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .admin-main table:not([data-keep-table]) td[data-label=""]::before,
+  .admin-main table:not([data-keep-table]) td:not([data-label])::before { display: none; }
+  .admin-main table:not([data-keep-table]) td[colspan] { justify-content: center; text-align: center; }
+  .admin-main table:not([data-keep-table]) td img { max-width: 64px; height: auto; }
+}

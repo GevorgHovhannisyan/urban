@@ -156,7 +156,8 @@ export default function AdminOrders({ onNavigate }) {
             </div>
             <div>
               <p className="text-[11px] font-mono uppercase tracking-widest text-white/40 mb-2">Items</p>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto -mx-1 px-1">
+              <table className="w-full text-sm min-w-[420px]" data-keep-table>
                 <thead>
                   <tr className="text-left text-white/40 text-xs"><th className="pb-2">Product</th><th className="pb-2">Variant</th><th className="pb-2">Qty</th><th className="pb-2 text-right">Total</th></tr>
                 </thead>
@@ -176,6 +177,7 @@ export default function AdminOrders({ onNavigate }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
             <div className="text-sm text-white/60 pt-3 border-t border-white/8">
               Subtotal {fmtMoney(detailOrder.subtotal)} · Discount {fmtMoney(detailOrder.discountAmount || 0)} · Gift card {fmtMoney(detailOrder.giftCardAmount || 0)} · Rewards {fmtMoney(detailOrder.loyaltyDiscount || 0)} · Shipping {fmtMoney(detailOrder.shipping)} · Total <strong className="text-white">{fmtMoney(detailOrder.total)}</strong>
