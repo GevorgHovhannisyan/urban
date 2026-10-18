@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { uploadAdminImage } from '../uploadImage';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 import AdminLayout, { Button, Input, Textarea, Checkbox } from '../components/AdminLayout';
 
 async function uploadFile(token, file, kind) {
+  if (kind !== 'video') return uploadAdminImage(token, file);
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(kind === 'video' ? '/api/admin/uploads/video' : '/api/admin/uploads', {

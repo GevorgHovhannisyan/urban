@@ -59,11 +59,13 @@ function validatePayload(payload = {}, { partial = false } = {}) {
   if (!partial || payload.body !== undefined) fields.body = clean(payload.body, 20000);
   if (!partial || payload.coverImage !== undefined) {
     fields.coverImage = clean(payload.coverImage, 500);
-    // A local file:// path (or any non-http URL) works fine on the admin's
-    // own machine when previewing, but is unreachable — and blocked by the
-    // browser as a security risk — for every other visitor once published.
-    if (fields.coverImage && !/^https?:\/\//i.test(fields.coverImage)) {
-      errors.push('Cover image must be a public http(s) URL, not a local file path.');
+    // Allowed: a public http(s) URL, or an image uploaded through the admin
+    // (served by this site at /uploads/<file> — see server/uploads.mjs).
+    // Rejected: a local file:// / C:\ path (works on the admin's own machine
+    // but is unreachable for every visitor) or any other scheme.
+    const isUploadPath = /^\/uploads\/[A-Za-z0-9._-]+$/.test(fields.coverImage);
+    if (fields.coverImage && !isUploadPath && !/^https?:\/\//i.test(fields.coverImage)) {
+      errors.push('Cover image must be an uploaded image or a public http(s) URL, not a local file path.');
     }
   }
   if (!partial || payload.author !== undefined) fields.author = clean(payload.author, 100) || 'Urban Phoenix';

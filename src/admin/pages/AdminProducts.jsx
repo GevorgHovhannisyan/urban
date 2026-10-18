@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { uploadAdminImage } from '../uploadImage';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 import AdminLayout, { Badge, Button, Input, Textarea, Checkbox } from '../components/AdminLayout';
@@ -15,16 +16,7 @@ const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
 // (server/uploads.mjs) and hands back a "/uploads/<name>" path, which is the
 // only thing this product's `images` column ever stores — never raw bytes.
 async function uploadImageFile(token, file) {
-  const formData = new FormData();
-  formData.append('file', file);
-  const res = await fetch('/api/admin/uploads', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error || 'Upload failed.');
-  return data.url;
+  return uploadAdminImage(token, file);
 }
 
 // Product photo gallery — upload files directly (stored under

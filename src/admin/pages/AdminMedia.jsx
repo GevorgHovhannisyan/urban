@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { prepareImageForUpload } from '../uploadImage';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 import AdminLayout, { Button, Input } from '../components/AdminLayout';
@@ -15,8 +16,10 @@ function formatBytes(bytes) {
 // upload lands in the Media Library automatically (server/media-api.mjs's
 // recordMedia, called from those same routes), so this page never needs
 // its own separate upload path to stay in sync with what Site Content sees.
-async function uploadFile(token, file) {
-  const isVideo = file.type.startsWith('video/');
+async function uploadFile(token, originalFile) {
+  const isVideo = originalFile.type.startsWith('video/');
+  // Images: resize big photos / fix the reported type first (see ../uploadImage.js).
+  const file = isVideo ? originalFile : await prepareImageForUpload(originalFile);
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(isVideo ? '/api/admin/uploads/video' : '/api/admin/uploads', {
@@ -185,7 +188,7 @@ export default function AdminMedia({ onNavigate }) {
           <input
             ref={inputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif,.heic,.heif,video/mp4,video/webm"
             multiple
             className="hidden"
             onChange={(e) => { handleUpload(Array.from(e.target.files || [])); e.target.value = ''; }}

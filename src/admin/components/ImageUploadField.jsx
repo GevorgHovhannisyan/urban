@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { uploadAdminImage } from '../uploadImage';
 
-const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,image/avif';
-const MAX_BYTES = 10 * 1024 * 1024; // matches server/uploads.mjs's image limit
+// .heic/.heif: iPhone photos — converted where the browser can decode them.
+const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,image/avif,.heic,.heif';
 
 // Image picker that uploads straight to the server (POST /api/admin/uploads,
 // stored under public/uploads) and hands back the resulting "/uploads/..."
@@ -19,26 +20,9 @@ export default function ImageUploadField({ label, value, onChange, hint }) {
   const upload = async (file) => {
     if (!file) return;
     setError('');
-    if (!ACCEPT.split(',').includes(file.type)) {
-      setError('Please choose a JPG, PNG, WebP, GIF or AVIF image.');
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setError('This image is larger than 10 MB. Please choose a smaller file.');
-      return;
-    }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/admin/uploads', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Upload failed.');
-      onChange(data.url);
+      onChange(await uploadAdminImage(token, file));
     } catch (err) {
       setError(err.message || 'Upload failed.');
     } finally {
@@ -84,7 +68,7 @@ export default function ImageUploadField({ label, value, onChange, hint }) {
           className={`w-full border border-dashed px-4 py-7 text-center transition-colors ${dragging ? 'border-[#C65D1E] bg-[#C65D1E]/10' : 'border-white/15 hover:border-white/35 bg-white/[0.02]'}`}
         >
           <span className="block text-sm text-white/80">{uploading ? 'Uploading…' : 'Click to upload an image'}</span>
-          <span className="block text-[11px] text-white/40 mt-1">or drag and drop it here · JPG, PNG, WebP, GIF, AVIF · up to 10 MB</span>
+          <span className="block text-[11px] text-white/40 mt-1">or drag and drop it here · JPG, PNG, WebP, GIF, AVIF · large photos are resized automatically</span>
         </button>
       )}
       {hint && !error && <p className="text-[11px] text-white/35 mt-1.5">{hint}</p>}
