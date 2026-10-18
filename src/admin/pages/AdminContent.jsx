@@ -57,6 +57,17 @@ const SECTIONS = [
     ],
   },
   {
+    id: 'homeEditorial',
+    label: 'Homepage — Editorial Images',
+    hint: 'The two photos in the editorial block below the products ("The Weight Of Becoming" and "Our Origin"). Upload, replace or clear an image — clearing it leaves the card text on a plain dark background.',
+    fields: [
+      { key: 'largeImageUrl', label: 'Large image — "The Weight Of Becoming" (portrait 4:5, at least 1200×1500)', type: 'image' },
+      { key: 'largeImageAlt', label: 'Large image alt text', type: 'text' },
+      { key: 'originImageUrl', label: 'Small image — "Our Origin" (landscape, at least 1200×900)', type: 'image' },
+      { key: 'originImageAlt', label: 'Small image alt text', type: 'text' },
+    ],
+  },
+  {
     id: 'brandPhilosophy',
     label: 'Homepage — Brand Statement',
     hint: 'The single brand-philosophy line further down the homepage. The last word is always shown in the accent color.',

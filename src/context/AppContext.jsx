@@ -48,6 +48,15 @@ const DEFAULT_CONTENT = {
     imageUrl: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=1600&h=900&fit=crop&auto=format&q=85',
     imageAlt: 'Collection 001 campaign photo',
   },
+  // Homepage editorial block ("The Weight Of Becoming" / "Our Origin") —
+  // the two photos are editable in Admin → Site Content. An empty value
+  // removes the photo (the card keeps its text on a plain dark background).
+  homeEditorial: {
+    largeImageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&h=1125&fit=crop&auto=format&q=85',
+    largeImageAlt: 'Urban Phoenix Campaign',
+    originImageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&h=600&fit=crop&auto=format&q=85',
+    originImageAlt: 'Urban Phoenix Style',
+  },
   aboutStory: {
     eyebrow: 'Our Story',
     headline: 'Built On The Belief That You Can Become Anyone',

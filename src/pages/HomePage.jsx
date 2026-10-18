@@ -326,13 +326,15 @@ function CollectionProducts() {
     </section>);
 }
 function EditorialSection() {
-    const { navigate } = useApp();
+    const { navigate, content } = useApp();
+    // Admin → Site Content → Homepage — Editorial Images
+    const editorial = content.homeEditorial || {};
     return (<section className="bg-bg py-4">
       <div className="max-w-screen-2xl mx-auto px-6 lg:px-12">
         <div className="grid lg:grid-cols-2 gap-4">
           {/* Large image */}
           <div className="relative overflow-hidden bg-card group" style={{ aspectRatio: '4/5' }}>
-            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&h=1125&fit=crop&auto=format&q=85" onError={handleImgError} alt="Urban Phoenix Campaign" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>
+            {editorial.largeImageUrl && (<img src={editorial.largeImageUrl} onError={handleImgError} alt={editorial.largeImageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>)}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"/>
             <div className="absolute bottom-8 left-8 right-8">
               <p className="text-[10px] font-mono text-white/70 tracking-widest uppercase mb-2">Collection 001</p>
@@ -347,7 +349,7 @@ function EditorialSection() {
           {/* Right column */}
           <div className="flex flex-col gap-4">
             <div className="relative overflow-hidden bg-card flex-1 group" style={{ minHeight: '280px' }}>
-              <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&h=600&fit=crop&auto=format&q=85" onError={handleImgError} alt="Urban Phoenix Style" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>
+              {editorial.originImageUrl && (<img src={editorial.originImageUrl} onError={handleImgError} alt={editorial.originImageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>)}
               <div className="absolute inset-0 bg-black/40"/>
               <div className="absolute inset-0 flex flex-col justify-end p-8">
                 <p className="text-[10px] font-mono text-white/70 tracking-widest uppercase mb-2">Our Origin</p>
