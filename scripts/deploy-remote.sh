@@ -97,12 +97,17 @@ log "Deployed $SHORT successfully"
 log "Email check"
 cd "$APP_DIR"
 if [ -f .env ]; then
-  for key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SUPPORT_EMAIL ORDERS_EMAIL ADMIN_EMAIL PUBLIC_URL; do
+  for key in ZEPTOMAIL_TOKEN SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SUPPORT_EMAIL ORDERS_EMAIL ADMIN_EMAIL PUBLIC_URL; do
     if grep -qE "^${key}=.+" .env; then log "  $key: set"; else log "  $key: MISSING"; fi
   done
   grep -E '^(SMTP_HOST|SMTP_PORT|PUBLIC_URL)=' .env | sed 's/^/[deploy]   /' || true
 else
   log "  .env not found in $APP_DIR"
+fi
+if timeout 8 bash -c "exec 3<>/dev/tcp/api.zeptomail.eu/443" 2>/dev/null; then
+  log "  api.zeptomail.eu:443 reachable (ZeptoMail API)"
+else
+  log "  api.zeptomail.eu:443 BLOCKED/unreachable from this server"
 fi
 for port in 465 587; do
   if timeout 8 bash -c "exec 3<>/dev/tcp/smtp.zoho.eu/$port" 2>/dev/null; then

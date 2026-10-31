@@ -13,9 +13,12 @@ const {
   ORDERS_EMAIL,
   ADMIN_EMAIL,
   PUBLIC_URL,
+  ZEPTOMAIL_TOKEN,
+  ZEPTOMAIL_API_URL,
+  MAIL_FROM,
 } = process.env;
 console.log(
-  `SMTP config: host=${SMTP_HOST}, port=${SMTP_PORT}, user=${SMTP_USER}, pass=${SMTP_PASS ? "***" : "(not set)"}, secure=${SMTP_SECURE}, from=${SMTP_FROM}, support=${SUPPORT_EMAIL}, orders=${ORDERS_EMAIL}, admin=${ADMIN_EMAIL}`,
+  `SMTP config: host=${SMTP_HOST}, port=${SMTP_PORT}, user=${SMTP_USER}, pass=${SMTP_PASS ? "***" : "(not set)"}, secure=${SMTP_SECURE}, from=${SMTP_FROM}, support=${SUPPORT_EMAIL}, orders=${ORDERS_EMAIL}, admin=${ADMIN_EMAIL}, zeptomail=${ZEPTOMAIL_TOKEN ? "on" : "off"}`,
 );
 // Every HTML email below interpolates user-supplied text (account name, gift
 // card sender/recipient name, personal message, contact-form fields) directly
@@ -39,7 +42,22 @@ export function escapeHtml(value) {
   );
 }
 
-const isConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
+// Two ways to send, same templates either way:
+//   - ZeptoMail (Zoho's transactional email API) over HTTPS when
+//     ZEPTOMAIL_TOKEN is set. This is the production path: DigitalOcean
+//     blocks outgoing SMTP ports (465/587), but HTTPS on 443 is never blocked.
+//   - Zoho Mail SMTP otherwise (e.g. local development).
+const useZeptoMail = Boolean(ZEPTOMAIL_TOKEN);
+const smtpConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
+const isConfigured = useZeptoMail || smtpConfigured;
+// .eu matches this store's Zoho EU account (smtp.zoho.eu); override for
+// another Zoho data center (e.g. https://api.zeptomail.com/v1.1/email).
+const ZEPTO_URL = ZEPTOMAIL_API_URL || "https://api.zeptomail.eu/v1.1/email";
+// Accepts the token exactly as ZeptoMail shows it ("Zoho-enczapikey ...") or
+// just the key part.
+const ZEPTO_AUTH = useZeptoMail
+  ? (/^Zoho-enczapikey\s/i.test(ZEPTOMAIL_TOKEN.trim()) ? ZEPTOMAIL_TOKEN.trim() : `Zoho-enczapikey ${ZEPTOMAIL_TOKEN.trim()}`)
+  : null;
 
 // Distinguishes "not set up at all" from "partially set up" (e.g. host/user
 // present but the password wasn't actually pasted into .env yet) — the
@@ -49,6 +67,9 @@ const isConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
 // an email never arrived. Never includes any credential value — only
 // presence/absence — so this is safe to log or return from an API.
 export function describeSmtpConfig() {
+  if (useZeptoMail) {
+    return { status: "configured", message: `Sending via ZeptoMail API over HTTPS (${new URL(ZEPTO_URL).host}).` };
+  }
   const has = {
     host: Boolean(SMTP_HOST),
     port: Boolean(SMTP_PORT),
@@ -93,7 +114,7 @@ function createSmtpTransport({ port, secure }) {
   });
 }
 
-const primarySmtp = isConfigured
+const primarySmtp = smtpConfigured && !useZeptoMail
   ? {
       port: Number(SMTP_PORT),
       // Explicit SMTP_SECURE wins when set (Zoho: 465/true). Falls back to the
@@ -138,6 +159,7 @@ export function getActiveSmtpPort() {
 // for a one-off manual check (see scripts/verify-smtp.mjs) or a startup log,
 // never a request handler; the App Password never leaves this process.
 export async function verifySmtpConnection() {
+  if (useZeptoMail) return verifyZeptoMail();
   if (!transporter) return { ok: false, reason: "unconfigured" };
   try {
     await transporter.verify();
@@ -173,7 +195,7 @@ function extractEmail(fromHeader) {
   const match = String(fromHeader || "").match(/<([^>]+)>/);
   return (match ? match[1] : fromHeader || "").trim();
 }
-const legacyFallbackEmail = extractEmail(SMTP_FROM) || SMTP_USER;
+const legacyFallbackEmail = extractEmail(SMTP_FROM) || MAIL_FROM || SMTP_USER;
 
 export const EMAIL_SENDERS = {
   support: {
@@ -206,7 +228,73 @@ export function getPublicUrl() {
 // customer still gets the email. Never throws.
 const SENDER_REFUSED = /(553|550 5\.7|5\.7\.1|not allowed|relay|sender|from address|unauthori[sz]ed)/i;
 
+// "Name <addr>" / "addr" → { name, address }
+function parseAddress(value) {
+  const str = String(value || "").trim();
+  const match = str.match(/^(.*)<([^>]+)>\s*$/);
+  if (match) return { name: match[1].trim().replace(/^"|"$/g, ""), address: match[2].trim() };
+  return { name: "", address: str };
+}
+
+function zeptoErrorMessage(status, payload) {
+  const err = payload?.error;
+  if (!err) return `ZeptoMail HTTP ${status}`;
+  const details = (err.details || []).map((d) => [d.target, d.message].filter(Boolean).join(": ")).filter(Boolean);
+  return `ZeptoMail ${err.code || status}: ${err.message || "request failed"}${details.length ? ` (${details.join("; ")})` : ""}`;
+}
+
+async function sendViaZeptoMail(mail, label) {
+  const from = parseAddress(mail.from);
+  const to = parseAddress(mail.to);
+  const body = {
+    from: { address: from.address, ...(from.name ? { name: from.name } : {}) },
+    to: [{ email_address: { address: to.address, ...(to.name ? { name: to.name } : {}) } }],
+    subject: mail.subject,
+    htmlbody: mail.html || mail.text,
+    ...(mail.text ? { textbody: mail.text } : {}),
+    ...(mail.replyTo ? { reply_to: [{ address: parseAddress(mail.replyTo).address }] } : {}),
+  };
+  try {
+    const response = await fetch(ZEPTO_URL, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: ZEPTO_AUTH },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(zeptoErrorMessage(response.status, payload));
+    console.log(`[mail] ${label} → ${to.address} accepted by ZeptoMail (request_id=${payload?.request_id})`);
+    return { sent: true, messageId: payload?.request_id || null, response: payload?.message || "ZeptoMail accepted", from: mail.from, provider: "zeptomail" };
+  } catch (error) {
+    const message = error.name === "TimeoutError" ? "ZeptoMail API timed out" : error.message;
+    console.error(`[mail] ${label} → ${to.address} FAILED (ZeptoMail): ${message}`);
+    return { sent: false, reason: "send-failed", error: message };
+  }
+}
+
+// Confirms the API is reachable and the token is accepted, without sending:
+// an empty request is rejected for missing fields when the token is valid,
+// but with 401/403 when it isn't.
+async function verifyZeptoMail() {
+  try {
+    const response = await fetch(ZEPTO_URL, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: ZEPTO_AUTH },
+      body: "{}",
+      signal: AbortSignal.timeout(15000),
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, reason: "auth-failed", message: zeptoErrorMessage(response.status, payload) };
+    }
+    return { ok: true, port: "HTTPS API", note: "ZeptoMail token accepted" };
+  } catch (error) {
+    return { ok: false, reason: "connection-failed", message: error.name === "TimeoutError" ? "ZeptoMail API timed out" : error.message };
+  }
+}
+
 async function deliver(mail, label) {
+  if (useZeptoMail) return sendViaZeptoMail(mail, label);
   if (!transporter) return { sent: false, reason: "unconfigured", error: "SMTP is not configured." };
   const attempt = async (message) => {
     const info = await transporter.sendMail(message);
