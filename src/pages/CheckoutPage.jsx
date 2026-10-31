@@ -191,10 +191,16 @@ export default function CheckoutPage() {
   // final charge.
   const loyaltyPointsValue = Math.floor(loyaltyPoints / 100) * 5;
   const preLoyaltyTotal = Math.max(0, cartTotal - discountAmount - giftCardAmount) + shipping;
-  const loyaltyDiscount = useLoyaltyPoints
-    ? Math.min(loyaltyPointsValue, Math.floor(preLoyaltyTotal / 5) * 5)
-    : 0;
+  // What the points can take off THIS order (whole $5 steps, never more
+  // than the order total) — used for both the offer and the applied discount.
+  const loyaltyRedeemable = Math.min(loyaltyPointsValue, Math.floor(preLoyaltyTotal / 5) * 5);
+  const loyaltyDiscount = useLoyaltyPoints ? loyaltyRedeemable : 0;
+  const loyaltyPointsToUse = (loyaltyDiscount / 5) * 100;
   const total = preLoyaltyTotal - loyaltyDiscount;
+  // Mirrors server/loyalty.mjs's pointsEarnedForOrder(): products after
+  // discounts, shipping excluded; credited once the order is paid.
+  const pointsToEarn = Math.floor(Math.max(0, cartTotal - discountAmount - loyaltyDiscount));
+  const formatPoints = (n) => Number(n || 0).toLocaleString('en-US');
 
   const buildOrderPayload = () => ({
     region: visitorCountry,
@@ -233,7 +239,12 @@ export default function CheckoutPage() {
     const controller = new AbortController();
     fetch(`/api/checkout/payment-intent/${encodeURIComponent(pendingCheckoutId)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      // Same session as the create call: without it the server re-prices
+      // this checkout as a guest (no points discount, order not linked).
+      headers: {
+        'Content-Type': 'application/json',
+        ...(user?.sessionToken ? { Authorization: `Bearer ${user.sessionToken}` } : {}),
+      },
       body: JSON.stringify(buildOrderPayload()),
       signal: controller.signal,
     }).catch(() => {});
@@ -765,22 +776,53 @@ export default function CheckoutPage() {
                   entry point each) — anything already applied there still
                   flows through from AppContext into the totals below and the
                   order payload untouched. */}
-              {user && loyaltyPointsValue > 0 && (
-              <div className="border-t border-border mt-6 pt-5">
-
-                  <label className="flex items-center justify-between gap-3 text-sm cursor-pointer mb-4">
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={useLoyaltyPoints}
-                        onChange={(event) => setUseLoyaltyPoints(event.target.checked)}
-                        className="accent-accent"
-                      />
-                      Use my {loyaltyPoints} points for {formatMoney(loyaltyPointsValue, { regional: false })} off
-                    </span>
-                  </label>
+              {/* UP Society rewards: balance, opt-in redemption, and what this
+                  order earns. The server re-checks the real balance and
+                  recomputes the discount; this is the live preview. */}
+              <div className="border-t border-border mt-6 pt-5" data-testid="checkout-rewards">
+                <p className="text-[10px] font-mono text-muted tracking-[.2em] uppercase mb-3">UP Society Rewards</p>
+                {user ? (
+                  <>
+                    <p className="text-sm mb-3">{`${formatPoints(loyaltyPoints)} points available · worth ${formatMoney(loyaltyPointsValue, { regional: false })}`}</p>
+                    {loyaltyRedeemable > 0 ? (
+                      <label className={`flex items-start gap-3 border p-4 cursor-pointer transition-colors ${useLoyaltyPoints ? 'border-accent bg-accent/5' : 'border-border hover:border-fg/40'}`}>
+                        <input
+                          type="checkbox"
+                          checked={useLoyaltyPoints}
+                          onChange={(event) => setUseLoyaltyPoints(event.target.checked)}
+                          className="accent-accent mt-0.5 w-4 h-4 shrink-0"
+                          data-testid="use-points"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">{`Redeem ${formatPoints((loyaltyRedeemable / 5) * 100)} points for ${formatMoney(loyaltyRedeemable, { regional: false })} off`}</span>
+                          <span className="block text-xs text-muted mt-1">
+                            {useLoyaltyPoints
+                              ? `${formatPoints(loyaltyPoints - loyaltyPointsToUse)} points remaining after this order`
+                              : 'Every 100 points = $5 off.'}
+                          </span>
+                        </span>
+                      </label>
+                    ) : (
+                      <p className="text-xs text-muted">
+                        {loyaltyPointsValue > 0
+                          ? 'Your order total is too low to use points.'
+                          : `${formatPoints(100 - (loyaltyPoints % 100))} more points to unlock ${formatMoney(5, { regional: false })} off`}
+                      </p>
+                    )}
+                    {pointsToEarn > 0 && (
+                      <p className="text-xs text-muted mt-3">
+                        <span className="text-accent">{`You'll earn ${formatPoints(pointsToEarn)} points with this order`}</span>
+                        <span className="block mt-0.5">Points are added to your balance once the order is paid.</span>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted">
+                    <button type="button" onClick={() => navigate('login')} className="underline underline-offset-4 text-fg hover:text-accent">Log in</button>
+                    <span> to use your points and earn 1 point for every $1 spent.</span>
+                  </p>
+                )}
               </div>
-              )}
 
               <div className="border-t border-border mt-6 pt-5 space-y-3">
                 <div key={`subtotal-${cartTotal}`} className="flex justify-between text-muted"><span>Subtotal</span><span>{formatMoney(cartTotal, { regional: false })}</span></div>
@@ -791,7 +833,7 @@ export default function CheckoutPage() {
                   <div key={`giftcard-${giftCardAmount}`} className="flex justify-between text-accent"><span>Gift card</span><span>−{formatMoney(giftCardAmount, { regional: false })}</span></div>
                 )}
                 {loyaltyDiscount > 0 && (
-                  <div key={`loyalty-${loyaltyDiscount}`} className="flex justify-between text-accent"><span>Rewards points</span><span>−{formatMoney(loyaltyDiscount, { regional: false })}</span></div>
+                  <div key={`loyalty-${loyaltyDiscount}`} className="flex justify-between text-accent"><span>{`Rewards points (${formatPoints(loyaltyPointsToUse)})`}</span><span>−{formatMoney(loyaltyDiscount, { regional: false })}</span></div>
                 )}
                 <div key={`shipping-${shipping}`} className="flex justify-between text-muted">
                   <span>

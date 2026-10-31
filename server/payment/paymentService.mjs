@@ -155,7 +155,10 @@ export async function updatePaymentAmount(pendingCheckoutId, payload) {
   if (!pending || !pending.paymentIntentId) return { status: 404, body: { error: 'Checkout not found.' } };
   if (pending.status !== 'pending') return { status: 409, body: { error: 'This checkout is no longer editable.' } };
 
-  const draftResult = await validateOrderDraft({ ...payload, paymentMethod: 'card' });
+  // An update never turns a signed-in checkout into a guest one: keep the
+  // account it was started with (its points discount and order ownership).
+  const startedBy = fromJson(pending.draft, {})?.customerId || null;
+  const draftResult = await validateOrderDraft({ ...payload, paymentMethod: 'card', customerId: payload.customerId || startedBy });
   if (draftResult.error) return { status: 400, body: { error: draftResult.error } };
   const draft = draftResult.value;
   const amountInCents = Math.round(draft.total * 100);

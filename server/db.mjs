@@ -490,6 +490,16 @@ export function initDb() {
       await ensureColumn("orders", "paymentEnv", "VARCHAR(16) NULL");
       await ensureColumn("orders", "confirmationEmailSentAt", "DATETIME NULL");
       await ensureColumn("orders", "confirmationEmailError", "TEXT NULL");
+      // UP Society rewards (server/loyalty.mjs): points taken back from an
+      // order (cancel/refund/return) and whether the points spent on it were
+      // given back — together they make every reversal happen at most once.
+      await ensureColumn("orders", "loyaltyPointsRevoked", "INT NOT NULL DEFAULT 0");
+      await ensureColumn("orders", "loyaltyPointsReturned", "TINYINT(1) NOT NULL DEFAULT 0");
+      await ensureColumn("return_requests", "pointsReversed", "TINYINT(1) NOT NULL DEFAULT 0");
+      // Orders cancelled before these columns existed were already reversed.
+      await pool.query(
+        "UPDATE orders SET loyaltyPointsRevoked = loyaltyPointsGranted, loyaltyPointsReturned = 1 WHERE loyaltyReverted = 1 AND loyaltyPointsRevoked = 0 AND loyaltyPointsReturned = 0",
+      );
       // Limited Edition Serial Number System: per-product edition size, so
       // "100" is no longer a hardcoded global assumption (server/edition-api.mjs
       // reads this instead). NULL for every non-limited product, matching

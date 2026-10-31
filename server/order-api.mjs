@@ -4,7 +4,7 @@ import { getProduct, getProductsByIds, getVariantStock, tryDecrementVariantStock
 import { claimEditions, releaseEditionsForOrder } from './edition-api.mjs';
 import { validatePromoCode, tryCommitPromoUsage, revertPromoUsage } from './promo-api.mjs';
 import { checkGiftCard, tryRedeemGiftCard, revertGiftCardRedemption } from './gift-card-api.mjs';
-import { grantLoyaltyPoints, getLoyaltyPoints, pointsValueInDollars, tryRedeemLoyaltyPoints, refundLoyaltyPoints, revokeLoyaltyPoints, REDEMPTION_UNIT_VALUE, POINTS_PER_REDEMPTION_UNIT } from './loyalty.mjs';
+import { getLoyaltyPoints, pointsValueInDollars, tryRedeemLoyaltyPoints, refundLoyaltyPoints, revokeLoyaltyPoints, awardOrderPoints, reverseOrderLoyalty, REDEMPTION_UNIT_VALUE, POINTS_PER_REDEMPTION_UNIT } from './loyalty.mjs';
 import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendAdminNewOrderEmail } from './mailer.mjs';
 import { validateDeliveryMethod, defaultDeliveryMethod } from './delivery.mjs';
 import { isSupportedShippingCountry } from '../src/data/countries.js';
@@ -395,7 +395,13 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
   }
 
   let redeemedLoyaltyAmount = 0;
-  if (draft.loyaltyDiscount > 0) {
+  if (draft.loyaltyDiscount > 0 && !enforceStock) {
+    // Already charged with the points discount applied (Stripe webhook) —
+    // rejecting now would mean "paid, no order". Deduct what was priced in,
+    // clamped at 0 if the balance changed in another tab meanwhile.
+    await revokeLoyaltyPoints(draft.customerId, draft.pointsToRedeem);
+    redeemedLoyaltyAmount = draft.loyaltyDiscount;
+  } else if (draft.loyaltyDiscount > 0) {
     redeemedLoyaltyAmount = await tryRedeemLoyaltyPoints(draft.customerId, draft.loyaltyDiscount);
     if (redeemedLoyaltyAmount < draft.loyaltyDiscount) {
       if (redeemedLoyaltyAmount > 0) await refundLoyaltyPoints(draft.customerId, redeemedLoyaltyAmount);
@@ -435,12 +441,6 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
     reservedItems.push(item);
   }
 
-  // Recorded on the order (not just applied to the customer) so that if this
-  // order is later cancelled, updateOrderStatus() knows exactly how many
-  // points to claw back — recomputing from draft.total wouldn't survive a
-  // duplicate-idempotency-key lookup, which reads a plain DB row, not draft.
-  const pointsGranted = (status === 'confirmed' && draft.customerId) ? Math.floor(Math.max(0, draft.total)) : 0;
-
   try {
     await run(
       `INSERT INTO orders (
@@ -457,11 +457,14 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
         draft.customer.phone, draft.customer.country, draft.customer.city,
         draft.customer.postalCode, draft.customer.address, draft.customer.apartment || null, draft.customer.deliveryNotes || null,
         toJson(draft.items), draft.subtotal, draft.shipping, draft.total, draft.appliedPromoCode, draft.discountAmount, draft.customerId,
-        idempotencyKey, draft.appliedGiftCardCode, draft.giftCardAmount, draft.loyaltyDiscount, draft.pointsToRedeem, pointsGranted, draft.deliveryMethod || null, draft.deliveryEstimate || null,
+        idempotencyKey, draft.appliedGiftCardCode, draft.giftCardAmount, draft.loyaltyDiscount, draft.pointsToRedeem, 0, draft.deliveryMethod || null, draft.deliveryEstimate || null,
         paymentProvider, providerTransactionId, paymentEnv,
       ]
     );
-    if (status === 'confirmed') await grantLoyaltyPoints(draft.customerId, draft.total);
+    // Points are earned only once the order is actually paid — a Stripe
+    // order is paid here; cash on delivery / manual methods earn when an
+    // admin marks them Paid (updateOrderStatus). See server/loyalty.mjs.
+    if (paymentStatus === 'paid') await awardOrderPoints(id);
   } catch (error) {
     // Two concurrent requests with the same idempotency key can both pass the
     // pre-check above; the UNIQUE index is the real guard against a duplicate
@@ -660,10 +663,6 @@ export async function updateOrderStatus(id, { status, paymentStatus }) {
   // later cancelled → active → cancelled toggle re-firing; the name predates
   // gift-card/promo/stock reversal being added to this same guarded block).
   if (status === 'cancelled' && existing.status !== 'cancelled' && !existing.loyaltyReverted) {
-    if (existing.customerId) {
-      if (existing.loyaltyPointsGranted > 0) await revokeLoyaltyPoints(existing.customerId, existing.loyaltyPointsGranted);
-      if (existing.loyaltyDiscount > 0) await refundLoyaltyPoints(existing.customerId, existing.loyaltyDiscount);
-    }
     if (existing.giftCardAmount > 0 && existing.giftCardCode) await revertGiftCardRedemption(existing.giftCardCode, existing.giftCardAmount);
     if (existing.promoCode) await revertPromoUsage(existing.promoCode);
     // Regression: cancelling an order never gave the units it reserved back
@@ -699,6 +698,13 @@ export async function updateOrderStatus(id, { status, paymentStatus }) {
 
   values.push(orderId);
   await run(`UPDATE orders SET ${updates.join(', ')} WHERE id = ?`, values);
+
+  // UP Society points follow the payment: earned once the order is paid,
+  // taken back (and points spent on it returned) once it's cancelled or
+  // refunded. Both are idempotent, so re-saving a status is harmless.
+  const updated = await get('SELECT status, paymentStatus FROM orders WHERE id = ?', [orderId]);
+  if (updated.status === 'cancelled' || updated.paymentStatus === 'refunded') await reverseOrderLoyalty(orderId);
+  else if (updated.paymentStatus === 'paid') await awardOrderPoints(orderId);
   const row = await get('SELECT * FROM orders WHERE id = ?', [orderId]);
 
   // Order status/paymentStatus is already committed above — an email failure

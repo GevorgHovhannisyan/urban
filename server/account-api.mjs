@@ -3,7 +3,7 @@ import { all, get, run, fromJson } from './db.mjs';
 import { hashPassword, verifyPassword } from './password.mjs';
 import { sendVerificationCode } from './mailer.mjs';
 import { getProductsByIds } from './products-api.mjs';
-import { pointsValueInDollars } from './loyalty.mjs';
+import { pointsValueInDollars, pointsEarnedForOrder } from './loyalty.mjs';
 import { isSupportedShippingCountry } from '../src/data/countries.js';
 
 const clean = (value, max = 160) => String(value ?? '').trim().slice(0, max);
@@ -326,6 +326,12 @@ export async function getOverview(customerId) {
     for (const item of items) limitedPiecesCount += (item.editionNumbers || []).length;
   }
 
+  // Points this account's orders will earn once they're paid (e.g. cash on
+  // delivery not yet collected) — shown as "pending", never spendable.
+  const pendingPoints = orders
+    .filter((o) => o.customerId === customerId && o.status !== 'cancelled' && !['paid', 'refunded'].includes(o.paymentStatus) && !(o.loyaltyPointsGranted > 0))
+    .reduce((sum, o) => sum + pointsEarnedForOrder(o), 0);
+
   const wishlistCountRow = await get('SELECT COUNT(*) c FROM customer_wishlist WHERE customerId = ?', [customerId]);
   const defaultAddress = await getDefaultAddress(customerId);
 
@@ -342,6 +348,7 @@ export async function getOverview(customerId) {
       defaultAddress: defaultAddress ? serializeAddress(defaultAddress) : null,
       loyaltyPoints: customer.loyaltyPoints || 0,
       loyaltyPointsValue: pointsValueInDollars(customer.loyaltyPoints || 0),
+      pendingPoints,
     },
   };
 }

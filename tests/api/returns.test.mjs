@@ -283,7 +283,7 @@ test('an invalid status transition value is rejected', async () => {
   assert.equal(res.status, 400);
 });
 
-test('KNOWN GAP (documented, not silently hidden): marking a return "refunded" does NOT restore inventory or adjust loyalty/gift-card state — no such wiring exists in the codebase', async () => {
+test('KNOWN GAP (documented, not silently hidden): marking a return "refunded" does NOT restore inventory or gift-card state (UP Society points ARE adjusted — see tests/api/loyalty.test.mjs)', async () => {
   await server.db.prepare('UPDATE products SET stock = ? WHERE id = ?').run(JSON.stringify({ 'M|Black': 5 }), PRODUCT_ID);
   const order = await placeOrder(tokenA);
   const stockAfterOrderRow = await server.db.prepare('SELECT stock FROM products WHERE id = ?').get(PRODUCT_ID);
@@ -314,7 +314,7 @@ test('KNOWN GAP (documented, not silently hidden): marking a return "refunded" d
   // These document ACTUAL current behavior — none of this is desired
   // end-state, it is what the code does today. See the QA report.
   assert.equal(stockAfterRefund['M|Black'], 4, 'KNOWN GAP: refunding a return does not restore the stock the order consumed');
-  assert.equal(loyaltyAfter, loyaltyBefore, 'KNOWN GAP: refunding a return does not adjust loyalty points earned on the original order');
+  assert.equal(loyaltyAfter, loyaltyBefore, 'this order was never paid, so it earned no points and there are none to take back');
   assert.equal(orderStatus, 'confirmed', 'KNOWN GAP: the underlying order status is never updated when its return is refunded (stays "confirmed", not e.g. "returned"/"refunded")');
 
   await server.db.prepare('UPDATE products SET stock = ? WHERE id = ?').run('{}', PRODUCT_ID);

@@ -499,7 +499,13 @@ export const storefrontHy = {
   "UP Society": "UP Society",
   "UP Points Balance": "UP միավորների մնացորդ",
   "Redeemable Value": "Օգտագործելի գումար",
-  "Earn 1 point for every $1 spent. Every 100 points unlocks $5 off a future order — applied automatically at checkout.": "Յուրաքանչյուր ծախսած $1-ի համար ստացեք 1 միավոր։ Յուրաքանչյուր 100 միավորը տալիս է $5 զեղչ հաջորդ պատվերի համար՝ կիրառվում է ավտոմատ ձևակերպման ժամանակ։",
+  "Earn 1 point for every $1 spent. Every 100 points unlocks $5 off a future order — choose to use them at checkout.": "Յուրաքանչյուր ծախսած $1-ի համար ստացեք 1 միավոր։ Յուրաքանչյուր 100 միավորը տալիս է $5 զեղչ հաջորդ պատվերի համար՝ կարող եք օգտագործել դրանք պատվերը ձևակերպելիս։",
+  "UP Society Rewards": "UP Society բոնուսներ",
+  "Every 100 points = $5 off.": "Յուրաքանչյուր 100 միավոր = $5 զեղչ։",
+  "Your order total is too low to use points.": "Պատվերի գումարը չափազանց փոքր է միավորներ օգտագործելու համար։",
+  "Points are added to your balance once the order is paid.": "Միավորները կավելացվեն ձեր հաշվին պատվերը վճարելուց հետո։",
+  "Log in": "Մուտք գործեք",
+  "to use your points and earn 1 point for every $1 spent.": "— միավորներն օգտագործելու և յուրաքանչյուր ծախսած $1-ի համար 1 միավոր ստանալու համար։",
   "Could not load your overview right now.": "Այս պահին չհաջողվեց բեռնել ամփոփումը։",
   "Could not load your orders right now.": "Այս պահին չհաջողվեց բեռնել ձեր պատվերները։",
   "Could not load your rewards right now.": "Այս պահին չհաջողվեց բեռնել ձեր բոնուսները։",
@@ -1220,7 +1226,13 @@ export const storefrontRu = {
   "UP Society": "UP Society",
   "UP Points Balance": "Баланс баллов UP",
   "Redeemable Value": "Доступно к списанию",
-  "Earn 1 point for every $1 spent. Every 100 points unlocks $5 off a future order — applied automatically at checkout.": "1 балл за каждый потраченный $1. Каждые 100 баллов дают скидку $5 на следующий заказ — она применяется автоматически при оформлении.",
+  "Earn 1 point for every $1 spent. Every 100 points unlocks $5 off a future order — choose to use them at checkout.": "1 балл за каждый потраченный $1. Каждые 100 баллов дают скидку $5 на следующий заказ — используйте их при оформлении.",
+  "UP Society Rewards": "Бонусы UP Society",
+  "Every 100 points = $5 off.": "Каждые 100 баллов = скидка $5.",
+  "Your order total is too low to use points.": "Сумма заказа слишком мала, чтобы использовать баллы.",
+  "Points are added to your balance once the order is paid.": "Баллы начисляются после оплаты заказа.",
+  "Log in": "Войдите",
+  "to use your points and earn 1 point for every $1 spent.": "— чтобы использовать баллы и получать 1 балл за каждый потраченный $1.",
   "Could not load your overview right now.": "Не удалось загрузить обзор. Попробуйте позже.",
   "Could not load your orders right now.": "Не удалось загрузить заказы. Попробуйте позже.",
   "Could not load your rewards right now.": "Не удалось загрузить бонусы. Попробуйте позже.",
@@ -1462,6 +1474,7 @@ export const storefrontRu = {
 // whole text has no direct dictionary entry.
 // For ranges like "3–4" Russian agrees with the last number (3–4 дня, 7–10 дней).
 const lastNumber = (range) => String(range).split(/[–-]/).pop();
+const ruPoints = (n) => ruPlural(String(n).replace(/,/g, ''), 'балл', 'балла', 'баллов');
 const ruDays = (range) => ruPlural(lastNumber(range), 'рабочий день', 'рабочих дня', 'рабочих дней');
 const ruPlural = (n, one, few, many) => {
   const a = Math.abs(Number(n)) % 100;
@@ -1474,6 +1487,14 @@ const ruPlural = (n, one, few, many) => {
 
 export const PATTERNS = {
   hy: [
+    [/^([\d,]+) points available · worth (.+)$/, (m) => `${m[1]} միավոր հասանելի է · արժեքը՝ ${m[2]}`],
+    [/^Redeem ([\d,]+) points for (.+) off$/, (m) => `Օգտագործել ${m[1]} միավոր՝ ${m[2]} զեղչի համար`],
+    [/^([\d,]+) points remaining after this order$/, (m) => `Այս պատվերից հետո կմնա ${m[1]} միավոր`],
+    [/^([\d,]+) more points to unlock (.+) off$/, (m) => `Եվս ${m[1]} միավոր՝ ${m[2]} զեղչ ստանալու համար`],
+    [/^You'll earn ([\d,]+) points with this order$/, (m) => `Այս պատվերով կստանաք ${m[1]} միավոր`],
+    [/^Rewards points \(([\d,]+)\)$/, (m) => `Բոնուսային միավորներ (${m[1]})`],
+    [/^([\d,]+) points to your next \$5 reward$/, (m) => `Եվս ${m[1]} միավոր մինչև հաջորդ $5 պարգևը`],
+    [/^([\d,]+) points pending — added once your order is paid$/, (m) => `${m[1]} միավոր սպասման մեջ է — կավելացվի պատվերը վճարելուց հետո`],
     [/^(.+) — Urban Phoenix$/, (m, tr) => `${tr(m[1])} — Urban Phoenix`],
     [/^Piece (\d+)$/, (m) => `Իր ${m[1]}`],
     [/^Piece (\d+): (.+)$/, (m) => `Իր ${m[1]}՝ ${m[2]}`],
@@ -1512,6 +1533,14 @@ export const PATTERNS = {
     [/^(?:[A-Z]+\s+— Chest \d+ cm · Length \d+ cm\s*)+$/, (m) => m[0].replace(/Chest (\d+) cm · Length (\d+) cm/g, 'Կրծքավանդակ $1 սմ · Երկարություն $2 սմ')],
   ],
   ru: [
+    [/^([\d,]+) points available · worth (.+)$/, (m) => `${ruPlural(m[1].replace(/,/g, ''), 'Доступен', 'Доступно', 'Доступно')} ${m[1]} ${ruPoints(m[1])} · это ${m[2]}`],
+    [/^Redeem ([\d,]+) points for (.+) off$/, (m) => `Списать ${m[1]} ${ruPoints(m[1])} и получить скидку ${m[2]}`],
+    [/^([\d,]+) points remaining after this order$/, (m) => `После этого заказа останется ${m[1]} ${ruPoints(m[1])}`],
+    [/^([\d,]+) more points to unlock (.+) off$/, (m) => `Ещё ${m[1]} ${ruPoints(m[1])} до скидки ${m[2]}`],
+    [/^You'll earn ([\d,]+) points with this order$/, (m) => `За этот заказ вы получите ${m[1]} ${ruPoints(m[1])}`],
+    [/^Rewards points \(([\d,]+)\)$/, (m) => `Бонусные баллы (${m[1]})`],
+    [/^([\d,]+) points to your next \$5 reward$/, (m) => `Ещё ${m[1]} ${ruPoints(m[1])} до следующей награды $5`],
+    [/^([\d,]+) points pending — added once your order is paid$/, (m) => `${m[1]} ${ruPoints(m[1])} в ожидании — начислим после оплаты заказа`],
     [/^(.+) — Urban Phoenix$/, (m, tr) => `${tr(m[1])} — Urban Phoenix`],
     [/^Piece (\d+)$/, (m) => `Вещь ${m[1]}`],
     [/^Piece (\d+): (.+)$/, (m) => `Вещь ${m[1]}: ${m[2]}`],

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { all, get, run, toJson, fromJson } from './db.mjs';
 import { RETURN_WINDOW_DAYS, isReturnWindowOpen } from '../src/data/returnPolicy.js';
+import { revokePointsForReturnedItems } from './loyalty.mjs';
 
 const clean = (value, max = 200) => String(value ?? '').trim().slice(0, max);
 const ALLOWED_STATUSES = new Set(['requested', 'approved', 'rejected', 'refunded']);
@@ -77,6 +78,16 @@ export async function updateReturnStatus(id, status) {
   if (!existing) return { status: 404, body: { error: 'Return request not found.' } };
 
   await run('UPDATE return_requests SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?', [status, returnId]);
+
+  // Refunded items no longer count as spent: take back the UP Society points
+  // they earned — once per return, even if the status is toggled again.
+  if (status === 'refunded') {
+    const claimed = await run('UPDATE return_requests SET pointsReversed = 1 WHERE id = ? AND pointsReversed = 0', [returnId]);
+    if (claimed.changes) {
+      const request = await get('SELECT orderId, items FROM return_requests WHERE id = ?', [returnId]);
+      await revokePointsForReturnedItems(request.orderId, fromJson(request.items, []));
+    }
+  }
   const row = await get('SELECT * FROM return_requests WHERE id = ?', [returnId]);
   return { status: 200, body: { returnRequest: serialize(row) } };
 }
