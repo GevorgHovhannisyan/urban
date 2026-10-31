@@ -330,65 +330,112 @@ async function deliver(mail, label) {
   }
 }
 
-const FONT = "Arial,Helvetica,sans-serif";
+// Montserrat everywhere (loaded from Google Fonts in the <head>). Clients
+// that block web fonts (Gmail apps, Outlook) fall back to Helvetica/Arial —
+// never to a serif — so the design holds up everywhere.
+const FONT = "'Montserrat','Helvetica Neue',Helvetica,Arial,sans-serif";
+const C = {
+  ink: "#0a0a0a",        // headings / strong text
+  text: "#3a3a3a",       // body copy
+  muted: "#7a7a7a",      // secondary text
+  faint: "#a3a3a3",
+  line: "#e6e4df",       // hairlines
+  panel: "#f6f5f2",      // soft boxes
+  page: "#eeece8",       // outside the card
+  accent: "#c65d1e",     // brand orange
+};
 
-// Branded, mobile-friendly shell shared by every transactional email — the
-// same visual language as the order confirmation below (dark canvas, white
-// logo, burnt-orange accents, uppercase display headline, table-only layout
-// with inline CSS so it survives Gmail/Outlook). `bodyHtml` must already be
-// escaped by the caller.
-function brandedEmail({ preheader = "", eyebrow = "", heading = "", bodyHtml = "", cta = null, note = "" }) {
-  const logoUrl = `${getPublicUrl()}/images/brand/up-logo-email-white.png`;
+// Bulletproof button (table-based, so it renders as a real button in Outlook).
+function emailButton(url, label) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" class="up-btn-wrap" style="margin:0 auto;"><tr><td align="center" class="up-btn" style="background:${C.accent};"><a href="${escapeHtml(url)}" style="display:block;padding:16px 38px;font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#ffffff;text-decoration:none;">${escapeHtml(label)}</a></td></tr></table>`;
+}
+
+// A labelled info box (order number, date…): rows of [label, value(html)].
+function infoBox(rows) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.panel};border:1px solid ${C.line};margin:6px 0 4px;">${rows.map(([label, value], i) => `
+    <tr>
+      <td style="padding:${i ? "0" : "16px"} 18px ${i === rows.length - 1 ? "16px" : "10px"};font-family:${FONT};font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};">${escapeHtml(label)}</td>
+      <td align="right" style="padding:${i ? "0" : "16px"} 18px ${i === rows.length - 1 ? "16px" : "10px"};font-family:${FONT};font-size:14px;font-weight:600;color:${C.ink};">${value}</td>
+    </tr>`).join("")}</table>`;
+}
+
+// Shared, branded, mobile-friendly shell for every email: black header with
+// the logo, orange accent rule, white content card, footer with links.
+// Table-only layout with inline CSS so it survives Gmail/Outlook/Apple Mail.
+// `bodyHtml` must already be escaped by the caller.
+function brandedEmail({ preheader = "", eyebrow = "", heading = "", bodyHtml = "", cta = null, note = "", signoff = true }) {
+  const site = getPublicUrl();
+  const logoUrl = `${site}/images/brand/up-logo-email-white.png`;
+  const support = EMAIL_SENDERS.support.email || "";
+  const link = (href, label) => `<a href="${escapeHtml(href)}" style="font-family:${FONT};font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:${C.ink};text-decoration:none;white-space:nowrap;">${label}</a>`;
   return `<!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="color-scheme" content="dark" />
+<meta name="x-apple-disable-message-reformatting" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
 <title>${escapeHtml(heading || "Urban Phoenix")}</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  @media only screen and (max-width: 520px) {
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+  body, table, td, p, a, span { font-family: ${FONT}; }
+  a { text-decoration: none; }
+  @media only screen and (max-width: 600px) {
     .up-container { width: 100% !important; }
-    .up-px { padding-left: 22px !important; padding-right: 22px !important; }
-    .up-hero { font-size: 30px !important; }
-    .up-cta { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+    .up-px { padding-left: 24px !important; padding-right: 24px !important; }
+    .up-hero { font-size: 24px !important; line-height: 1.25 !important; }
+    .up-btn-wrap, .up-btn { width: 100% !important; }
+    .up-stack { display: block !important; width: 100% !important; padding: 0 0 18px 0 !important; }
+    .up-hide-mobile { display: none !important; }
+    .up-card-pad { padding: 22px 18px 20px !important; }
+    .up-card-brand { font-size: 11px !important; letter-spacing: 0.2em !important; }
+    .up-card-code { font-size: 18px !important; letter-spacing: 0.06em !important; }
   }
 </style>
+<!--[if mso]><style>body, table, td, p, a, span { font-family: Arial, Helvetica, sans-serif !important; }</style><![endif]-->
 </head>
-<body style="margin:0;padding:0;background:#050505;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050505;">
+<body style="margin:0;padding:0;background:${C.page};-webkit-font-smoothing:antialiased;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(preheader)}&#8203;</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.page};">
     <tr>
-      <td align="center" style="padding:40px 16px;">
-        <table role="presentation" class="up-container" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#0a0a0a;border:1px solid #1c1c1c;">
+      <td align="center" style="padding:32px 12px;">
+        <table role="presentation" class="up-container" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;">
+          <!-- Header -->
           <tr>
-            <td align="center" style="padding:40px 32px 0;">
-              <img src="${logoUrl}" alt="Urban Phoenix" width="66" height="60" style="display:block;height:60px;width:66px;border:0;outline:none;" />
+            <td align="center" style="background:${C.ink};padding:28px 32px 26px;">
+              <a href="${escapeHtml(site)}" style="text-decoration:none;">
+                <img src="${logoUrl}" alt="Urban Phoenix" width="48" height="44" style="display:block;margin:0 auto 12px;width:48px;height:44px;border:0;outline:none;" />
+                <span style="font-family:${FONT};font-size:13px;font-weight:700;letter-spacing:0.42em;color:#ffffff;">URBAN&nbsp;PHOENIX</span>
+              </a>
             </td>
           </tr>
-          ${eyebrow ? `<tr><td align="center" style="padding:22px 32px 0;"><p style="margin:0;font-family:${FONT};font-size:10px;font-weight:700;letter-spacing:0.32em;text-transform:uppercase;color:#c65d1e;">${escapeHtml(eyebrow)}</p></td></tr>` : ""}
-          ${heading ? `<tr><td class="up-px" align="center" style="padding:16px 32px 0;"><p class="up-hero" style="margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:36px;line-height:1.02;letter-spacing:0.01em;text-transform:uppercase;color:#f5f5f3;">${escapeHtml(heading)}</p></td></tr>` : ""}
+          <tr><td style="background:${C.accent};height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+          <!-- Content -->
           <tr>
-            <td class="up-px" style="padding:26px 48px 0;font-family:${FONT};font-size:14px;line-height:1.7;color:#b5b5b3;">
-              ${bodyHtml}
+            <td class="up-px" style="padding:44px 52px 8px;">
+              ${eyebrow ? `<p style="margin:0 0 12px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${C.accent};">${escapeHtml(eyebrow)}</p>` : ""}
+              ${heading ? `<h1 class="up-hero" style="margin:0 0 22px;font-family:${FONT};font-size:28px;line-height:1.2;font-weight:800;letter-spacing:-0.01em;color:${C.ink};">${escapeHtml(heading)}</h1>` : ""}
+              <div style="font-family:${FONT};font-size:15px;line-height:1.65;color:${C.text};">${bodyHtml}</div>
             </td>
           </tr>
-          ${cta ? `<tr><td align="center" style="padding:30px 32px 0;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" class="up-cta" style="background:#c65d1e;"><a href="${escapeHtml(cta.url)}" style="display:block;color:#ffffff;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;text-decoration:none;padding:16px 42px;">${escapeHtml(cta.label)}</a></td></tr></table></td></tr>` : ""}
-          ${note ? `<tr><td class="up-px" align="center" style="padding:26px 48px 0;font-family:${FONT};font-size:12px;line-height:1.6;color:#6a6a6a;">${note}</td></tr>` : ""}
+          ${cta ? `<tr><td class="up-px" align="center" style="padding:20px 52px 8px;">${emailButton(cta.url, cta.label)}</td></tr>` : ""}
+          ${note ? `<tr><td class="up-px" style="padding:22px 52px 0;font-family:${FONT};font-size:13px;line-height:1.6;color:${C.muted};">${note}</td></tr>` : ""}
+          <!-- Sign-off (customer emails only) -->
+          ${signoff ? `
           <tr>
-            <td class="up-px" style="padding:36px 56px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-                <td width="50%" style="border-top:1px solid #232323;font-size:0;line-height:0;">&nbsp;</td>
-                <td style="white-space:nowrap;padding:0 14px;font-family:${FONT};font-size:9px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#6a6a6a;">Freedom To Become</td>
-                <td width="50%" style="border-top:1px solid #232323;font-size:0;line-height:0;">&nbsp;</td>
-              </tr></table>
+            <td class="up-px" style="padding:30px 52px 40px;">
+              <p style="margin:0;padding-top:24px;border-top:1px solid ${C.line};font-family:${FONT};font-size:14px;line-height:1.6;color:${C.text};">Questions? Simply reply to this email or write to <a href="mailto:${escapeHtml(support)}" style="color:${C.accent};font-weight:600;text-decoration:none;">${escapeHtml(support)}</a>.</p>
+              <p style="margin:14px 0 0;font-family:${FONT};font-size:14px;font-weight:600;color:${C.ink};">— The Urban Phoenix team</p>
             </td>
-          </tr>
+          </tr>` : `<tr><td style="height:40px;font-size:0;line-height:0;">&nbsp;</td></tr>`}
+          <!-- Footer -->
           <tr>
-            <td class="up-px" align="center" style="padding:28px 32px 40px;">
-              <p style="margin:0 0 14px;font-family:${FONT};font-weight:900;font-size:13px;letter-spacing:0.3em;color:#5c5c5c;">URBAN PHOENIX</p>
-              <p style="margin:0 0 18px;font-family:${FONT};font-size:12px;color:#8a8a8a;">Questions? Reply to this email or write to <a href="mailto:${escapeHtml(EMAIL_SENDERS.support.email || "")}" style="color:#c65d1e;text-decoration:none;">${escapeHtml(EMAIL_SENDERS.support.email || "")}</a></p>
-              <p style="margin:0;font-family:${FONT};font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#454545;">© ${new Date().getFullYear()} Urban Phoenix — Built From Chaos. Built For The Few.</p>
+            <td align="center" style="background:${C.panel};padding:26px 32px 30px;border-top:1px solid ${C.line};">
+              <p style="margin:0 0 14px;">${link(`${site}/shop`, "Shop")}<span style="color:${C.faint};">&nbsp;&nbsp;·&nbsp; </span>${link(`${site}/track`, "Track order")}<span style="color:${C.faint};">&nbsp;&nbsp;·&nbsp; </span>${link(`${site}/contact`, "Contact")}</p>
+              <p style="margin:0 0 6px;font-family:${FONT};font-size:12px;color:${C.muted};">Urban Phoenix · Yerevan, Armenia</p>
+              <p style="margin:0;font-family:${FONT};font-size:11px;color:${C.faint};">© ${new Date().getFullYear()} Urban Phoenix. Built from chaos. Built for the few.</p>
             </td>
           </tr>
         </table>
@@ -425,7 +472,7 @@ export async function sendVerificationCode({ to, name, code, expiresInMinutes = 
       eyebrow: "Account Registration",
       heading: "Confirm your email",
       bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("Welcome to Urban Phoenix. Enter this code on the site to activate your account:")}
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 18px;"><tr><td align="center" style="background:#131110;border:1px solid #c65d1e;padding:22px 10px;font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:700;letter-spacing:0.3em;color:#ffffff;">${escapeHtml(code)}</td></tr></table>`,
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;"><tr><td align="center" style="background:${C.panel};border:1px solid ${C.line};border-top:3px solid ${C.accent};padding:24px 10px;font-family:${FONT};font-size:36px;font-weight:800;letter-spacing:0.32em;color:${C.ink};">${escapeHtml(code)}</td></tr></table>`,
       note: `This code expires in ${expiresInMinutes} minutes. If you didn't create an account, you can safely ignore this email.`,
     }),
   }, "verification code");
@@ -454,7 +501,7 @@ export async function sendPasswordResetEmail({ to, name, link }) {
       heading: "Reset your password",
       bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para("We received a request to reset the password for your Urban Phoenix account. Tap the button below to choose a new one.")}`,
       cta: { url: link, label: "Reset Password" },
-      note: `This link expires in 60 minutes. If you didn't request a reset, you can ignore this email — your password won't change.<br /><br /><span style="color:#4a4a4a;word-break:break-all;">${escapeHtml(link)}</span>`,
+      note: `This link expires in 60 minutes. If you didn't request a reset, you can ignore this email — your password won't change.<br /><br />Button not working? Copy this link into your browser:<br /><a href="${escapeHtml(link)}" style="color:${C.accent};text-decoration:underline;word-break:break-all;">${escapeHtml(link)}</a>`,
     }),
   }, "password reset");
 }
@@ -482,32 +529,23 @@ function fmtGiftCardAmount(value, currency) {
 // or grid) so it survives Outlook/Gmail's HTML stripping. The code is real
 // selectable text inside it, not an image, so it can be copied directly
 // from the email body in any client.
+// The card itself stays dark — it reads as a physical card on the white email.
 function giftCardVisualHtml({ amountLabel, currency, code }) {
   return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#131110;border:1px solid #c65d1e;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.ink};border-top:3px solid ${C.accent};">
       <tr>
-        <td style="padding:28px 28px 22px;">
+        <td class="up-card-pad" style="padding:26px 26px 24px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:16px;letter-spacing:0.28em;color:#f5f5f3;">URBAN PHOENIX</td>
-              <td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:0.25em;color:#c65d1e;">GIFT CARD</td>
+              <td class="up-card-brand" style="font-family:${FONT};font-weight:700;font-size:12px;letter-spacing:0.36em;color:#ffffff;">URBAN&nbsp;PHOENIX</td>
+              <td align="right" style="font-family:${FONT};font-weight:700;font-size:10px;letter-spacing:0.24em;color:${C.accent};white-space:nowrap;">GIFT&nbsp;CARD</td>
             </tr>
           </table>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:34px;">
-            <tr>
-              <td style="font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:38px;letter-spacing:0.01em;color:#ffffff;">${escapeHtml(amountLabel)}</td>
-            </tr>
-            <tr>
-              <td style="padding-top:2px;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:0.25em;color:#8a8a8a;">${escapeHtml(currency || "USD")} · COLLECTION 001</td>
-            </tr>
-          </table>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:30px;border-top:1px solid #2a2622;">
-            <tr>
-              <td style="padding-top:20px;font-family:Arial,Helvetica,sans-serif;font-size:9px;letter-spacing:0.25em;color:#8a8a8a;">GIFT CARD CODE</td>
-            </tr>
-            <tr>
-              <td style="padding-top:8px;font-family:'Courier New',Courier,monospace;font-weight:700;font-size:22px;letter-spacing:0.12em;color:#ffffff;word-break:break-all;">${escapeHtml(code)}</td>
-            </tr>
+          <p style="margin:30px 0 2px;font-family:${FONT};font-weight:800;font-size:40px;line-height:1.1;color:#ffffff;">${escapeHtml(amountLabel)}</p>
+          <p style="margin:0;font-family:${FONT};font-size:11px;font-weight:600;letter-spacing:0.2em;color:#8a8a8a;">${escapeHtml(currency || "USD")} · COLLECTION 001</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:26px;border-top:1px solid #2a2a2a;">
+            <tr><td style="padding-top:18px;font-family:${FONT};font-size:10px;font-weight:600;letter-spacing:0.22em;color:#8a8a8a;">GIFT CARD CODE</td></tr>
+            <tr><td class="up-card-code" style="padding-top:8px;font-family:${FONT};font-weight:700;font-size:22px;letter-spacing:0.14em;color:#ffffff;word-break:break-all;">${escapeHtml(code)}</td></tr>
           </table>
         </td>
       </tr>
@@ -554,99 +592,19 @@ export async function sendGiftCardEmail({
   const greetingHtml = recipientName
     ? `Hi ${escapeHtml(recipientName)},`
     : "Hi,";
-  const fromLineHtml = senderName
-    ? `${escapeHtml(senderName)} sent you a gift card`
-    : "You've received a gift card";
 
-  const html = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>You've received an Urban Phoenix gift card</title>
-<style>
-  @media only screen and (max-width: 520px) {
-    .up-container { width: 100% !important; }
-    .up-px { padding-left: 20px !important; padding-right: 20px !important; }
-  }
-</style>
-</head>
-<body style="margin:0;padding:0;background:#050505;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${fromLineHtml}, worth ${escapeHtml(amountLabel)}.</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050505;">
-    <tr>
-      <td align="center" style="padding:36px 16px;">
-        <table role="presentation" class="up-container" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#0a0a0a;border:1px solid #1e1e1e;">
-
-          <!-- Wordmark -->
-          <tr>
-            <td class="up-px" align="center" style="padding:36px 32px 28px;border-bottom:1px solid #1e1e1e;">
-              <span style="font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:22px;letter-spacing:0.32em;color:#f5f5f3;">URBAN PHOENIX</span>
-            </td>
-          </tr>
-
-          <!-- Greeting -->
-          <tr>
-            <td class="up-px" align="center" style="padding:40px 32px 4px;">
-              <p style="margin:0 0 14px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#c65d1e;">Freedom To Become</p>
-              <p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#f5f5f3;">${greetingHtml}</p>
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:26px;letter-spacing:0.02em;text-transform:uppercase;color:#f5f5f3;">${fromLineHtml}</p>
-            </td>
-          </tr>
-
-          ${
-            message
-              ? `
-          <!-- Personal message -->
-          <tr>
-            <td class="up-px" style="padding:22px 32px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-left:2px solid #c65d1e;">
-                <tr><td style="padding:4px 0 4px 16px;font-family:Arial,Helvetica,sans-serif;font-style:italic;font-size:14px;line-height:1.6;color:#c7c7c5;">"${escapeHtml(message)}"</td></tr>
-              </table>
-            </td>
-          </tr>`
-              : ""
-          }
-
-          <!-- Gift card visual -->
-          <tr>
-            <td class="up-px" style="padding:32px 32px 0;">
-              ${giftCardVisualHtml({ amountLabel, currency, code })}
-            </td>
-          </tr>
-
-          <!-- Redemption instructions -->
-          <tr>
-            <td class="up-px" align="center" style="padding:26px 32px 0;">
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:#9a9a9a;">
-                Add the code above in your bag, under <strong style="color:#f5f5f3;">Gift Card</strong>, before checkout to redeem it.
-                If your order total is less than the card balance, the remaining balance stays on the card for next time.
-              </p>
-            </td>
-          </tr>
-
-          <!-- CTA -->
-          <tr>
-            <td align="center" style="padding:26px 32px 8px;">
-              <a href="${shopUrl}" style="display:inline-block;background:#c65d1e;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;text-decoration:none;padding:15px 34px;">Shop Urban Phoenix</a>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td class="up-px" align="center" style="padding:40px 32px 36px;">
-              <p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#5c5c5c;">Questions about this gift card?</p>
-              <p style="margin:0 0 20px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#9a9a9a;">Reply to this email or reach us anytime — we're here to help.</p>
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:0.1em;color:#4a4a4a;">© ${new Date().getFullYear()} Urban Phoenix. Built from chaos. Built for the few.</p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  const html = brandedEmail({
+    preheader: `${senderName ? `${senderName} sent you a gift card` : "You've received a gift card"}, worth ${amountLabel}.`,
+    eyebrow: "Gift card",
+    heading: senderName ? `${senderName} sent you a gift card` : "You've received a gift card",
+    bodyHtml: `
+      ${para(greetingHtml)}
+      ${para(`Here's an Urban Phoenix gift card worth <strong style="color:${C.ink};">${escapeHtml(amountLabel)}</strong>.`)}
+      ${message ? `<p style="margin:4px 0 20px;background:${C.panel};border-left:3px solid ${C.accent};padding:14px 16px;font-style:italic;color:${C.ink};">“${escapeHtml(message)}”</p>` : ""}
+      ${giftCardVisualHtml({ amountLabel, currency, code })}
+      <p style="margin:20px 0 0;">Add the code in your bag, under <strong style="color:${C.ink};">Gift Card</strong>, before checkout. If your order costs less than the card's value, the rest stays on the card for next time.</p>`,
+    cta: { url: shopUrl, label: "Shop Urban Phoenix" },
+  });
 
   const result = await deliver({
     from: formatSender("orders"),
@@ -753,57 +711,56 @@ function deliveryMethodLabel(order) {
 // order-api.mjs's claimEditions() assigned and saved onto this order at the
 // moment it was placed, so this line can never drift from what the customer
 // actually owns even if the product's config changes later.
-function editionOwnershipLine(item) {
+function editionOwnershipLine(item, { forAdmin = false } = {}) {
   if (!item.isLimitedEdition || !item.editionNumbers?.length) return "";
   const total = item.editionTotal || 100;
   const serials = item.editionNumbers.map(
     (number) =>
       `${String(number).padStart(3, "0")}/${String(total).padStart(3, "0")}`,
   );
-  const text =
-    serials.length > 1
+  const text = forAdmin
+    ? `Limited edition · ${serials.length > 1 ? "Pieces" : "Piece"} ${serials.join(", ")}`
+    : serials.length > 1
       ? `Pieces ${serials.join(", ")} are yours.`
       : `Piece ${serials[0]} is yours.`;
-  return `<p style="margin:6px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#e07a3a;">${escapeHtml(text)}</p>`;
+  return `<p style="margin:8px 0 0;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${C.accent};">${escapeHtml(text)}</p>`;
 }
 
-function orderItemsHtml(order) {
-  return order.items
-    .map((item, index) => {
-      const isLast = index === order.items.length - 1;
-      const borderStyle = isLast ? "" : "border-bottom:1px solid #1c1c1c;";
+function orderItemsHtml(order, { forAdmin = false } = {}) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${C.line};">${order.items
+    .map((item) => {
       const imageCell = item.image
-        ? `<img src="${escapeHtml(item.image)}" width="84" height="106" alt="${escapeHtml(item.name)}" style="display:block;width:84px;height:106px;object-fit:cover;background:#141414;border:1px solid #232323;" />`
-        : `<table role="presentation" width="84" height="106" cellpadding="0" cellspacing="0" style="width:84px;height:106px;background:#141414;border:1px solid #232323;"><tr><td align="center" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.15em;color:#5c5c5c;">UP</td></tr></table>`;
+        ? `<img src="${escapeHtml(item.image)}" width="72" height="90" alt="${escapeHtml(item.name)}" style="display:block;width:72px;height:90px;object-fit:cover;background:${C.panel};border:0;" />`
+        : `<table role="presentation" width="72" height="90" cellpadding="0" cellspacing="0" style="width:72px;height:90px;background:${C.panel};"><tr><td align="center" valign="middle" style="font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.15em;color:${C.faint};">UP</td></tr></table>`;
       return `
       <tr>
-        <td style="padding:22px 0;${borderStyle}" width="84">${imageCell}</td>
-        <td style="padding:22px 0 22px 18px;${borderStyle}vertical-align:top;">
-          <p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;color:#f5f5f3;">${escapeHtml(item.name)}</p>
-          <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#8a8a8a;">${escapeHtml(item.color)} &nbsp;·&nbsp; Size ${escapeHtml(item.size)} &nbsp;·&nbsp; Qty ${Number(item.quantity)}</p>
-          ${editionOwnershipLine(item)}
+        <td width="72" valign="top" style="padding:18px 0;border-bottom:1px solid ${C.line};">${imageCell}</td>
+        <td valign="top" style="padding:18px 12px 18px 16px;border-bottom:1px solid ${C.line};">
+          <p style="margin:0 0 6px;font-family:${FONT};font-size:14px;font-weight:700;line-height:1.35;color:${C.ink};">${escapeHtml(item.name)}</p>
+          <p style="margin:0;font-family:${FONT};font-size:12px;line-height:1.5;color:${C.muted};">${escapeHtml(item.color)} · Size ${escapeHtml(item.size)} · Qty ${Number(item.quantity)}</p>
+          ${editionOwnershipLine(item, { forAdmin })}
         </td>
-        <td style="padding:22px 0 22px 12px;${borderStyle}vertical-align:top;text-align:right;white-space:nowrap;">
-          <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#f5f5f3;">${fmtMoney(item.lineTotal)}</p>
-        </td>
+        <td valign="top" align="right" style="padding:18px 0;border-bottom:1px solid ${C.line};white-space:nowrap;font-family:${FONT};font-size:14px;font-weight:600;color:${C.ink};">${fmtMoney(item.lineTotal)}</td>
       </tr>`;
     })
-    .join("");
+    .join("")}</table>`;
 }
 
 function summaryRow(label, value, { accent = false, strong = false } = {}) {
-  const labelColor = strong ? "#8a8a8a" : accent ? "#e07a3a" : "#9a9a9a";
-  const labelStyle = strong
-    ? `font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:${labelColor};`
-    : `font-size:13px;color:${labelColor};`;
-  const valueStyle = strong
-    ? "font-size:24px;font-weight:800;color:#f5f5f3;"
-    : `font-size:13px;font-weight:400;color:${accent ? "#e07a3a" : "#f5f5f3"};`;
+  const color = accent ? C.accent : strong ? C.ink : C.text;
   return `
     <tr>
-      <td style="padding:${strong ? "14px 0 0" : "6px 0"};font-family:Arial,Helvetica,sans-serif;${labelStyle}">${escapeHtml(label)}</td>
-      <td style="padding:${strong ? "14px 0 0" : "6px 0"};font-family:Arial,Helvetica,sans-serif;${valueStyle}text-align:right;">${value}</td>
+      <td style="padding:${strong ? "14px 0 0" : "5px 0"};font-family:${FONT};font-size:${strong ? "15px" : "14px"};font-weight:${strong ? 700 : 500};color:${color};${strong ? `border-top:1px solid ${C.line};` : ""}">${escapeHtml(label)}</td>
+      <td align="right" style="padding:${strong ? "14px 0 0" : "5px 0"};font-family:${FONT};font-size:${strong ? "20px" : "14px"};font-weight:${strong ? 800 : 600};color:${color};${strong ? `border-top:1px solid ${C.line};` : ""}">${value}</td>
     </tr>`;
+}
+
+function totalsTable(rowsHtml) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">${rowsHtml}</table>`;
+}
+
+function sectionTitle(text) {
+  return `<p style="margin:30px 0 12px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${C.ink};">${escapeHtml(text)}</p>`;
 }
 
 // `order` is the already-serialized shape from server/order-api.mjs's
@@ -820,7 +777,6 @@ export async function sendOrderConfirmationEmail({ order }) {
   // generated once at public/images/brand/up-logo-email-white.png so the
   // production-served asset (getPublicUrl() + this path) is what email
   // clients load; not an invented logo.
-  const logoUrl = `${getPublicUrl()}/images/brand/up-logo-email-white.png`;
   const paymentLabel =
     PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod;
   const paymentStatusText = paymentStatusLabel(order);
@@ -913,165 +869,44 @@ export async function sendOrderConfirmationEmail({ order }) {
       : "",
   ].join("");
 
-  const html = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="color-scheme" content="dark" />
-<title>Order Confirmed — Urban Phoenix</title>
-<style>
-  @media only screen and (max-width: 520px) {
-    .up-container { width: 100% !important; }
-    .up-px { padding-left: 22px !important; padding-right: 22px !important; }
-    .up-hero { font-size: 34px !important; }
-    .up-logo { height: 56px !important; width: auto !important; }
-    .up-stack-td { display: block !important; width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; }
-    .up-stack-gap { display: block !important; height: 22px !important; line-height: 22px !important; font-size: 0 !important; }
-    .up-cta { display: block !important; width: 100% !important; box-sizing: border-box !important; }
-  }
-</style>
-</head>
-<body style="margin:0;padding:0;background:#050505;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Urban Phoenix order ${escapeHtml(order.orderNumber)} is confirmed — thank you for your purchase.</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050505;">
-    <tr>
-      <td align="center" style="padding:40px 16px;">
-        <table role="presentation" class="up-container" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#0a0a0a;border:1px solid #1c1c1c;">
-
-          <!-- Logo -->
-          <tr>
-            <td align="center" style="padding:40px 32px 0;">
-              <img src="${logoUrl}" alt="Urban Phoenix" width="79" height="72" class="up-logo" style="display:block;height:72px;width:79px;border:0;outline:none;" />
-            </td>
-          </tr>
-
-          <!-- Eyebrow -->
-          <tr>
-            <td align="center" style="padding:22px 32px 0;">
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.32em;text-transform:uppercase;color:#c65d1e;">Order Confirmation &nbsp;/&nbsp; UP-26</p>
-            </td>
-          </tr>
-
-          <!-- Headline -->
-          <tr>
-            <td class="up-px" align="center" style="padding:18px 32px 0;">
-              <p class="up-hero" style="margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:42px;line-height:0.98;letter-spacing:0.01em;text-transform:uppercase;color:#f5f5f3;">Order<br />Confirmed</p>
-            </td>
-          </tr>
-
-          <!-- Subhead -->
-          <tr>
-            <td class="up-px" align="center" style="padding:20px 48px 0;">
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:#9a9a9a;">Thank you for your order.<br />Your Urban Phoenix piece is now confirmed.</p>
-            </td>
-          </tr>
-
-          <!-- Order # / date -->
-          <tr>
-            <td align="center" style="padding:22px 32px 0;">
-              <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;color:#f5f5f3;">ORDER #${escapeHtml(order.orderNumber)}</p>
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.08em;color:#6a6a6a;">${escapeHtml(fmtDate(order.createdAt))}</p>
-            </td>
-          </tr>
-
-          <!-- Brand tagline, flanked by hairlines -->
-          <tr>
-            <td class="up-px" style="padding:30px 56px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td width="50%" style="border-top:1px solid #232323;font-size:0;line-height:0;">&nbsp;</td>
-                  <td style="white-space:nowrap;padding:0 14px;font-family:Arial,Helvetica,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#6a6a6a;">Freedom To Become</td>
-                  <td width="50%" style="border-top:1px solid #232323;font-size:0;line-height:0;">&nbsp;</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          ${
-            trackUrl
-              ? `
-          <!-- CTA -->
-          <tr>
-            <td align="center" style="padding:28px 32px 0;">
-              <table role="presentation" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td align="center" class="up-cta" style="background:#c65d1e;">
-                    <a href="${trackUrl}" style="display:block;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;text-decoration:none;padding:16px 42px;">View / Track Order</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>`
-              : ""
-          }
-
-          <!-- Items -->
-          <tr>
-            <td class="up-px" style="padding:44px 32px 0;">
-              <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.26em;text-transform:uppercase;color:#c65d1e;border-bottom:1px solid #1c1c1c;padding-bottom:14px;">Your Items</p>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;">
-                ${orderItemsHtml(order)}
-              </table>
-            </td>
-          </tr>
-
-          <!-- Totals -->
-          <tr>
-            <td class="up-px" style="padding:6px 32px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;">
-                ${summaryRow("Subtotal", fmtMoney(order.subtotal))}
-                ${discountRows}
-                ${summaryRow("Delivery", Number(order.shipping) === 0 ? "Free" : fmtMoney(order.shipping))}
-                <tr><td colspan="2" style="padding-top:14px;border-top:1px solid #1c1c1c;"></td></tr>
-                ${summaryRow("Total", fmtMoney(order.total), { strong: true })}
-              </table>
-            </td>
-          </tr>
-
-          <!-- Delivery + payment -->
-          <tr>
-            <td class="up-px" style="padding:40px 32px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td class="up-stack-td" width="50%" valign="top" style="font-family:Arial,Helvetica,sans-serif;padding-right:16px;">
-                    <p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#c65d1e;">Delivery</p>
-                    <p style="margin:0;font-size:13px;line-height:1.7;color:#f5f5f3;">
-                      ${escapeHtml(order.customer.firstName)} ${escapeHtml(order.customer.lastName)}<br />
-                      ${escapeHtml(order.customer.address)}${order.customer.apartment ? `, ${escapeHtml(order.customer.apartment)}` : ""}<br />
-                      ${escapeHtml(order.customer.city)}${order.customer.postalCode ? `, ${escapeHtml(order.customer.postalCode)}` : ""}<br />
-                      ${escapeHtml(getCountryName(order.customer.country))}
-                    </p>
-                    <p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">${escapeHtml(delivery)}</p>
-                    ${order.customer.deliveryNotes ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">Notes: ${escapeHtml(order.customer.deliveryNotes)}</p>` : ""}
-                  </td>
-                  <td class="up-stack-gap" width="0" style="font-size:0;line-height:0;">&nbsp;</td>
-                  <td class="up-stack-td" width="50%" valign="top" style="font-family:Arial,Helvetica,sans-serif;padding-left:16px;">
-                    <p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#c65d1e;">Payment</p>
-                    <p style="margin:0;font-size:13px;line-height:1.7;color:#f5f5f3;">${escapeHtml(paymentLabel)}</p>
-                    <p style="margin:4px 0 0;font-size:12px;line-height:1.6;color:#8a8a8a;">${escapeHtml(paymentStatusText)}</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td class="up-px" align="center" style="padding:48px 32px 40px;">
-              <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:13px;letter-spacing:0.3em;color:#5c5c5c;">URBAN PHOENIX</p>
-              <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#5c5c5c;">Questions about your order?</p>
-              <p style="margin:0 0 22px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#9a9a9a;">Reply to this email or contact us — we're here to help.</p>
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:#454545;">© ${new Date(order.createdAt).getUTCFullYear()} Urban Phoenix — Built From Chaos. Built For The Few.</p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  const html = brandedEmail({
+    preheader: `Your Urban Phoenix order ${order.orderNumber} is confirmed — thank you for your purchase.`,
+    eyebrow: "Order confirmed",
+    heading: `Thank you, ${order.customer.firstName || "for your order"}.`,
+    bodyHtml: `
+      ${para("Your order is confirmed and we're preparing it now. We'll email you again as soon as it ships.")}
+      ${infoBox([["Order number", escapeHtml(order.orderNumber)], ["Order date", escapeHtml(fmtDate(order.createdAt))]])}
+      ${sectionTitle("Your items")}
+      ${orderItemsHtml(order)}
+      ${totalsTable(`
+        ${summaryRow("Subtotal", fmtMoney(order.subtotal))}
+        ${discountRows}
+        ${summaryRow("Delivery", Number(order.shipping) === 0 ? "Free" : fmtMoney(order.shipping))}
+        <tr><td colspan="2" style="height:8px;font-size:0;line-height:0;">&nbsp;</td></tr>
+        ${summaryRow("Total", fmtMoney(order.total), { strong: true })}
+      `)}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:30px;">
+        <tr>
+          <td class="up-stack" width="50%" valign="top" style="padding-right:14px;">
+            <p style="margin:0 0 8px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${C.ink};">Delivery address</p>
+            <p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.6;color:${C.text};">
+              ${escapeHtml(order.customer.firstName)} ${escapeHtml(order.customer.lastName)}<br />
+              ${escapeHtml(order.customer.address)}${order.customer.apartment ? `, ${escapeHtml(order.customer.apartment)}` : ""}<br />
+              ${escapeHtml(order.customer.city)}${order.customer.postalCode ? `, ${escapeHtml(order.customer.postalCode)}` : ""}<br />
+              ${escapeHtml(getCountryName(order.customer.country))}
+            </p>
+            <p style="margin:10px 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:${C.muted};">${escapeHtml(delivery)}</p>
+            ${order.customer.deliveryNotes ? `<p style="margin:6px 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:${C.muted};">Notes: ${escapeHtml(order.customer.deliveryNotes)}</p>` : ""}
+          </td>
+          <td class="up-stack" width="50%" valign="top" style="padding-left:14px;">
+            <p style="margin:0 0 8px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${C.ink};">Payment</p>
+            <p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.6;color:${C.text};">${escapeHtml(paymentLabel)}</p>
+            <p style="margin:4px 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:${C.muted};">${escapeHtml(paymentStatusText)}</p>
+          </td>
+        </tr>
+      </table>`,
+    cta: trackUrl ? { url: trackUrl, label: "Track your order" } : null,
+  });
 
   if (!isConfigured) {
     console.log(
@@ -1153,8 +988,8 @@ export async function sendContactNotificationEmail({
       preheader: `${name}: ${topic}`,
       eyebrow: "Contact Form",
       heading: "New message",
-      bodyHtml: `${para(`<strong style="color:#f5f5f3;">Name:</strong> ${escapeHtml(name)}<br /><strong style="color:#f5f5f3;">Email:</strong> ${escapeHtml(email)}<br /><strong style="color:#f5f5f3;">Topic:</strong> ${escapeHtml(topic)}`)}
-        <p style="margin:0;white-space:pre-wrap;border-left:2px solid #c65d1e;padding-left:14px;color:#f5f5f3;">${escapeHtml(message)}</p>`,
+      bodyHtml: `${para(`<strong style="color:${C.ink};">Name:</strong> ${escapeHtml(name)}<br /><strong style="color:${C.ink};">Email:</strong> ${escapeHtml(email)}<br /><strong style="color:${C.ink};">Topic:</strong> ${escapeHtml(topic)}`)}
+        <p style="margin:0;white-space:pre-wrap;background:${C.panel};border-left:3px solid ${C.accent};padding:14px 16px;color:${C.ink};">${escapeHtml(message)}</p>`,
       note: "Reply to this email to answer the customer directly.",
     }),
   }, "contact notification");
@@ -1176,7 +1011,7 @@ export async function sendContactConfirmationEmail({ name, email, topic }) {
       preheader: "Our support team has received your message.",
       eyebrow: "Support",
       heading: "Message received",
-      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para(`Thanks for reaching out about <strong style="color:#f5f5f3;">${escapeHtml(topic)}</strong>. Our support team has received your message and will get back to you shortly.`)}`,
+      bodyHtml: `${para(`Hi ${escapeHtml(name)},`)}${para(`Thanks for reaching out about <strong style="color:${C.ink};">${escapeHtml(topic)}</strong>. Our support team has received your message and will get back to you shortly.`)}`,
     }),
   }, "contact confirmation");
 }
@@ -1246,7 +1081,7 @@ export async function sendOrderStatusEmail({ order, event }) {
       preheader: copy.body,
       eyebrow: copy.eyebrow,
       heading: copy.heading,
-      bodyHtml: `${para(`Hi ${escapeHtml(firstName)},`)}${para(escapeHtml(copy.body))}${para(`<span style="font-size:12px;letter-spacing:0.12em;color:#f5f5f3;">ORDER #${escapeHtml(num)}</span>`)}`,
+      bodyHtml: `${para(`Hi ${escapeHtml(firstName)},`)}${para(escapeHtml(copy.body))}${infoBox([["Order number", escapeHtml(num)]])}`,
       cta: event === "cancelled" || event === "refunded" ? null : { url: trackUrl, label: "Track Order" },
     }),
   }, `order ${event} (#${num})`);
@@ -1310,18 +1145,42 @@ export async function sendAdminNewOrderEmail({ order, toOverride }) {
     ].join("\n"),
     html: brandedEmail({
       preheader: `${fmtMoney(order.total)} from ${c.firstName || ""} ${c.lastName || ""}`,
-      eyebrow: "Admin · New Order",
-      heading: `Order #${order.orderNumber}`,
+      eyebrow: "New order",
+      heading: `${fmtMoney(order.total)} from ${`${c.firstName || ""} ${c.lastName || ""}`.trim() || "a customer"}`,
       bodyHtml: `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:${FONT};">${orderItemsHtml(order)}</table>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:${FONT};margin-bottom:18px;">
+        ${infoBox([["Order number", escapeHtml(order.orderNumber)], ["Placed", escapeHtml(fmtDate(order.createdAt))], ["Payment", escapeHtml(payment)]])}
+        ${sectionTitle("Items")}
+        ${orderItemsHtml(order, { forAdmin: true })}
+        ${totalsTable(`
+          ${summaryRow("Subtotal", fmtMoney(order.subtotal))}
           ${summaryRow("Delivery", Number(order.shipping) === 0 ? "Free" : fmtMoney(order.shipping))}
+          <tr><td colspan="2" style="height:8px;font-size:0;line-height:0;">&nbsp;</td></tr>
           ${summaryRow("Total", fmtMoney(order.total), { strong: true })}
-        </table>
-        ${para(`<strong style="color:#f5f5f3;">Customer</strong><br />${escapeHtml(`${c.firstName || ""} ${c.lastName || ""}`)}<br /><a href="mailto:${escapeHtml(c.email || "")}" style="color:#c65d1e;text-decoration:none;">${escapeHtml(c.email || "")}</a>${c.phone ? `<br />${escapeHtml(c.phone)}` : ""}`)}
-        ${para(`<strong style="color:#f5f5f3;">Ship to</strong><br />${escapeHtml(c.address || "")}${c.apartment ? `, ${escapeHtml(c.apartment)}` : ""}<br />${escapeHtml(c.city || "")}${c.postalCode ? `, ${escapeHtml(c.postalCode)}` : ""}<br />${escapeHtml(getCountryName(c.country))}<br /><span style="color:#8a8a8a;">${escapeHtml(deliveryMethodLabel(order))}</span>${c.deliveryNotes ? `<br /><span style="color:#8a8a8a;">Notes: ${escapeHtml(c.deliveryNotes)}</span>` : ""}`)}
-        ${para(`<strong style="color:#f5f5f3;">Payment</strong><br />${escapeHtml(payment)}`)}`,
-      cta: { url: adminUrl, label: "Open Admin" },
+        `)}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:30px;">
+          <tr>
+            <td class="up-stack" width="50%" valign="top" style="padding-right:14px;">
+              <p style="margin:0 0 8px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${C.ink};">Customer</p>
+              <p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.6;color:${C.text};">
+                ${escapeHtml(`${c.firstName || ""} ${c.lastName || ""}`)}<br />
+                <a href="mailto:${escapeHtml(c.email || "")}" style="color:${C.accent};text-decoration:none;">${escapeHtml(c.email || "")}</a>${c.phone ? `<br />${escapeHtml(c.phone)}` : ""}
+              </p>
+            </td>
+            <td class="up-stack" width="50%" valign="top" style="padding-left:14px;">
+              <p style="margin:0 0 8px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${C.ink};">Ship to</p>
+              <p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.6;color:${C.text};">
+                ${escapeHtml(c.address || "")}${c.apartment ? `, ${escapeHtml(c.apartment)}` : ""}<br />
+                ${escapeHtml(c.city || "")}${c.postalCode ? `, ${escapeHtml(c.postalCode)}` : ""}<br />
+                ${escapeHtml(getCountryName(c.country))}
+              </p>
+              <p style="margin:10px 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:${C.muted};">${escapeHtml(deliveryMethodLabel(order))}</p>
+              ${c.deliveryNotes ? `<p style="margin:6px 0 0;font-family:${FONT};font-size:13px;line-height:1.5;color:${C.muted};">Notes: ${escapeHtml(c.deliveryNotes)}</p>` : ""}
+            </td>
+          </tr>
+        </table>`,
+      note: "Reply to this email to write to the customer directly.",
+      signoff: false,
+      cta: { url: adminUrl, label: "Open in admin" },
     }),
   }, `admin new-order (#${order.orderNumber})`);
 }
@@ -1342,7 +1201,7 @@ export async function sendGiftCardPurchaseReceipt({ to, amount, currency = "USD"
       preheader: `Your ${amountLabel} gift card has been delivered.`,
       eyebrow: "Gift Card Purchase",
       heading: "Gift card sent",
-      bodyHtml: `${para("Thank you for your purchase.")}${para(`Your <strong style="color:#f5f5f3;">${escapeHtml(amountLabel)}</strong> Urban Phoenix gift card has been emailed to <strong style="color:#f5f5f3;">${escapeHtml(who)}</strong>.`)}${para("If they don't see it, ask them to check their spam folder — or reply to this email and we'll resend it.")}`,
+      bodyHtml: `${para("Thank you for your purchase.")}${para(`Your <strong style="color:${C.ink};">${escapeHtml(amountLabel)}</strong> Urban Phoenix gift card has been emailed to <strong style="color:${C.ink};">${escapeHtml(who)}</strong>.`)}${para("If they don't see it, ask them to check their spam folder — or reply to this email and we'll resend it.")}`,
     }),
   }, "gift card receipt");
 }
