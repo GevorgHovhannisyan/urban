@@ -8,7 +8,7 @@ import PaymentBadge from '../components/PaymentBadge';
 import { useMagnetic } from '../hooks/useMagnetic';
 import CountrySelect from '../components/CountrySelect';
 import CitySelect from '../components/CitySelect';
-import { DELIVERY_ESTIMATES } from '../data/shippingRules';
+import { DELIVERY_ESTIMATES, deliveryHandoffText } from '../data/shippingRules';
 import { getCountryName, getCountryCode, SUPPORTED_SHIPPING_COUNTRIES, isSupportedShippingCountry } from '../data/countries';
 
 const initialForm = {
@@ -189,6 +189,19 @@ export default function CheckoutPage() {
   // until one is chosen, show both instead of guessing the regional time.
   const isArmenia = form.country === 'AM' || getCountryCode(form.country) === 'AM';
   const armeniaCityPending = isArmenia && !String(form.city || '').trim();
+  const isRussia = form.country === 'RU' || getCountryCode(form.country) === 'RU';
+  // Outside Yerevan, HayPost delivers to the customer's post office — found
+  // by its postal code, so the code is required there (server enforces too).
+  const postalCodeRequired = isArmenia && !armeniaCityPending && String(form.city).trim().toLowerCase() !== 'yerevan';
+  // How the parcel is handed over; with no Armenian city yet, both cases.
+  const handoffLines = (method) => {
+    if (!method) return [];
+    if (armeniaCityPending && method.id === 'standard') {
+      return ['Yerevan — door-to-door delivery', 'Armenian regions — delivered by HayPost to your local post office'];
+    }
+    const text = deliveryHandoffText(method);
+    return text ? [text] : [];
+  };
   const deliveryDescription = (method) => (armeniaCityPending && method?.id === 'standard'
     ? `Yerevan ${DELIVERY_ESTIMATES.yerevan} · Regions ${DELIVERY_ESTIMATES.armeniaRegions} business days`
     : method?.description);
@@ -369,14 +382,15 @@ export default function CheckoutPage() {
 
   const validate = () => {
     const errors = {};
-    // postalCode is optional (not every address needs one — see server/
-    // order-api.mjs's validateCustomer, which matches this exactly).
+    // postalCode is optional except in Armenia outside Yerevan, where HayPost
+    // needs it (see server/order-api.mjs's validateCustomer, which matches).
     ['firstName', 'lastName', 'email', 'phone', 'country', 'city', 'address'].forEach((name) => {
       if (!form[name].trim()) errors[name] = 'Required';
     });
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       errors.email = 'Enter a valid email';
     }
+    if (postalCodeRequired && !/^\d{4}$/.test(form.postalCode.trim())) errors.postalCode = 'Enter your post office’s 4-digit postal code';
     if (!form.deliveryMethod) errors.deliveryMethod = 'Please select a delivery method';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -667,7 +681,17 @@ export default function CheckoutPage() {
                     />
                   </label>
                   <CitySelect country={form.country} name="city" placeholder="City" value={form.city} error={fieldErrors.city} onChange={update} />
-                  <CheckoutInput name="postalCode" placeholder="Postal code (optional)" value={form.postalCode} error={fieldErrors.postalCode} onChange={update} />
+                  <CheckoutInput name="postalCode" placeholder={postalCodeRequired ? 'Postal code' : 'Postal code (optional)'} value={form.postalCode} error={fieldErrors.postalCode} onChange={update} />
+                  {postalCodeRequired && (
+                    <p className="sm:col-span-2 text-xs leading-5 text-accent border border-accent/40 bg-accent/5 px-4 py-3" data-testid="haypost-note">
+                      Orders outside Yerevan are delivered by HayPost to your local post office. Please enter the correct 4-digit postal code of your post office — you will collect the parcel there.
+                    </p>
+                  )}
+                  {isRussia && (
+                    <p className="sm:col-span-2 text-xs leading-5 text-accent border border-accent/40 bg-accent/5 px-4 py-3" data-testid="cdek-note">
+                      Orders to Russia are delivered by CDEK to the CDEK branch nearest to the address you enter — you will collect the parcel there.
+                    </p>
+                  )}
                   <CheckoutInput name="address" placeholder="Street address" value={form.address} error={fieldErrors.address} onChange={update} className="sm:col-span-2" />
                   <CheckoutInput name="apartment" placeholder="Apartment / building (optional)" value={form.apartment} onChange={update} />
                   <CheckoutInput name="deliveryNotes" placeholder="Delivery notes (optional)" value={form.deliveryNotes} onChange={update} />
@@ -693,6 +717,9 @@ export default function CheckoutPage() {
                       <span className="flex-1">
                         <strong className="block text-sm font-medium">{method.label}</strong>
                         <small className="block mt-1 text-xs text-muted">{deliveryDescription(method)}</small>
+                        {handoffLines(method).map((line) => (
+                          <small key={line} className="block mt-1 text-xs text-accent" data-testid="delivery-handoff">{line}</small>
+                        ))}
                       </span>
                       <span className="text-sm font-mono">{method.cost ? formatMoney(method.cost, { regional: false }) : 'Free'}</span>
                     </label>
@@ -849,6 +876,9 @@ export default function CheckoutPage() {
                     {selectedDeliveryMethod?.description && (
                       <span className="block text-xs text-muted/70 mt-0.5">{deliveryDescription(selectedDeliveryMethod)}</span>
                     )}
+                    {handoffLines(selectedDeliveryMethod).map((line) => (
+                      <span key={line} className="block text-xs text-muted/70 mt-0.5">{line}</span>
+                    ))}
                   </span>
                   <span>{shipping ? formatMoney(shipping, { regional: false }) : 'FREE'}</span>
                 </div>

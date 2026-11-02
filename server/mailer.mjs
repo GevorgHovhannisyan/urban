@@ -687,8 +687,12 @@ function deliveryMethodLabel(order) {
       // existed, where the freshly-resolved description is the best we have.
       return `${method.label} — ${order.deliveryEstimate || method.description}`;
     }
-    // Studio pickup was retired; orders placed with it keep their own label.
-    if (order.deliveryMethod === 'pickup') return `Pickup — ${order.deliveryEstimate || 'Free — collect from our Yerevan studio'}`;
+    // Retired methods (studio pickup, express) keep their own label on old orders.
+    const RETIRED = { pickup: ['Pickup', 'Free — collect from our Yerevan studio'], express: ['Express Delivery', 'Same-day / next-day'] };
+    if (RETIRED[order.deliveryMethod]) {
+      const [label, estimate] = RETIRED[order.deliveryMethod];
+      return `${label} — ${order.deliveryEstimate || estimate}`;
+    }
   }
   // No stored deliveryMethod at all — a historical order from before
   // customer-selectable delivery methods existed. Resolves the same

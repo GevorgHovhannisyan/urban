@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { deliveryHandoffText } from '../data/shippingRules';
 
 // Live delivery-rate table for the Shipping Policy page. Every price comes
 // from /api/delivery-methods (server/delivery.mjs — the same module checkout
@@ -52,6 +53,7 @@ export default function DeliveryRates() {
                   <span className="delivery-rates__method-name">
                     <span>{m.label}</span>
                     <span className="delivery-rates__time">{m.description}</span>
+                    {deliveryHandoffText(m) && <span className="delivery-rates__time">{deliveryHandoffText(m)}</span>}
                   </span>
                   <span className="delivery-rates__cost">
                     <span>{money(m.cost)}</span>

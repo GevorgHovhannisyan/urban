@@ -41,6 +41,12 @@ function validateCustomer(customer = {}) {
   if (!isSupportedShippingCountry(normalized.country)) {
     return { error: 'We currently ship only to Armenia, the United States and Russia. Please select one of those as your delivery country.' };
   }
+  // Outside Yerevan, HayPost delivers to the customer's post office, which is
+  // found by its 4-digit postal code — so it must be present and valid.
+  const inArmenia = ['armenia', 'am'].includes(normalized.country.toLowerCase());
+  if (inArmenia && normalized.city.toLowerCase() !== 'yerevan' && !/^\d{4}$/.test(normalized.postalCode)) {
+    return { error: 'Please enter the 4-digit postal code of your post office — orders outside Yerevan are delivered by HayPost to your local post office.' };
+  }
 
   return { value: normalized };
 }

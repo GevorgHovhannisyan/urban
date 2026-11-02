@@ -18,12 +18,12 @@ export function standardShippingText(language) {
   const { yerevan, armeniaRegions, unitedStates, russia } = DELIVERY_ESTIMATES;
   const threshold = FREE_US_SHIPPING_THRESHOLD;
   if (language === 'hy') {
-    return `Երևան՝ ${yerevan} աշխատանքային օր, անվճար։ Հայաստանի այլ մարզեր՝ ${armeniaRegions} աշխատանքային օր, անվճար։ ԱՄՆ՝ ${unitedStates} աշխատանքային օր, Ռուսաստան՝ ${russia} աշխատանքային օր․ անվճար՝ $${threshold}-ից սկսած պատվերների դեպքում։`;
+    return `Երևան՝ ${yerevan} աշխատանքային օր, անվճար, առաքում մինչև դուռ։ Հայաստանի այլ մարզեր՝ ${armeniaRegions} աշխատանքային օր, անվճար, Հայփոստի միջոցով՝ մինչև ձեր փոստային բաժանմունքը։ ԱՄՆ՝ ${unitedStates} աշխատանքային օր, առաքում մինչև դուռ՝ ONEX-ի միջոցով։ Ռուսաստան՝ ${russia} աշխատանքային օր, մինչև մոտակա CDEK մասնաճյուղը։ ԱՄՆ և Ռուսաստան՝ անվճար $${threshold}-ից սկսած պատվերների դեպքում։`;
   }
   if (language === 'ru') {
-    return `Ереван: ${yerevan} рабочих дня, бесплатно. Другие регионы Армении: ${armeniaRegions} рабочих дней, бесплатно. США: ${unitedStates} рабочих дней, Россия: ${russia} рабочих дней; бесплатно для заказов от $${threshold}.`;
+    return `Ереван: ${yerevan} рабочих дня, бесплатно, доставка до двери. Другие регионы Армении: ${armeniaRegions} рабочих дней, бесплатно, Айпост (HayPost) — в ваше почтовое отделение. США: ${unitedStates} рабочих дней, доставка до двери (ONEX). Россия: ${russia} рабочих дней, в ближайший пункт СДЭК. США и Россия — бесплатно для заказов от $${threshold}.`;
   }
-  return `Yerevan: ${yerevan} business days, free. Other regions of Armenia: ${armeniaRegions} business days, free. United States: ${unitedStates} business days; Russia: ${russia} business days — free on orders of $${threshold}+.`;
+  return `Yerevan: ${yerevan} business days, free, door to door. Other regions of Armenia: ${armeniaRegions} business days, free, by HayPost to your local post office. United States: ${unitedStates} business days, door to door by ONEX. Russia: ${russia} business days, to your nearest CDEK branch. United States and Russia: free on orders of $${threshold}+.`;
 }
 
 export function standardReturnsText(language) {

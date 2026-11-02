@@ -35,3 +35,14 @@ export const DELIVERY_ESTIMATES = {
 // it) — mirrors server/delivery.mjs's 'united_states' and 'russia' zones.
 // Armenia always ships free, so it never shows threshold progress.
 export const FREE_SHIPPING_THRESHOLD_COUNTRIES = ['US', 'RU'];
+
+// How a delivery method hands the parcel over (server/delivery.mjs's
+// `carrier`/`handoff` fields), as one customer-facing line. Exact strings so
+// the Armenian/Russian dictionaries translate them.
+export function deliveryHandoffText(method) {
+  if (!method) return '';
+  if (method.handoff === 'post_office') return `Armenian regions — delivered by ${method.carrier} to your local post office`;
+  if (method.handoff === 'pickup_point') return `Delivered by ${method.carrier} to your nearest ${method.carrier} branch`;
+  if (method.handoff === 'door') return method.carrier ? `Door-to-door delivery by ${method.carrier}` : 'Door-to-door delivery';
+  return '';
+}

@@ -48,10 +48,16 @@ function resolveZone({ country, city }) {
   return 'international';
 }
 
-// Express delivery exists only within Yerevan — international orders are
-// standard delivery only. Studio pickup is no longer offered — every order is delivered. (An old
-// order that was placed with 'pickup' keeps its saved label/estimate; it
-// just can't be selected for a new order.)
+// `carrier` + `handoff` say how a parcel reaches the customer — shown at
+// checkout and on the Shipping Policy page (wording: src/data/shippingRules.js's
+// deliveryHandoffText): Yerevan door to door; other Armenian regions by
+// HayPost to the customer's post office (so a correct postal code is
+// required — see order-api.mjs's validateCustomer); United States door to
+// door by ONEX; Russia by CDEK to the customer's nearest CDEK branch.
+// Every zone has standard delivery only: express (fast) delivery and studio
+// pickup are no longer offered. (An old order placed with 'express' or
+// 'pickup' keeps its saved label/estimate — see mailer.mjs's
+// deliveryMethodLabel — it just can't be selected for a new order.)
 function methodsForZone(zone, { subtotal = 0 } = {}) {
   switch (zone) {
     case 'yerevan':
@@ -61,16 +67,15 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       // estimate. Keep in sync with src/data/shippingRules.js's
       // DELIVERY_ESTIMATES (pre-checkout display) and legalPolicies.js.
       return [
-        { id: 'standard', label: 'Standard Delivery', description: '3–4 business days', cost: 0 },
-        { id: 'express', label: 'Express Delivery', description: 'Same-day / next-day', cost: 4 },
+        { id: 'standard', label: 'Standard Delivery', description: '3–4 business days', cost: 0, handoff: 'door' },
       ];
     case 'armenia_regional':
       // Free nationwide, same as Yerevan (Armenia has always shipped free —
       // see tests/api/shipping-rule.test.mjs / order-draft.test.mjs) — this
-      // zone exists to carry its own ETA/method availability (no same-day
-      // express outside Yerevan), not a different price.
+      // zone exists to carry its own ETA and carrier (HayPost), not a
+      // different price.
       return [
-        { id: 'standard', label: 'Standard Delivery', description: '7–10 business days', cost: 0 },
+        { id: 'standard', label: 'Standard Delivery', description: '7–10 business days', cost: 0, carrier: 'HayPost', handoff: 'post_office' },
       ];
     case 'united_states': {
       // Inclusive: a $150.00 order DOES qualify (>=, not >) — the
@@ -80,7 +85,7 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       const qualifiesForFree = subtotal >= FREE_US_SHIPPING_THRESHOLD;
       const standardCost = qualifiesForFree ? 0 : FLAT_INTERNATIONAL_FEE_USD;
       return [
-        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost },
+        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost, carrier: 'ONEX', handoff: 'door' },
       ];
     }
     case 'russia': {
@@ -88,7 +93,7 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       const qualifiesForFree = subtotal >= FREE_US_SHIPPING_THRESHOLD;
       const standardCost = qualifiesForFree ? 0 : FLAT_INTERNATIONAL_FEE_USD;
       return [
-        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost },
+        { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost, carrier: 'CDEK', handoff: 'pickup_point' },
       ];
     }
     default: // 'international'
