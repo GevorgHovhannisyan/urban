@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import ScrollReveal from '../components/ScrollReveal';
+import PaymentBadge from '../components/PaymentBadge';
 import { handleImgError } from '../utils/imageFallback';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping, DELIVERY_ESTIMATES } from '../data/shippingRules';
@@ -224,7 +225,7 @@ export default function CartPage() {
 
                 {/* Payment methods */}
                 <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-                  {['Visa', 'MC', 'Amex', 'PayPal', 'Apple Pay'].map(m => (<span key={m} className="text-[9px] font-mono text-muted border border-border px-1.5 py-0.5">{m}</span>))}
+                  {['visa', 'mastercard', 'arca'].map((m) => <PaymentBadge key={m} name={m} />)}
                 </div>
               </div>
             </div>

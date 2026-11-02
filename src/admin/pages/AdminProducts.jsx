@@ -6,6 +6,7 @@ import AdminLayout, { Badge, Button, Input, Textarea, Checkbox } from '../compon
 import Modal, { ConfirmModal } from '../components/Modal';
 import { toArmeniaDatetimeLocal as toDatetimeLocal, fromArmeniaDatetimeLocal } from '../armeniaTime';
 import ArmeniaDateField from '../components/ArmeniaDateField';
+import { PRODUCT_TEXT_FIELDS, builtInProductTranslation } from '../../data/productTranslations';
 
 const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
 
@@ -104,6 +105,7 @@ const EMPTY_PRODUCT = {
   isNew: false, isFeatured: false, isLimitedEdition: false, limitedEditionTotal: '', archived: false,
   stock: {}, releaseAt: '', earlyAccessAt: '', membersOnly: false,
   garmentExplorer: EMPTY_GARMENT_EXPLORER,
+  translations: { hy: {}, ru: {} },
 };
 
 function toFormState(p) {
@@ -124,6 +126,7 @@ function toFormState(p) {
     // specs (array on the server) become a comma-separated string here, the
     // same "one text field, split on save" pattern already used for
     // colors/sizes above — turned back into an array by toPayload().
+    translations: { hy: { ...(p.translations?.hy || {}) }, ru: { ...(p.translations?.ru || {}) } },
     garmentExplorer: ge ? {
       enabled: ge.enabled !== false,
       frontImage: ge.frontImage || '',
@@ -189,6 +192,58 @@ function StockGrid({ form, setForm }) {
   );
 }
 
+// Armenian / Russian versions of the product copy. A blank field shows the
+// built-in translation (the placeholder) when one exists for the English
+// text, otherwise the English text — see src/data/productTranslations.js.
+const TRANSLATION_TABS = [['hy', 'Armenian'], ['ru', 'Russian']];
+const TRANSLATION_LABELS = { description: 'Description', materials: 'Materials', care: 'Care', shipping: 'Shipping', returns: 'Returns' };
+function ProductTranslations({ form, setForm }) {
+  const [lang, setLang] = useState('hy');
+  const values = form.translations?.[lang] || {};
+  const setField = (field, value) => setForm({
+    ...form,
+    translations: { ...form.translations, [lang]: { ...(form.translations?.[lang] || {}), [field]: value } },
+  });
+  return (
+    <div className="border border-white/10 p-3 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] uppercase tracking-wide text-white/45">Translations</p>
+        <div className="flex gap-1">
+          {TRANSLATION_TABS.map(([code, label]) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => setLang(code)}
+              className={`px-3 py-1 text-[11px] uppercase tracking-wide border ${lang === code ? 'border-white/60 text-white' : 'border-white/10 text-white/50 hover:text-white/80'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-white/35">Shown when the site is in {lang === 'hy' ? 'Armenian' : 'Russian'}. Leave a field blank to use the built-in translation shown in grey, when there is one.</p>
+      {PRODUCT_TEXT_FIELDS.map((field) => {
+        const builtIn = builtInProductTranslation(form[field], lang);
+        const missing = Boolean(form[field]?.trim()) && !values[field]?.trim() && !builtIn;
+        return (
+          <div key={`${lang}-${field}`}>
+            <Textarea
+              label={`${TRANSLATION_LABELS[field]} (${lang === 'hy' ? 'Armenian' : 'Russian'})`}
+              rows={field === 'description' ? 3 : 2}
+              value={values[field] || ''}
+              placeholder={builtIn || form[field] || ''}
+              onChange={(e) => setField(field, e.target.value)}
+            />
+            {missing && (
+              <p className="text-[11px] text-[#e0884f] mt-1">No {lang === 'hy' ? 'Armenian' : 'Russian'} text yet — customers will see the English text.</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function toPayload(form) {
   return {
     name: form.name,
@@ -216,6 +271,7 @@ function toPayload(form) {
     earlyAccessAt: fromArmeniaDatetimeLocal(form.earlyAccessAt),
     membersOnly: Boolean(form.membersOnly),
     garmentExplorer: garmentExplorerPayload(form.garmentExplorer),
+    translations: form.translations || {},
   };
 }
 
@@ -473,10 +529,8 @@ export default function AdminProducts({ onNavigate }) {
           <Textarea label="Materials" rows={2} value={form.materials} onChange={(e) => setForm({ ...form, materials: e.target.value })} />
           <Textarea label="Care" rows={2} value={form.care} onChange={(e) => setForm({ ...form, care: e.target.value })} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Textarea label="Shipping" rows={2} value={form.shipping} onChange={(e) => setForm({ ...form, shipping: e.target.value })} />
-          <Textarea label="Returns" rows={2} value={form.returns} onChange={(e) => setForm({ ...form, returns: e.target.value })} />
-        </div>
+        <p className="text-[11px] text-white/35 -mt-1">Shipping &amp; returns on the product page are the same for every product — they come from the store's delivery rules and return policy, in all languages.</p>
+        <ProductTranslations form={form} setForm={setForm} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <ArmeniaDateField label="Release date/time" value={form.releaseAt} onChange={(v) => setForm({ ...form, releaseAt: v })} />
           <ArmeniaDateField label="Early access from" value={form.earlyAccessAt} onChange={(v) => setForm({ ...form, earlyAccessAt: v })} />

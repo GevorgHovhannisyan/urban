@@ -8,6 +8,7 @@ import PaymentBadge from '../components/PaymentBadge';
 import { useMagnetic } from '../hooks/useMagnetic';
 import CountrySelect from '../components/CountrySelect';
 import CitySelect from '../components/CitySelect';
+import { DELIVERY_ESTIMATES } from '../data/shippingRules';
 import { getCountryName, getCountryCode, SUPPORTED_SHIPPING_COUNTRIES, isSupportedShippingCountry } from '../data/countries';
 
 const initialForm = {
@@ -38,11 +39,11 @@ const initialForm = {
 // which always commits it with paymentStatus 'not_charged') — so it's a
 // genuine, always-available option, not a placeholder.
 const paymentMethods = [
-  { value: 'card', label: 'Visa / Mastercard / American Express', description: 'Pay securely — your card details are entered directly below and never touch our servers.', icon: (
+  { value: 'card', label: 'Visa / Mastercard / ArCa', description: 'Pay securely — your card details are entered directly below and never touch our servers.', icon: (
     <span className="flex gap-1">
       <PaymentBadge name="visa" />
       <PaymentBadge name="mastercard" />
-      <PaymentBadge name="amex" />
+      <PaymentBadge name="arca" />
     </span>
   ) },
   { value: 'cash_on_delivery', label: 'Cash on Delivery', description: 'Pay when your order is delivered.', icon: null },
@@ -56,7 +57,7 @@ const PAYMENT_METHOD_DISPLAY_LABELS = {
 };
 
 export default function CheckoutPage() {
-  const { cart, cartTotal, formatMoney, clearCart, navigate, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, promo, discountAmount, giftCard, giftCardAmount, theme } = useApp();
+  const { cart, cartTotal, formatMoney, clearCart, navigate, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, currency, promo, discountAmount, giftCard, giftCardAmount, theme } = useApp();
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState({});
   const [requestError, setRequestError] = useState('');
@@ -184,6 +185,13 @@ export default function CheckoutPage() {
   }, [form.country, form.city, cartTotal]);
 
   const selectedDeliveryMethod = deliveryMethods.find((m) => m.id === form.deliveryMethod) || null;
+  // Armenia's delivery time depends on the city (Yerevan vs. the regions) —
+  // until one is chosen, show both instead of guessing the regional time.
+  const isArmenia = form.country === 'AM' || getCountryCode(form.country) === 'AM';
+  const armeniaCityPending = isArmenia && !String(form.city || '').trim();
+  const deliveryDescription = (method) => (armeniaCityPending && method?.id === 'standard'
+    ? `Yerevan ${DELIVERY_ESTIMATES.yerevan} · Regions ${DELIVERY_ESTIMATES.armeniaRegions} business days`
+    : method?.description);
   const shipping = selectedDeliveryMethod?.cost || 0;
   // Client-side preview only — mirrors server/loyalty.mjs's redemption math
   // exactly (100 points per $5, rounded down to a whole unit), but the
@@ -684,7 +692,7 @@ export default function CheckoutPage() {
                       />
                       <span className="flex-1">
                         <strong className="block text-sm font-medium">{method.label}</strong>
-                        <small className="block mt-1 text-xs text-muted">{method.description}</small>
+                        <small className="block mt-1 text-xs text-muted">{deliveryDescription(method)}</small>
                       </span>
                       <span className="text-sm font-mono">{method.cost ? formatMoney(method.cost, { regional: false }) : 'Free'}</span>
                     </label>
@@ -839,7 +847,7 @@ export default function CheckoutPage() {
                   <span>
                     {selectedDeliveryMethod?.label || 'Delivery'}
                     {selectedDeliveryMethod?.description && (
-                      <span className="block text-xs text-muted/70 mt-0.5">{selectedDeliveryMethod.description}</span>
+                      <span className="block text-xs text-muted/70 mt-0.5">{deliveryDescription(selectedDeliveryMethod)}</span>
                     )}
                   </span>
                   <span>{shipping ? formatMoney(shipping, { regional: false }) : 'FREE'}</span>
@@ -850,6 +858,11 @@ export default function CheckoutPage() {
                     even though render always computed the right total —
                     forcing a remount when the value changes sidesteps it. */}
                 <div key={total} className="flex justify-between text-xl"><span>Total</span><span>{formatMoney(total, { regional: false })}</span></div>
+                {currency !== 'USD' && (
+                  <p key={`usd-${total}`} className="text-[11px] text-muted leading-5" data-testid="usd-charge-note">
+                    <span>Card payments are processed in US dollars:</span> <span translate="no">{`$${total.toFixed(2)}`}</span>
+                  </p>
+                )}
               </div>
 
               {/* requestError itself is surfaced once, above (outside this

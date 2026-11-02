@@ -48,6 +48,10 @@ function resolveZone({ country, city }) {
   return 'international';
 }
 
+// Express delivery exists only within Yerevan — international orders are
+// standard delivery only. Studio pickup is no longer offered — every order is delivered. (An old
+// order that was placed with 'pickup' keeps its saved label/estimate; it
+// just can't be selected for a new order.)
 function methodsForZone(zone, { subtotal = 0 } = {}) {
   switch (zone) {
     case 'yerevan':
@@ -59,7 +63,6 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       return [
         { id: 'standard', label: 'Standard Delivery', description: '3–4 business days', cost: 0 },
         { id: 'express', label: 'Express Delivery', description: 'Same-day / next-day', cost: 4 },
-        { id: 'pickup', label: 'Pickup', description: 'Free — collect from our Yerevan studio', cost: 0 },
       ];
     case 'armenia_regional':
       // Free nationwide, same as Yerevan (Armenia has always shipped free —
@@ -68,7 +71,6 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       // express outside Yerevan), not a different price.
       return [
         { id: 'standard', label: 'Standard Delivery', description: '7–10 business days', cost: 0 },
-        { id: 'pickup', label: 'Pickup', description: 'Free — collect from our Yerevan studio', cost: 0 },
       ];
     case 'united_states': {
       // Inclusive: a $150.00 order DOES qualify (>=, not >) — the
@@ -79,7 +81,6 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
       const standardCost = qualifiesForFree ? 0 : FLAT_INTERNATIONAL_FEE_USD;
       return [
         { id: 'standard', label: 'Standard Delivery', description: qualifiesForFree ? 'Free on orders $150+ — 15–20 business days' : '15–20 business days', cost: standardCost },
-        { id: 'express', label: 'Express Delivery', description: '3–5 business days', cost: Number((standardCost + 15).toFixed(2)) },
       ];
     }
     case 'russia': {
@@ -93,7 +94,6 @@ function methodsForZone(zone, { subtotal = 0 } = {}) {
     default: // 'international'
       return [
         { id: 'standard', label: 'Standard Delivery', description: '10–15 business days', cost: FLAT_INTERNATIONAL_FEE_USD },
-        { id: 'express', label: 'Express Delivery', description: '5–8 business days', cost: Number((FLAT_INTERNATIONAL_FEE_USD + 20).toFixed(2)) },
       ];
   }
 }

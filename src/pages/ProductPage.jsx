@@ -15,6 +15,7 @@ import { Block, TextLinesSkeleton } from '../components/Skeleton';
 import Icon from '../components/Icon';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { FREE_US_SHIPPING_THRESHOLD, DELIVERY_ESTIMATES } from '../data/shippingRules';
+import { localizeProductField, standardShippingText, standardReturnsText } from '../data/productTranslations';
 // Accordion keys stay stable (openSections, tabContent) — only the
 // customer-facing label changes, separating emotional "Product Story" copy
 // from the technical spec sections per the storytelling/technical split.
@@ -32,7 +33,7 @@ function StarRating({ rating }) {
     </div>);
 }
 export default function ProductPage({ product }) {
-    const { addToCart, cart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView } = useApp();
+    const { addToCart, cart, toggleWishlist, isWishlisted, navigate, formatMoney, t, products, recentlyViewed, trackProductView, language } = useApp();
     const [selectedSize, setSelectedSize] = useState('');
     const [selectedColor, setSelectedColor] = useState(product.colors[0]);
     const [quantity, setQuantity] = useState(1);
@@ -217,11 +218,15 @@ export default function ProductPage({ product }) {
     const handleBuyNow = () => {
         if (addSelectionToBag()) navigate('cart');
     };
+    // Armenian/Russian copy from the admin (or built-in translations of the
+    // shared product texts) — see src/data/productTranslations.js.
+    const localized = (field) => localizeProductField(product, field, language);
     const tabContent = {
-        details: product.description,
-        materials: product.materials,
-        care: product.care,
-        shipping: `${product.shipping}\n\n${product.returns}`,
+        details: localized('description'),
+        materials: localized('materials'),
+        care: localized('care'),
+        // Store-wide rules (never per-product free text), in the current language.
+        shipping: `${standardShippingText(language)}\n\n${standardReturnsText(language)}`,
     };
     return (<main className="bg-bg min-h-screen pt-[var(--site-header-h,68px)]">
       {/* Breadcrumb */}

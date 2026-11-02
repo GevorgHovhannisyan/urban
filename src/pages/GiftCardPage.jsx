@@ -21,6 +21,7 @@ function fmtGiftCardAmount(value, currency) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
+    currencyDisplay: 'narrowSymbol',
     maximumFractionDigits: currency === 'AMD' ? 0 : 2,
   }).format(Number(value) || 0);
 }

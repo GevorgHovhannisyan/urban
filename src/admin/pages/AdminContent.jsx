@@ -121,6 +121,17 @@ const SECTIONS = [
     ],
   },
   {
+    id: 'contactDetails',
+    label: 'Contact Details',
+    hint: 'Shown on the Contact page, in the site footer and on the Contact Information page. Enter the full address (street, building, city, postal code, country). Leave a field blank to hide it.',
+    fields: [
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'address', label: 'Full address', type: 'textarea' },
+      { key: 'hours', label: 'Business hours', type: 'text' },
+    ],
+  },
+  {
     id: 'shippingInfo',
     label: 'Shipping & Delivery — Page Intro',
     hint: 'Introductory copy for the Shipping Policy page only. The actual delivery-time estimates and fees are centrally configured in the shipping system and are not edited here, so what customers are promised can never drift from what checkout actually honors.',

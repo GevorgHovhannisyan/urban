@@ -1107,7 +1107,7 @@ export function createApp({ allowFraming = false } = {}) {
     const base = (
       process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`
     ).replace(/\/$/, "");
-    const staticPaths = ["/", "/shop", "/collection", "/about", "/contact"];
+    const staticPaths = ["/", "/shop", "/collection", "/about", "/contact", "/contact-info", "/shipping", "/refund", "/cancellation", "/terms", "/privacy"];
     const productPaths = (await listProducts({ isLoggedIn: false })).map(
       (p) => `/product/${encodeURIComponent(p.id)}`,
     );

@@ -53,7 +53,7 @@ test('checkout Shipping field shows "10,000 AMD" below the threshold and "FREE" 
   await page.waitForTimeout(300);
 
   const shippingRow = page.locator('div', { hasText: /^Shipping/ }).last();
-  await expect(shippingRow).toContainText('10,000 AMD', { timeout: 5000 });
+  await expect(shippingRow).toContainText('֏10,000', { timeout: 5000 });
 
   const increaseBtn = page.getByRole('button', { name: /increase .* quantity/i }).first();
   let crossedToFree = false;
@@ -64,7 +64,7 @@ test('checkout Shipping field shows "10,000 AMD" below the threshold and "FREE" 
     if (text.includes('FREE')) { crossedToFree = true; break; }
   }
   expect(crossedToFree, 'increasing quantity enough should eventually cross the $150 threshold and switch the Shipping field to FREE, without a page reload').toBe(true);
-  await expect(shippingRow).not.toContainText('10,000 AMD');
+  await expect(shippingRow).not.toContainText('֏10,000');
 
   // Bring it back down below the threshold and confirm shipping returns —
   // same live-reactivity check in the opposite direction.
@@ -74,7 +74,7 @@ test('checkout Shipping field shows "10,000 AMD" below the threshold and "FREE" 
     await decreaseBtn.click();
     await page.waitForTimeout(150);
     const text = await shippingRow.innerText();
-    if (text.includes('10,000 AMD')) { crossedBackToCharged = true; break; }
+    if (text.includes('֏10,000')) { crossedBackToCharged = true; break; }
   }
   expect(crossedBackToCharged, 'decreasing quantity back below the threshold should bring the 10,000 AMD shipping charge back').toBe(true);
 });

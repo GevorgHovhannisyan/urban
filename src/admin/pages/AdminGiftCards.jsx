@@ -7,7 +7,7 @@ import { CURRENCIES } from '../../data/currency';
 
 const fmtMoney = (n, currency = 'USD') => {
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: currency === 'AMD' ? 0 : 2 }).format(Number(n) || 0);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'narrowSymbol', maximumFractionDigits: currency === 'AMD' ? 0 : 2 }).format(Number(n) || 0);
   } catch {
     return `${Number(n || 0).toFixed(2)} ${currency}`;
   }

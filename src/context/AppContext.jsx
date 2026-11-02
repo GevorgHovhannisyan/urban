@@ -127,6 +127,12 @@ const DEFAULT_CONTENT = {
     facebook: '',
     youtube: '',
   },
+  contactDetails: {
+    phone: '+374 41 944305',
+    email: 'support@urbanphoenix.am',
+    address: '',
+    hours: 'Monday–Friday, 10:00–18:00 (Armenia time)',
+  },
   shippingInfo: {
     intro: 'Urban Phoenix ships from Armenia to Armenia, the United States and Russia. Delivery estimates begin after an order has been processed and dispatched.',
   },
@@ -522,7 +528,28 @@ export function AppProvider({ children }) {
   };
   const [language, setLanguageState] = useState(() => normalizeLanguage(localStorage.getItem('up_language')));
   const setLanguage = value => setLanguageState(normalizeLanguage(value));
-  const [currency, setCurrency] = useState(() => localStorage.getItem('up_currency') || 'USD');
+  // Prices show in Armenian dram by default (US visitors: dollars) — an
+  // explicit choice from the currency menu or account preferences is kept in
+  // its own key and always wins. The old 'up_currency' key stored the former
+  // USD default for every visitor, so it is intentionally no longer read.
+  const defaultCurrencyFor = (country) => (country === 'US' ? 'USD' : 'AMD');
+  const readCurrencyChoice = () => {
+    const chosen = localStorage.getItem('up_currency_choice');
+    return chosen && RATES[chosen] ? chosen : null;
+  };
+  const [currency, setCurrencyState] = useState(() => {
+    let cachedCountry = '';
+    try { cachedCountry = JSON.parse(localStorage.getItem('up_visitor_country_v2') || 'null')?.code || ''; } catch { /* no cached country */ }
+    return readCurrencyChoice() || defaultCurrencyFor(cachedCountry);
+  });
+  const setCurrency = (code) => {
+    if (!RATES[code]) return;
+    setCurrencyState(code);
+    localStorage.setItem('up_currency_choice', code);
+  };
+  const applyDefaultCurrency = (country) => {
+    if (!readCurrencyChoice()) setCurrencyState(defaultCurrencyFor(country));
+  };
   useEffect(() => {
     if (!user?.sessionToken) return;
     accountFetch('/preferences', { method: 'PUT', body: JSON.stringify({ language, currency }) }).catch(() => {});
@@ -558,7 +585,7 @@ export function AppProvider({ children }) {
   const [regionChosen, setRegionChosen] = useState(() => localStorage.getItem('up_region_chosen') === '1');
   const selectRegion = (code) => {
     setVisitorCountry(code);
-    if (code === 'US') setCurrency('USD');
+    applyDefaultCurrency(code);
     localStorage.setItem('up_region_chosen', '1');
     setRegionChosen(true);
     setLocationReady(true);
@@ -591,7 +618,6 @@ export function AppProvider({ children }) {
       observer.disconnect();
     };
   }, [language, page, cartOpen]);
-  useEffect(() => localStorage.setItem('up_currency', currency), [currency]);
 
   useEffect(() => {
     if (visitorCountry) return;
@@ -605,7 +631,7 @@ export function AppProvider({ children }) {
         if (!cancelled && data?.country_code) {
           const code = String(data.country_code).toUpperCase();
           setVisitorCountry(code);
-          if (code === 'US') setCurrency('USD');
+          applyDefaultCurrency(code);
           return;
         }
       } catch {
@@ -619,7 +645,7 @@ export function AppProvider({ children }) {
         const fallback = localeLooksAmerican && timezoneLooksAmerican ? 'US' : 'OTHER';
         if (!cancelled) {
           setVisitorCountry(fallback);
-          if (fallback === 'US') setCurrency('USD');
+          applyDefaultCurrency(fallback);
         }
       } finally {
         if (!cancelled) setLocationReady(true);
@@ -628,7 +654,8 @@ export function AppProvider({ children }) {
 
     detectCountry();
     return () => { cancelled = true; };
-  }, [visitorCountry, setCurrency]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitorCountry]);
 
   const navigate = (nextPage, data = {}, options = {}) => {
     let nextSelectedProduct = selectedProduct;
@@ -833,6 +860,7 @@ export function AppProvider({ children }) {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
+      currencyDisplay: 'narrowSymbol',
       maximumFractionDigits: currency === 'AMD' ? 0 : 2,
     }).format(adjusted * RATES[currency]);
   };

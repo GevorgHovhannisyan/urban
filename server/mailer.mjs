@@ -516,6 +516,7 @@ function fmtGiftCardAmount(value, currency) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency || "USD",
+      currencyDisplay: "narrowSymbol",
       maximumFractionDigits: currency === "AMD" ? 0 : 2,
     }).format(Number(value) || 0);
   } catch {
@@ -686,6 +687,8 @@ function deliveryMethodLabel(order) {
       // existed, where the freshly-resolved description is the best we have.
       return `${method.label} — ${order.deliveryEstimate || method.description}`;
     }
+    // Studio pickup was retired; orders placed with it keep their own label.
+    if (order.deliveryMethod === 'pickup') return `Pickup — ${order.deliveryEstimate || 'Free — collect from our Yerevan studio'}`;
   }
   // No stored deliveryMethod at all — a historical order from before
   // customer-selectable delivery methods existed. Resolves the same
@@ -1040,7 +1043,7 @@ export async function sendOrderStatusEmail({ order, event }) {
       subject: `Your order has shipped — #${num} — Urban Phoenix`,
       eyebrow: "Order Shipped",
       heading: "Your order is on its way",
-      body: `Great news — order #${num} has left our studio and is on its way to you.`,
+      body: `Great news — order #${num} has been dispatched and is on its way to you.`,
     },
     delivered: {
       subject: `Your order was delivered — #${num} — Urban Phoenix`,

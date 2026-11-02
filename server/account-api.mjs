@@ -235,7 +235,7 @@ export async function getDefaultAddress(customerId) {
 function serializePreferences(row, customerId) {
   if (!row) {
     return {
-      customerId, language: 'en', currency: 'USD', emailComms: true, dropUpdates: true,
+      customerId, language: 'en', currency: 'AMD', emailComms: true, dropUpdates: true,
       preferredTshirtSize: '', preferredHoodieSize: '',
     };
   }

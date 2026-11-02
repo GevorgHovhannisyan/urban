@@ -505,6 +505,8 @@ export function initDb() {
       // reads this instead). NULL for every non-limited product, matching
       // isLimitedEdition's own default-off behavior.
       await ensureColumn("products", "limitedEditionTotal", "INT NULL");
+      // Armenian/Russian product copy (server/products-api.mjs's sanitizeTranslations).
+      await ensureColumn("products", "translations", "TEXT NULL");
       // Backfill only — every product that was already marked limited-edition
       // before this column existed relied on the old system's hardcoded run
       // size of 100 (server/edition-api.mjs's previous normalizeNumbers()).

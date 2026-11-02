@@ -100,6 +100,9 @@ function serializeRow(row, { isLoggedIn } = {}) {
     // (src/data/garmentExplorer.js) — this field only ever wins when it's
     // actually a real object, never an invented fallback from the backend.
     garmentExplorer: fromJson(row.garmentExplorer, null),
+    // Admin-entered Armenian/Russian product copy ({ hy: {description, ...},
+    // ru: {...} }); the storefront falls back to English per field.
+    translations: fromJson(row.translations, {}) || {},
     dropStatus: status,
     isPurchasable: isVisible(status, isLoggedIn),
     createdAt: row.createdAt,
@@ -384,6 +387,7 @@ function validateProduct(payload = {}, { partial = false } = {}) {
   }
   if (!partial || payload.membersOnly !== undefined) fields.membersOnly = Boolean(payload.membersOnly);
   if (!partial || payload.garmentExplorer !== undefined) fields.garmentExplorer = sanitizeGarmentExplorer(payload.garmentExplorer);
+  if (!partial || payload.translations !== undefined) fields.translations = sanitizeTranslations(payload.translations);
 
   return { errors, fields };
 }
@@ -415,6 +419,26 @@ export async function getProductsByIds(ids) {
   return new Map(rows.map((row) => [row.id, serializeRow(row)]));
 }
 
+// Per-language product copy. Only known languages/fields are kept, each a
+// plain trimmed string; empty strings are dropped so the storefront falls
+// back to the English field.
+const TRANSLATION_LANGUAGES = ['hy', 'ru'];
+const TRANSLATABLE_FIELDS = { description: 4000, materials: 2000, care: 2000, shipping: 2000, returns: 2000 };
+function sanitizeTranslations(raw) {
+  const result = {};
+  for (const lang of TRANSLATION_LANGUAGES) {
+    const source = raw && typeof raw === 'object' ? raw[lang] : null;
+    if (!source || typeof source !== 'object') continue;
+    const fields = {};
+    for (const [field, max] of Object.entries(TRANSLATABLE_FIELDS)) {
+      const value = clean(source[field], max);
+      if (value) fields[field] = value;
+    }
+    if (Object.keys(fields).length) result[lang] = fields;
+  }
+  return result;
+}
+
 export async function createProduct(payload = {}) {
   const { errors, fields } = validateProduct(payload, { partial: false });
   if (errors.length) return { status: 400, body: { error: errors.join(' ') } };
@@ -427,8 +451,8 @@ export async function createProduct(payload = {}) {
     `INSERT INTO products (
       id, name, garmentType, subtitle, price, compareAtPrice, collection, category, colors, sizes, images, stock,
       description, materials, care, shipping, returns, isNew, isFeatured, isLimitedEdition, limitedEditionTotal,
-      releaseAt, earlyAccessAt, membersOnly, garmentExplorer
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      releaseAt, earlyAccessAt, membersOnly, garmentExplorer, translations
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       fields.name,
@@ -455,6 +479,7 @@ export async function createProduct(payload = {}) {
       fields.earlyAccessAt ?? null,
       fields.membersOnly ? 1 : 0,
       fields.garmentExplorer ? JSON.stringify(fields.garmentExplorer) : null,
+      JSON.stringify(fields.translations || {}),
     ]
   );
 
@@ -476,6 +501,7 @@ export async function updateProduct(id, payload = {}) {
     columns.push(`${key} = ?`);
     if (['colors', 'sizes', 'images', 'stock'].includes(key)) values.push(toJson(value));
     else if (key === 'garmentExplorer') values.push(value ? JSON.stringify(value) : null);
+    else if (key === 'translations') values.push(JSON.stringify(value || {}));
     else if (['isNew', 'isFeatured', 'isLimitedEdition', 'archived', 'membersOnly'].includes(key)) values.push(value ? 1 : 0);
     else values.push(value);
   }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getLegalPolicy } from '../data/legalPolicies';
+import ContactDetails from '../components/ContactDetails';
+import DeliveryRates from '../components/DeliveryRates';
 import './InfoPage.css';
 
 const basicContent = {
@@ -10,7 +12,7 @@ const basicContent = {
 };
 
 const policyTypeMap = {
-  privacy: 'privacy', refund: 'refund', terms: 'terms', shipping: 'shipping', legal: 'legal', cookies: 'cookies', 'contact-info': 'contactInfo',
+  privacy: 'privacy', refund: 'refund', cancellation: 'cancellation', terms: 'terms', shipping: 'shipping', legal: 'legal', cookies: 'cookies', 'contact-info': 'contactInfo',
 };
 
 function ContentBlock({ block }) {
@@ -52,6 +54,16 @@ export default function InfoPage({ type }) {
             authoritative in server/delivery.mjs (see content-api.mjs's
             shippingInfo comment). */}
         <p className="info-page__intro">{type === 'shipping' ? content.shippingInfo.intro : (policyKey ? item.intro : t(item.intro))}</p>
+
+        {type === 'contact-info' && (
+          <ContactDetails
+            className="info-page__contact-card"
+            itemClassName="info-page__contact-row"
+            labelClassName="info-page__contact-label"
+            valueClassName="info-page__contact-value"
+          />
+        )}
+        {type === 'shipping' && <DeliveryRates />}
 
         <div className="info-page__sections">
           {item.sections.map(([heading, blocks], index) => (

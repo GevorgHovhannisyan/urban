@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp, pageToPath } from '../context/AppContext';
 import Icon from './Icon';
 import PaymentBadge from './PaymentBadge';
+import ContactDetails from './ContactDetails';
 import ScrollReveal from './ScrollReveal';
 import { CATEGORIES } from './MegaMenu';
 import './Footer.css';
@@ -43,6 +44,7 @@ const policyLinks = [
   ['Terms of Service', 'terms'],
   ['Contact Information', 'contact-info'],
   ['Shipping Policy', 'shipping'],
+  ['Cancellation Policy', 'cancellation'],
   ['Legal Notice', 'legal'],
   ['Cookie Preferences', 'cookies'],
 ];
@@ -87,6 +89,13 @@ export default function Footer() {
             <p className="site-footer__description">
               {footerContent.tagline}
             </p>
+
+            <ContactDetails
+              className="site-footer__contact"
+              itemClassName="site-footer__contact-item"
+              labelClassName="site-footer__contact-label"
+              valueClassName="site-footer__contact-value"
+            />
 
             <div className="site-footer__socials">
               {/* Only a network with an actual configured URL renders at
@@ -150,13 +159,12 @@ export default function Footer() {
             © {new Date().getFullYear()} {footerContent.copyrightName}. {t('All rights reserved.')}
           </p>
 
-          {/* Only card networks actually reachable through the connected
-              payment provider (server/payment/providers/stripe.mjs) —
-              PayPal/Idram remain unconnected server-side placeholders (see
-              order-api.mjs's ALLOWED_PAYMENT_METHODS) and must not be shown
-              here as if customers could pay with them. */}
+          {/* Accepted card networks. PayPal/Idram remain unconnected
+              server-side placeholders (see order-api.mjs's
+              ALLOWED_PAYMENT_METHODS) and must not be shown here as if
+              customers could pay with them. */}
           <div className="site-footer__payments" aria-label="Accepted payment methods">
-            {['visa', 'mastercard', 'amex'].map((method) => (
+            {['visa', 'mastercard', 'arca'].map((method) => (
               <PaymentBadge key={method} name={method} />
             ))}
           </div>

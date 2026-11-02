@@ -74,7 +74,7 @@ export default function AccountPreferences() {
           {CURRENCIES.map((c) => (
             <button key={c} onClick={() => save({ ...prefs, currency: c })}
               className={`px-4 py-2 text-xs font-mono uppercase tracking-widest border ${prefs.currency === c ? 'border-fg bg-fg/10' : 'border-border text-muted'}`}>
-              {c}
+              {c === 'AMD' ? '֏ AMD' : c}
             </button>
           ))}
         </div>

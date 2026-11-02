@@ -204,6 +204,14 @@ const DEFAULTS = {
     facebook: '',
     youtube: '',
   },
+  // Business contact details — shown on the Contact page, in the site
+  // footer and on the Contact Information page. A blank field is hidden.
+  contactDetails: {
+    phone: '+374 41 944305',
+    email: 'support@urbanphoenix.am',
+    address: '',
+    hours: 'Monday–Friday, 10:00–18:00 (Armenia time)',
+  },
   // Presentational-only supporting copy for the Shipping Policy page —
   // deliberately does NOT include the actual day-count estimates or prices;
   // those remain authoritative and centralized in server/delivery.mjs (see
