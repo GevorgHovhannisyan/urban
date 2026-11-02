@@ -9,6 +9,7 @@ import { useMagnetic } from '../hooks/useMagnetic';
 import CountrySelect from '../components/CountrySelect';
 import CitySelect from '../components/CitySelect';
 import { DELIVERY_ESTIMATES, deliveryHandoffText } from '../data/shippingRules';
+import { RATES } from '../data/currency';
 import { getCountryName, getCountryCode, SUPPORTED_SHIPPING_COUNTRIES, isSupportedShippingCountry } from '../data/countries';
 
 const initialForm = {
@@ -888,9 +889,9 @@ export default function CheckoutPage() {
                     even though render always computed the right total —
                     forcing a remount when the value changes sidesteps it. */}
                 <div key={total} className="flex justify-between text-xl"><span>Total</span><span>{formatMoney(total, { regional: false })}</span></div>
-                {currency !== 'USD' && (
-                  <p key={`usd-${total}`} className="text-[11px] text-muted leading-5" data-testid="usd-charge-note">
-                    <span>Card payments are processed in US dollars:</span> <span translate="no">{`$${total.toFixed(2)}`}</span>
+                {currency !== 'AMD' && (
+                  <p key={`amd-${total}`} className="text-[11px] text-muted leading-5" data-testid="amd-charge-note">
+                    <span>Payments are processed in Armenian dram (AMD):</span> <span translate="no">{`֏${Math.round(total * RATES.AMD).toLocaleString('en-US')}`}</span>
                   </p>
                 )}
               </div>
