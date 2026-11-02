@@ -50,21 +50,19 @@ export default function DeliveryRates() {
             <ul className="delivery-rates__methods">
               {dest.methods.map((m) => (
                 <li key={m.id} className="delivery-rates__method">
-                  <span className="delivery-rates__method-name">
-                    <span>{m.label}</span>
-                    <span className="delivery-rates__time">{m.description}</span>
-                    {deliveryHandoffText(m) && <span className="delivery-rates__time">{deliveryHandoffText(m)}</span>}
-                  </span>
-                  <span className="delivery-rates__cost">
-                    <span>{money(m.cost)}</span>
-                    {m.thresholdCost !== m.cost && (
-                      <span className="delivery-rates__note">
-                        {m.thresholdCost === 0
-                          ? <span>Free on orders of $150+</span>
-                          : <><span>{money(m.thresholdCost)}</span> <span>on orders of $150+</span></>}
-                      </span>
-                    )}
-                  </span>
+                  <div className="delivery-rates__method-head">
+                    <span className="delivery-rates__method-name">{m.label}</span>
+                    <span className="delivery-rates__cost">{money(m.cost)}</span>
+                  </div>
+                  <span className="delivery-rates__time">{m.description}</span>
+                  {deliveryHandoffText(m, { withArea: false }) && <span className="delivery-rates__time">{deliveryHandoffText(m, { withArea: false })}</span>}
+                  {m.thresholdCost !== m.cost && (
+                    <span className="delivery-rates__note">
+                      {m.thresholdCost === 0
+                        ? <span>Free on orders of $150+</span>
+                        : <><span>{money(m.thresholdCost)}</span> <span>on orders of $150+</span></>}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
