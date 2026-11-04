@@ -131,6 +131,7 @@ const DEFAULT_CONTENT = {
     phone: '+374 41 944305',
     email: 'support@urbanphoenix.am',
     address: '',
+    legalAddress: '16, 1st Lane, Tichina, Yerevan, Armenia',
     hours: 'Monday–Friday, 10:00–18:00 (Armenia time)',
   },
   shippingInfo: {

@@ -123,11 +123,12 @@ const SECTIONS = [
   {
     id: 'contactDetails',
     label: 'Contact Details',
-    hint: 'Shown on the Contact page, in the site footer and on the Contact Information page. Enter the full address (street, building, city, postal code, country). Leave a field blank to hide it.',
+    hint: 'Shown on the Contact page, in the site footer and on the Contact Information page. The registered address is shown with a note that it is the legal entity’s address, not a store. Leave a field blank to hide it.',
     fields: [
       { key: 'phone', label: 'Phone', type: 'text' },
       { key: 'email', label: 'Email', type: 'text' },
-      { key: 'address', label: 'Full address', type: 'textarea' },
+      { key: 'address', label: 'Store address (physical — leave blank if there is none)', type: 'textarea' },
+      { key: 'legalAddress', label: 'Registered address of the legal entity (not a store)', type: 'textarea' },
       { key: 'hours', label: 'Business hours', type: 'text' },
     ],
   },
