@@ -593,6 +593,12 @@ export function createApp({ allowFraming = false } = {}) {
     );
     res.status(result.status).json(result.body);
   });
+  // Permanent account deletion (password + typing DELETE required). Tight
+  // rate limit, like sign-in, since it checks the password.
+  accountRouter.delete("/", authLimiter, async (req, res) => {
+    const result = await accountApi.deleteAccount(req.customer.sub, req.body || {});
+    res.status(result.status).json(result.body);
+  });
   accountRouter.post("/change-password", async (req, res) => {
     const result = await accountApi.changePassword(
       req.customer.sub,

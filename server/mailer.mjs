@@ -1116,6 +1116,26 @@ export async function sendWelcomeEmail({ to, name }) {
   }, "welcome");
 }
 
+// Sent after a customer permanently deletes their account.
+export async function sendAccountDeletedEmail({ to, name }) {
+  if (!isConfigured) return { sent: false, reason: "unconfigured" };
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  return deliver({
+    from: formatSender("support"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: "Your Urban Phoenix account has been deleted",
+    text: `${greeting}\n\nYour Urban Phoenix account has been permanently deleted, together with your saved addresses, wishlist, preferences and UP Society points.\n\nRecords of orders you placed are kept, as required for accounting and legal purposes, but are no longer linked to an account.\n\nIf you didn't request this, contact us right away at ${EMAIL_SENDERS.support.email}.\n\n— Urban Phoenix`,
+    html: brandedEmail({
+      preheader: "Your Urban Phoenix account has been permanently deleted.",
+      eyebrow: "Account",
+      heading: "Your account has been deleted",
+      bodyHtml: `${para(escapeHtml(greeting))}${para("Your Urban Phoenix account has been permanently deleted, together with your saved addresses, wishlist, preferences and UP Society points.")}${para("Records of orders you placed are kept, as required for accounting and legal purposes, but are no longer linked to an account.")}`,
+      note: "If you didn't request this, contact us right away by replying to this email.",
+    }),
+  }, "account deleted");
+}
+
 // New-order alert for the store owner — sent right after an order commits,
 // to ORDERS_EMAIL (falls back to ADMIN_EMAIL / SMTP_USER).
 export async function sendAdminNewOrderEmail({ order, toOverride }) {

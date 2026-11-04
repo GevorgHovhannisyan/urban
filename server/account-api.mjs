@@ -1,7 +1,7 @@
 import { randomUUID, randomInt } from 'node:crypto';
 import { all, get, run, fromJson } from './db.mjs';
 import { hashPassword, verifyPassword } from './password.mjs';
-import { sendVerificationCode } from './mailer.mjs';
+import { sendVerificationCode, sendAccountDeletedEmail } from './mailer.mjs';
 import { getProductsByIds } from './products-api.mjs';
 import { pointsValueInDollars, pointsEarnedForOrder } from './loyalty.mjs';
 import { isSupportedShippingCountry } from '../src/data/countries.js';
@@ -114,6 +114,34 @@ export async function changePassword(customerId, { currentPassword, newPassword 
   }
   await run('UPDATE customers SET passwordHash = ? WHERE id = ?', [hashPassword(String(newPassword)), customerId]);
   return { status: 200, body: { message: 'Password updated.' } };
+}
+
+// ---------------- Account deletion ----------------
+
+// Permanently deletes the customer's account. Requires the current password
+// and typing DELETE. What happens to their data:
+//   - the account itself is deleted; saved addresses, preferences and the
+//     wishlist go with it (ON DELETE CASCADE), as do UP Society points;
+//   - newsletter subscription for the account email is removed;
+//   - orders are KEPT (accounting/legal records) but unlinked from the account;
+//   - reviews stay published but without the author's name/email.
+export async function deleteAccount(customerId, { password, confirm } = {}) {
+  const row = await getCustomerRow(customerId);
+  if (!row) return { status: 404, body: { error: 'Account not found.' } };
+  if (String(confirm || '').trim().toUpperCase() !== 'DELETE') {
+    return { status: 400, body: { error: 'Type DELETE to confirm.' } };
+  }
+  if (!verifyPassword(String(password || ''), row.passwordHash)) {
+    return { status: 401, body: { error: 'Password is incorrect.' } };
+  }
+
+  await run('UPDATE orders SET customerId = NULL WHERE customerId = ?', [customerId]);
+  await run("UPDATE reviews SET userId = NULL, email = NULL, author = 'Former customer' WHERE userId = ?", [customerId]);
+  await run('DELETE FROM newsletter_subscribers WHERE email = ?', [row.email]);
+  await run('DELETE FROM customers WHERE id = ?', [customerId]);
+
+  sendAccountDeletedEmail({ to: row.email, name: row.firstName }).catch(() => {});
+  return { status: 200, body: { message: 'Your account has been permanently deleted.' } };
 }
 
 // ---------------- Addresses ----------------
