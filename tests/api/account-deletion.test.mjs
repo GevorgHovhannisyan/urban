@@ -51,8 +51,8 @@ test('deletes the account and its personal data, keeps orders (unlinked) and ano
   const c = await registerCustomer(`qa-delete-${randomUUID().slice(0, 8)}@example.com`);
 
   // Data that belongs to the account.
-  await server.db.prepare(`INSERT INTO customer_addresses (id, customerId, firstName, lastName, phone, country, city, postalCode, address, isDefault)
-    VALUES (?, ?, 'QA', 'Delete', '123', 'AM', 'Yerevan', '0001', '1 St', 1)`).run(randomUUID(), c.id);
+  await server.db.prepare(`INSERT INTO customer_addresses (id, customerId, firstName, lastName, phone, country, city, postalCode, address, apartment, isDefault)
+    VALUES (?, ?, 'QA', 'Delete', '123', 'AM', 'Yerevan', '0001', '1 St', '', 1)`).run(randomUUID(), c.id);
   await server.db.prepare(`INSERT INTO customer_wishlist (customerId, productId) VALUES (?, 'some-product')`).run(c.id);
   await server.db.prepare(`INSERT INTO newsletter_subscribers (id, email) VALUES (?, ?)`).run(randomUUID(), c.email);
   const orderId = randomUUID();
