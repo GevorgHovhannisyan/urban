@@ -12,6 +12,7 @@ import {
   getPaymentEnv,
   getProviderName,
 } from "./server/payment/paymentService.mjs";
+import { describeIdramConfig } from "./server/payment/idramService.mjs";
 import { describeSmtpConfig } from "./server/mailer.mjs";
 
 // Refuses to boot (throws, crashing the process before it ever listens) if
@@ -32,6 +33,7 @@ assertSecurePaymentConfig();
 console.log(
   `Payment: provider=${getProviderName()} env=${getPaymentEnv()} — ${describePaymentConfig().message}`,
 );
+console.log(`Payment: ${describeIdramConfig().message}`);
 
 // Same diagnostic-only pattern as Stripe above — never blocks startup, never
 // logs the App Password itself, just whether SMTP_HOST/PORT/USER/PASS are

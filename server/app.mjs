@@ -125,6 +125,16 @@ import {
   createGiftCardPayment,
   getGiftCardPaymentStatus,
 } from "./payment/paymentService.mjs";
+import {
+  createIdramPayment,
+  getIdramPaymentStatus,
+  handleIdramResult,
+  isIdramConfigured,
+} from "./payment/idramService.mjs";
+
+// Idram posts x-www-form-urlencoded (RESULT_URL callbacks and, possibly, the
+// success/fail redirects) — parsed only on those routes.
+const idramForm = express.urlencoded({ extended: false, limit: "16kb" });
 
 // Auth endpoints get a tight limit (brute-force protection); everything else
 // gets a looser one just to blunt spam/scraping without bothering real users.
@@ -224,7 +234,9 @@ export function createApp({ allowFraming = false } = {}) {
     "frame-src https://js.stripe.com https://hooks.stripe.com",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    // Idram checkout is a real form POST to banking.idram.am (see
+    // server/payment/providers/idram.mjs); *.idram.am covers its redirects.
+    "form-action 'self' https://banking.idram.am https://*.idram.am https://idram.am",
     `frame-ancestors ${allowFraming ? "*" : "'none'"}`,
   ].join("; ");
 
@@ -391,6 +403,7 @@ export function createApp({ allowFraming = false } = {}) {
       freeUsShippingThreshold: FREE_US_SHIPPING_THRESHOLD,
       paymentProvider: getProviderName(),
       paymentEnv: getPaymentEnv(),
+      idramConfigured: isIdramConfigured(),
     });
   });
 
@@ -437,6 +450,23 @@ export function createApp({ allowFraming = false } = {}) {
       res.status(result.status).json(result.body);
     },
   );
+
+  // Idram wallet: returns the hidden form the browser posts to Idram. The
+  // order itself is only created by Idram's signed confirmation, below.
+  publicApi.post("/checkout/idram", writeLimiter, async (req, res) => {
+    const result = await createIdramPayment({
+      ...req.body,
+      customerId: optionalCustomerId(req),
+    });
+    res.status(result.status).json(result.body);
+  });
+  publicApi.get("/checkout/idram/:billNo/status", readLimiter, async (req, res) => {
+    const result = await getIdramPaymentStatus(
+      req.params.billNo,
+      String(req.query.token || ""),
+    );
+    res.status(result.status).json(result.body);
+  });
 
   publicApi.post("/auth/register", authLimiter, async (req, res) => {
     const result = await registerCustomer(req.body || {});
@@ -563,6 +593,26 @@ export function createApp({ allowFraming = false } = {}) {
     const result = await handleWebhook(req.rawBody, signature);
     res.status(result.status).json(result.body);
   });
+
+  // Idram RESULT_URL (https://urbanphoenix.am/payment/idram-result): precheck
+  // + signed payment confirmation. Not rate-limited (Idram's own calls) and
+  // answers plain text — Idram only accepts the exact body "OK".
+  app.post("/payment/idram-result", idramForm, async (req, res) => {
+    const result = await handleIdramResult({ ...req.query, ...(req.body || {}) });
+    res.status(result.status).type("text/plain").send(result.text);
+  });
+
+  // Idram SUCCESS_URL / FAIL_URL. A GET is served by the storefront itself
+  // (the SPA maps /payment/success|fail to the checkout page); if Idram
+  // returns the customer with a POST instead, turn it into that same GET,
+  // carrying the bill number along. Nothing here trusts the redirect — the
+  // page only shows "paid" once the signed confirmation has created the order.
+  for (const outcome of ["success", "fail"]) {
+    app.post(`/payment/${outcome}`, idramForm, (req, res) => {
+      const bill = String(req.body?.EDP_BILL_NO || req.query.EDP_BILL_NO || "").replace(/\D/g, "").slice(0, 20);
+      res.redirect(303, `/payment/${outcome}${bill ? `?bill=${bill}` : ""}`);
+    });
+  }
 
   // ---------- Account API (authenticated customers) ----------
   const accountRouter = express.Router();

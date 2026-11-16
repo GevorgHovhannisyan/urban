@@ -29,22 +29,26 @@ const initialForm = {
   paymentMethod: 'card',
 };
 
-// Card (Stripe) and Cash on Delivery are both real, permanent, production
-// payment methods. PayPal/Idram/Telcell remain implemented server-side
-// (order-api.mjs still accepts them — see ALLOWED_PAYMENT_METHODS) so the
-// backend work isn't thrown away, but they're intentionally not offered to
-// customers here: selecting one used to create a real order that reads as
-// "confirmed" with no money ever actually collected, which a customer could
-// easily mistake for a working payment. Cash on Delivery does not have that
-// problem — it never claims to be paid (see order-api.mjs's createOrder,
-// which always commits it with paymentStatus 'not_charged') — so it's a
-// genuine, always-available option, not a placeholder.
+// Card (Stripe), Idram and Cash on Delivery are the real payment methods.
+// Idram is only listed once the server reports it configured (/api/config).
+// PayPal/Telcell remain unconnected placeholders server-side and are
+// intentionally not offered here. Cash on Delivery never claims to be paid
+// (see order-api.mjs's createOrder, which always commits it with
+// paymentStatus 'not_charged').
 const paymentMethods = [
   { value: 'card', label: 'Visa / Mastercard / ArCa', description: 'Pay securely — your card details are entered directly below and never touch our servers.', icon: (
     <span className="flex gap-1">
       <PaymentBadge name="visa" />
       <PaymentBadge name="mastercard" />
       <PaymentBadge name="arca" />
+    </span>
+  ) },
+  { value: 'idram', label: 'Idram', description: "You'll be redirected to Idram to pay securely with your Idram wallet.", icon: (
+    <span
+      translate="no"
+      className="inline-flex items-center justify-center bg-white rounded-[3px] border border-black/10 w-[38px] h-[24px] text-[11px] font-bold tracking-tight text-[#f36f21]"
+    >
+      idram
     </span>
   ) },
   { value: 'cash_on_delivery', label: 'Cash on Delivery', description: 'Pay when your order is delivered.', icon: null },
@@ -54,11 +58,45 @@ const paymentMethods = [
 // order-confirmation screen below.
 const PAYMENT_METHOD_DISPLAY_LABELS = {
   card: 'Card',
+  idram: 'Idram',
   cash_on_delivery: 'Cash on Delivery',
 };
 
+// Bill number + status token of the Idram payment in progress. Saved right
+// before the browser leaves for Idram so the success page can look the
+// order up when the customer comes back.
+const IDRAM_PENDING_KEY = 'up_idram_pending';
+function readIdramPending() {
+  try { return JSON.parse(localStorage.getItem(IDRAM_PENDING_KEY) || 'null'); } catch { return null; }
+}
+function writeIdramPending(value) {
+  try {
+    if (value) localStorage.setItem(IDRAM_PENDING_KEY, JSON.stringify(value));
+    else localStorage.removeItem(IDRAM_PENDING_KEY);
+  } catch { /* storage unavailable — the success page falls back to the email notice */ }
+}
+
+// Idram is a full-page form POST (not an API call) — see the merchant API doc.
+function submitIdramForm(action, fields) {
+  if (!/^https:\/\/banking\.idram\.am\//.test(String(action))) throw new Error('Could not start Idram payment.');
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = action;
+  form.acceptCharset = 'UTF-8';
+  form.style.display = 'none';
+  Object.entries(fields || {}).forEach(([name, value]) => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = String(value);
+    form.appendChild(input);
+  });
+  document.body.appendChild(form);
+  form.submit();
+}
+
 export default function CheckoutPage() {
-  const { cart, cartTotal, formatMoney, clearCart, navigate, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, currency, promo, discountAmount, giftCard, giftCardAmount, theme } = useApp();
+  const { cart, cartTotal, formatMoney, clearCart, navigate, pageData, language, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, currency, promo, discountAmount, giftCard, giftCardAmount, theme } = useApp();
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState({});
   const [requestError, setRequestError] = useState('');
@@ -100,6 +138,11 @@ export default function CheckoutPage() {
   // see order-api.mjs's createOrder). `null` = not checked yet (render
   // nothing conclusive), true/false once /api/config has answered.
   const [stripeConfigured, setStripeConfigured] = useState(null);
+  const [idramConfigured, setIdramConfigured] = useState(false);
+  // 'confirming' (back from Idram, waiting for its signed confirmation) |
+  // 'unconfirmed' (not confirmed yet after polling) | 'failed' | null
+  const [idramStatus, setIdramStatus] = useState(null);
+  const [idramBillNo, setIdramBillNo] = useState('');
   useEffect(() => {
     let cancelled = false;
     fetch('/api/config')
@@ -107,6 +150,7 @@ export default function CheckoutPage() {
       .then((data) => {
         if (cancelled) return;
         setStripeConfigured(Boolean(data.stripeConfigured));
+        setIdramConfigured(Boolean(data.idramConfigured));
         // Card can't actually be used yet — default to the one payment
         // method that always works, rather than leaving the customer
         // stuck on a selection they can't complete. Only switches the
@@ -321,6 +365,73 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Back from Idram (SUCCESS_URL /payment/success or FAIL_URL /payment/fail,
+  // mapped to this page by AppContext). Landing on the success URL proves
+  // nothing by itself — the order is shown as confirmed only once Idram's
+  // signed confirmation has actually created it on the server.
+  useEffect(() => {
+    const outcome = pageData?.paymentReturn;
+    if (outcome !== 'success' && outcome !== 'fail') return;
+    const params = new URLSearchParams(window.location.search);
+    const billFromUrl = (params.get('bill') || params.get('EDP_BILL_NO') || '').replace(/\D/g, '');
+    window.history.replaceState({ page: 'checkout' }, '', '/checkout');
+    const stored = readIdramPending();
+    const billNo = billFromUrl || stored?.billNo || '';
+    const token = stored && stored.billNo === billNo ? stored.token : '';
+    setIdramBillNo(billNo);
+
+    if (outcome === 'fail') {
+      writeIdramPending(null);
+      setIdramStatus('failed');
+      return;
+    }
+    if (!billNo || !token) {
+      setIdramStatus('unconfirmed');
+      return;
+    }
+
+    setIdramStatus('confirming');
+    let cancelled = false;
+    let attempts = 0;
+    const poll = async () => {
+      if (cancelled) return;
+      attempts += 1;
+      try {
+        const res = await fetch(`/api/checkout/idram/${encodeURIComponent(billNo)}/status?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data.status === 'succeeded') {
+          writeIdramPending(null);
+          clearCart();
+          setIdramStatus(null);
+          const orderNumber = data.order?.orderNumber || '';
+          if (orderNumber) await fetchOrderForDisplay(orderNumber, 'Your payment was successful and your order has been confirmed.');
+          else setOrder({ orderNumber: '', message: 'Your payment was successful. Your order confirmation will follow shortly.' });
+          return;
+        }
+        if (res.status === 404) {
+          setIdramStatus('unconfirmed');
+          return;
+        }
+      } catch {
+        // Transient — keep polling until the attempt cap below.
+      }
+      if (attempts < 20 && !cancelled) setTimeout(poll, 1500);
+      else if (!cancelled) setIdramStatus('unconfirmed');
+    };
+    poll();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Pressing Back on Idram's page can restore this page from the browser's
+  // back/forward cache with the button still showing "Processing…".
+  useEffect(() => {
+    const onPageShow = (event) => { if (event.persisted) setIsSubmitting(false); };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     setForm((prev) => ({
@@ -372,6 +483,7 @@ export default function CheckoutPage() {
     setForm((current) => ({ ...current, [name]: value, ...(name === 'country' && value !== current.country ? { city: '' } : {}) }));
     setFieldErrors((current) => ({ ...current, [name]: '' }));
     setRequestError('');
+    setIdramStatus(null);
     setEditionConflictProduct(null);
     // Switching payment method away from a started card form discards it —
     // switching back later starts a fresh PaymentIntent with current totals.
@@ -462,6 +574,36 @@ export default function CheckoutPage() {
     }
   };
 
+  // Creates the pending Idram bill (server re-prices everything) and sends
+  // the browser to Idram. On success the page navigates away, so the button
+  // intentionally stays in its "Processing…" state.
+  const startIdramPayment = async () => {
+    setIsSubmitting(true);
+    setRequestError('');
+    setEditionConflictProduct(null);
+    setIdramStatus(null);
+    try {
+      const response = await fetch('/api/checkout/idram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user?.sessionToken ? { Authorization: `Bearer ${user.sessionToken}` } : {}),
+        },
+        body: JSON.stringify({ ...buildOrderPayload(), language }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.error === EDITION_CONFLICT_MESSAGE) { handleEditionConflict(); setIsSubmitting(false); return; }
+        throw new Error(data.error || 'Could not start Idram payment.');
+      }
+      writeIdramPending({ billNo: data.billNo, token: data.statusToken });
+      submitIdramForm(data.action, data.fields);
+    } catch (error) {
+      setRequestError(error.message || 'Could not start Idram payment. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     // The stripeConfigured check only ever blocks the "card" method —
@@ -478,6 +620,11 @@ export default function CheckoutPage() {
       // own submit button that actually confirms the payment — this button's
       // only job is to validate the order details first and reveal it.
       if (!clientSecret) await startCardPayment();
+      return;
+    }
+
+    if (form.paymentMethod === 'idram') {
+      await startIdramPayment();
       return;
     }
 
@@ -521,6 +668,33 @@ export default function CheckoutPage() {
           <p className="text-accent font-mono uppercase tracking-widest mb-5">Confirming payment</p>
           <h1 className="font-display font-black text-4xl uppercase mb-5">Just a moment</h1>
           <p className="text-muted">We're confirming your payment with Stripe — this page will update automatically.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!order && (idramStatus === 'confirming' || idramStatus === 'unconfirmed')) {
+    const confirming = idramStatus === 'confirming';
+    return (
+      <main className="pt-[var(--site-header-h,68px)] min-h-screen flex items-center justify-center px-6">
+        <div className="text-center max-w-xl" role="status">
+          <p className="text-accent font-mono uppercase tracking-widest mb-5">{confirming ? 'Confirming payment' : 'Payment processing'}</p>
+          <h1 className="font-display font-black text-4xl uppercase mb-5">{confirming ? 'Just a moment' : 'Almost there'}</h1>
+          <p className="text-muted">
+            {confirming
+              ? "We're confirming your Idram payment — this page will update automatically."
+              : "We haven't received Idram's payment confirmation yet. If your payment went through, you'll receive an order confirmation email shortly — please don't pay again."}
+          </p>
+          {!confirming && idramBillNo && (
+            <p className="text-sm text-muted mt-4">
+              <span>Idram bill number:</span> <span translate="no" className="font-mono text-fg">{idramBillNo}</span>
+            </p>
+          )}
+          {!confirming && (
+            <button onClick={() => navigate('shop')} className="btn-primary px-8 py-4 uppercase text-xs tracking-widest mt-8">
+              Continue Shopping
+            </button>
+          )}
         </div>
       </main>
     );
@@ -616,6 +790,12 @@ export default function CheckoutPage() {
         {stripeStatus === 'failed' && (
           <div className="checkout-error mb-8" role="alert">
             We couldn't confirm your payment. If you were charged, contact us with your bank statement — otherwise, please try again.
+          </div>
+        )}
+
+        {idramStatus === 'failed' && (
+          <div className="checkout-error mb-8" role="alert">
+            Your Idram payment was not completed. Your bag is still saved — please try again or choose another payment method.
           </div>
         )}
 
@@ -731,7 +911,7 @@ export default function CheckoutPage() {
               <fieldset>
                 <legend className="text-sm font-mono uppercase tracking-widest mb-5">Payment method</legend>
                 <div className="space-y-3">
-                  {paymentMethods.map((method) => (
+                  {paymentMethods.filter((method) => method.value !== 'idram' || idramConfigured).map((method) => (
                     <label key={method.value} className={`checkout-payment ${form.paymentMethod === method.value ? 'is-selected' : ''}`}>
                       <input type="radio" name="paymentMethod" value={method.value} checked={form.paymentMethod === method.value} onChange={update} disabled={isSubmitting} />
                       <span className="checkout-payment__icon" aria-hidden="true">{method.icon}</span>
@@ -907,7 +1087,7 @@ export default function CheckoutPage() {
                   disabled={isSubmitting || (form.paymentMethod === 'card' && stripeConfigured === false)}
                   className={`checkout-submit magnetic-btn w-full btn-primary py-4 uppercase text-xs tracking-[.2em] mt-7 disabled:opacity-50 ${isSubmitting ? 'is-processing' : ''}`}
                 >
-                  {isSubmitting ? 'Processing…' : form.paymentMethod === 'card' ? 'Continue to Payment' : 'Complete order'}
+                  {isSubmitting ? 'Processing…' : form.paymentMethod === 'card' ? 'Continue to Payment' : form.paymentMethod === 'idram' ? 'Pay with Idram' : 'Complete order'}
                 </button>
               )}
             </aside>

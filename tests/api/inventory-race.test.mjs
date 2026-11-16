@@ -27,7 +27,7 @@ async function orderPayload(email) {
   return {
     customer: { firstName: 'Race', lastName: 'Test', email, phone: '123', country: 'Armenia', city: 'Yerevan', postalCode: '0001', address: '1 St' },
     items: [{ productId: PRODUCT_ID, size: 'M', color: 'Black', quantity: 1 }],
-    paymentMethod: 'idram',
+    paymentMethod: 'paypal',
   };
 }
 

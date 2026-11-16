@@ -186,6 +186,9 @@ function pathToPageInfo(pathname) {
   if (productMatch) return { page: 'product', productId: decodeURIComponent(productMatch[1]) };
   const journalMatch = clean.match(/^\/journal\/([^/]+)$/);
   if (journalMatch) return { page: 'journal-post', slug: decodeURIComponent(journalMatch[1]) };
+  // Idram's SUCCESS_URL / FAIL_URL — handled by the checkout page.
+  const paymentReturnMatch = clean.match(/^\/payment\/(success|fail)$/);
+  if (paymentReturnMatch) return { page: 'checkout', paymentReturn: paymentReturnMatch[1] };
   return { page: clean.slice(1) };
 }
 

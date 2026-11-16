@@ -227,8 +227,9 @@ function successBody(row) {
 
 // 'cash_on_delivery' is a real, permanent, production payment method (not a
 // dev-only/test flag) — see createOrder() below for how it's committed.
-// paypal/idram/telcell remain manual/unconnected placeholders pending a real
-// integration (not offered in the checkout UI). A legacy client sending the
+// 'idram' is a real online payment (server/payment/idramService.mjs) and is
+// rejected by createOrder(). paypal/telcell remain manual/unconnected
+// placeholders pending a real integration (not offered in the checkout UI). A legacy client sending the
 // old, retired 'cash' value is rejected by validateOrderDraft() below, same
 // as any other invalid value — 'cash_on_delivery' is a distinct value from
 // that retired one.
@@ -525,6 +526,13 @@ export async function createOrder(payload = {}) {
   const draftResult = await validateOrderDraft(payload);
   if (draftResult.error) return { status: 400, body: { error: draftResult.error } };
   const draft = draftResult.value;
+
+  // Idram is a real online payment now (server/payment/idramService.mjs):
+  // an Idram order may only ever be created by Idram's signed payment
+  // confirmation, never as an unpaid order through this direct endpoint.
+  if (draft.paymentMethod === 'idram') {
+    return { status: 400, body: { error: 'Idram payments must be completed through Idram checkout.' } };
+  }
 
   // Cash on Delivery is a real, immediate order — there is no online payment
   // step to wait for, so it confirms right away (same as a Stripe order
