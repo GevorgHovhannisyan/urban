@@ -29,8 +29,10 @@ const initialForm = {
   paymentMethod: 'card',
 };
 
-// Card (Stripe), Idram and Cash on Delivery are the real payment methods.
-// Idram is only listed once the server reports it configured (/api/config).
+// Card, Idram and Cash on Delivery are the real payment methods. Card is
+// paid on ArCa's own payment page when the server reports ArCa configured
+// (/api/config arcaConfigured), otherwise through the embedded Stripe form.
+// Idram is only listed once the server reports it configured.
 // PayPal/Telcell remain unconnected placeholders server-side and are
 // intentionally not offered here. Cash on Delivery never claims to be paid
 // (see order-api.mjs's createOrder, which always commits it with
@@ -53,6 +55,7 @@ const paymentMethods = [
   ) },
   { value: 'cash_on_delivery', label: 'Cash on Delivery', description: 'Pay when your order is delivered.', icon: null },
 ];
+const ARCA_CARD_DESCRIPTION = "You'll be redirected to ArCa's secure payment page to pay by card.";
 
 // Mirrors server/mailer.mjs's PAYMENT_METHOD_LABELS — used only for the
 // order-confirmation screen below.
@@ -62,17 +65,21 @@ const PAYMENT_METHOD_DISPLAY_LABELS = {
   cash_on_delivery: 'Cash on Delivery',
 };
 
-// Bill number + status token of the Idram payment in progress. Saved right
-// before the browser leaves for Idram so the success page can look the
-// order up when the customer comes back.
-const IDRAM_PENDING_KEY = 'up_idram_pending';
-function readIdramPending() {
-  try { return JSON.parse(localStorage.getItem(IDRAM_PENDING_KEY) || 'null'); } catch { return null; }
+// Redirect-based payments (Idram wallet, ArCa card page). Before the browser
+// leaves for the provider, the bill/order number + status token are saved so
+// the success page can look the order up when the customer comes back
+// (/payment/success?via=arca|idram&bill=…).
+const REDIRECT_PAYMENTS = {
+  idram: { storageKey: 'up_idram_pending', statusPath: 'idram' },
+  arca: { storageKey: 'up_arca_pending', statusPath: 'arca' },
+};
+function readPaymentPending(via) {
+  try { return JSON.parse(localStorage.getItem(REDIRECT_PAYMENTS[via].storageKey) || 'null'); } catch { return null; }
 }
-function writeIdramPending(value) {
+function writePaymentPending(via, value) {
   try {
-    if (value) localStorage.setItem(IDRAM_PENDING_KEY, JSON.stringify(value));
-    else localStorage.removeItem(IDRAM_PENDING_KEY);
+    if (value) localStorage.setItem(REDIRECT_PAYMENTS[via].storageKey, JSON.stringify(value));
+    else localStorage.removeItem(REDIRECT_PAYMENTS[via].storageKey);
   } catch { /* storage unavailable — the success page falls back to the email notice */ }
 }
 
@@ -139,10 +146,14 @@ export default function CheckoutPage() {
   // nothing conclusive), true/false once /api/config has answered.
   const [stripeConfigured, setStripeConfigured] = useState(null);
   const [idramConfigured, setIdramConfigured] = useState(false);
-  // 'confirming' (back from Idram, waiting for its signed confirmation) |
-  // 'unconfirmed' (not confirmed yet after polling) | 'failed' | null
-  const [idramStatus, setIdramStatus] = useState(null);
-  const [idramBillNo, setIdramBillNo] = useState('');
+  const [arcaConfigured, setArcaConfigured] = useState(false);
+  const cardUnavailable = stripeConfigured === false && !arcaConfigured;
+  // Back from Idram or ArCa: 'confirming' (waiting for the server to confirm
+  // the payment) | 'unconfirmed' (not confirmed yet after polling) |
+  // 'failed' | null. returnVia says which provider ('idram' | 'arca').
+  const [returnStatus, setReturnStatus] = useState(null);
+  const [returnVia, setReturnVia] = useState('idram');
+  const [returnBillNo, setReturnBillNo] = useState('');
   useEffect(() => {
     let cancelled = false;
     fetch('/api/config')
@@ -151,11 +162,12 @@ export default function CheckoutPage() {
         if (cancelled) return;
         setStripeConfigured(Boolean(data.stripeConfigured));
         setIdramConfigured(Boolean(data.idramConfigured));
+        setArcaConfigured(Boolean(data.arcaConfigured));
         // Card can't actually be used yet — default to the one payment
         // method that always works, rather than leaving the customer
         // stuck on a selection they can't complete. Only switches the
         // untouched default, never overrides an explicit choice.
-        if (!data.stripeConfigured) {
+        if (!data.stripeConfigured && !data.arcaConfigured) {
           setForm((prev) => (prev.paymentMethod === 'card' ? { ...prev, paymentMethod: 'cash_on_delivery' } : prev));
         }
       })
@@ -365,66 +377,73 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Back from Idram (SUCCESS_URL /payment/success or FAIL_URL /payment/fail,
-  // mapped to this page by AppContext). Landing on the success URL proves
-  // nothing by itself — the order is shown as confirmed only once Idram's
-  // signed confirmation has actually created it on the server.
+  // Back from Idram or ArCa (/payment/success or /payment/fail, mapped to
+  // this page by AppContext; ArCa returns carry ?via=arca). Landing on the
+  // success URL proves nothing by itself — the order is shown as confirmed
+  // only once the server has verified the payment and created the order.
   useEffect(() => {
     const outcome = pageData?.paymentReturn;
     if (outcome !== 'success' && outcome !== 'fail') return;
     const params = new URLSearchParams(window.location.search);
+    const via = params.get('via') === 'arca' ? 'arca' : 'idram';
     const billFromUrl = (params.get('bill') || params.get('EDP_BILL_NO') || '').replace(/\D/g, '');
     window.history.replaceState({ page: 'checkout' }, '', '/checkout');
-    const stored = readIdramPending();
+    const stored = readPaymentPending(via);
     const billNo = billFromUrl || stored?.billNo || '';
     const token = stored && stored.billNo === billNo ? stored.token : '';
-    setIdramBillNo(billNo);
+    setReturnVia(via);
+    setReturnBillNo(billNo);
 
     if (outcome === 'fail') {
-      writeIdramPending(null);
-      setIdramStatus('failed');
+      writePaymentPending(via, null);
+      setReturnStatus('failed');
       return;
     }
     if (!billNo || !token) {
-      setIdramStatus('unconfirmed');
+      setReturnStatus('unconfirmed');
       return;
     }
 
-    setIdramStatus('confirming');
+    setReturnStatus('confirming');
     let cancelled = false;
     let attempts = 0;
     const poll = async () => {
       if (cancelled) return;
       attempts += 1;
       try {
-        const res = await fetch(`/api/checkout/idram/${encodeURIComponent(billNo)}/status?token=${encodeURIComponent(token)}`);
+        const res = await fetch(`/api/checkout/${REDIRECT_PAYMENTS[via].statusPath}/${encodeURIComponent(billNo)}/status?token=${encodeURIComponent(token)}`);
         const data = await res.json();
         if (cancelled) return;
         if (res.ok && data.status === 'succeeded') {
-          writeIdramPending(null);
+          writePaymentPending(via, null);
           clearCart();
-          setIdramStatus(null);
+          setReturnStatus(null);
           const orderNumber = data.order?.orderNumber || '';
           if (orderNumber) await fetchOrderForDisplay(orderNumber, 'Your payment was successful and your order has been confirmed.');
           else setOrder({ orderNumber: '', message: 'Your payment was successful. Your order confirmation will follow shortly.' });
           return;
         }
+        if (res.ok && data.status === 'failed') {
+          writePaymentPending(via, null);
+          setReturnStatus('failed');
+          return;
+        }
         if (res.status === 404) {
-          setIdramStatus('unconfirmed');
+          setReturnStatus('unconfirmed');
           return;
         }
       } catch {
         // Transient — keep polling until the attempt cap below.
       }
       if (attempts < 20 && !cancelled) setTimeout(poll, 1500);
-      else if (!cancelled) setIdramStatus('unconfirmed');
+      else if (!cancelled) setReturnStatus('unconfirmed');
     };
     poll();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pressing Back on Idram's page can restore this page from the browser's
+  // Pressing Back on Idram's or ArCa's page can restore this page from the browser's
   // back/forward cache with the button still showing "Processing…".
   useEffect(() => {
     const onPageShow = (event) => { if (event.persisted) setIsSubmitting(false); };
@@ -483,7 +502,7 @@ export default function CheckoutPage() {
     setForm((current) => ({ ...current, [name]: value, ...(name === 'country' && value !== current.country ? { city: '' } : {}) }));
     setFieldErrors((current) => ({ ...current, [name]: '' }));
     setRequestError('');
-    setIdramStatus(null);
+    setReturnStatus(null);
     setEditionConflictProduct(null);
     // Switching payment method away from a started card form discards it —
     // switching back later starts a fresh PaymentIntent with current totals.
@@ -581,7 +600,7 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     setRequestError('');
     setEditionConflictProduct(null);
-    setIdramStatus(null);
+    setReturnStatus(null);
     try {
       const response = await fetch('/api/checkout/idram', {
         method: 'POST',
@@ -596,10 +615,42 @@ export default function CheckoutPage() {
         if (data.error === EDITION_CONFLICT_MESSAGE) { handleEditionConflict(); setIsSubmitting(false); return; }
         throw new Error(data.error || 'Could not start Idram payment.');
       }
-      writeIdramPending({ billNo: data.billNo, token: data.statusToken });
+      writePaymentPending('idram', { billNo: data.billNo, token: data.statusToken });
       submitIdramForm(data.action, data.fields);
     } catch (error) {
       setRequestError(error.message || 'Could not start Idram payment. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
+
+  // Registers the order with ArCa (server re-prices everything) and sends
+  // the browser to ArCa's own payment page — card details are entered there,
+  // never here. On success the page navigates away, so the button
+  // intentionally stays in its "Processing…" state.
+  const startArcaPayment = async () => {
+    setIsSubmitting(true);
+    setRequestError('');
+    setEditionConflictProduct(null);
+    setReturnStatus(null);
+    try {
+      const response = await fetch('/api/checkout/arca', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user?.sessionToken ? { Authorization: `Bearer ${user.sessionToken}` } : {}),
+        },
+        body: JSON.stringify({ ...buildOrderPayload(), language }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.error === EDITION_CONFLICT_MESSAGE) { handleEditionConflict(); setIsSubmitting(false); return; }
+        throw new Error(data.error || 'Could not start card checkout.');
+      }
+      if (!/^https:\/\//.test(String(data.formUrl || ''))) throw new Error('Could not start card checkout.');
+      writePaymentPending('arca', { billNo: data.orderNumber, token: data.statusToken });
+      window.location.assign(data.formUrl);
+    } catch (error) {
+      setRequestError(error.message || 'Could not start card checkout. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -612,8 +663,12 @@ export default function CheckoutPage() {
     // (createPayment returns 503 when Stripe isn't configured). Cash on
     // Delivery never depends on Stripe at all and must never be blocked by
     // this check.
-    const cardUnavailable = form.paymentMethod === 'card' && stripeConfigured === false;
-    if (!validate() || isSubmitting || !cart.length || cardUnavailable) return;
+    if (!validate() || isSubmitting || !cart.length || (form.paymentMethod === 'card' && cardUnavailable)) return;
+
+    if (form.paymentMethod === 'card' && arcaConfigured) {
+      await startArcaPayment();
+      return;
+    }
 
     if (form.paymentMethod === 'card') {
       // The embedded Stripe form (rendered once clientSecret is set) has its
@@ -673,8 +728,9 @@ export default function CheckoutPage() {
     );
   }
 
-  if (!order && (idramStatus === 'confirming' || idramStatus === 'unconfirmed')) {
-    const confirming = idramStatus === 'confirming';
+  if (!order && (returnStatus === 'confirming' || returnStatus === 'unconfirmed')) {
+    const confirming = returnStatus === 'confirming';
+    const viaArca = returnVia === 'arca';
     return (
       <main className="pt-[var(--site-header-h,68px)] min-h-screen flex items-center justify-center px-6">
         <div className="text-center max-w-xl" role="status">
@@ -682,12 +738,14 @@ export default function CheckoutPage() {
           <h1 className="font-display font-black text-4xl uppercase mb-5">{confirming ? 'Just a moment' : 'Almost there'}</h1>
           <p className="text-muted">
             {confirming
-              ? "We're confirming your Idram payment — this page will update automatically."
-              : "We haven't received Idram's payment confirmation yet. If your payment went through, you'll receive an order confirmation email shortly — please don't pay again."}
+              ? (viaArca ? "We're confirming your card payment — this page will update automatically." : "We're confirming your Idram payment — this page will update automatically.")
+              : (viaArca
+                ? "We haven't received the bank's payment confirmation yet. If your payment went through, you'll receive an order confirmation email shortly — please don't pay again."
+                : "We haven't received Idram's payment confirmation yet. If your payment went through, you'll receive an order confirmation email shortly — please don't pay again.")}
           </p>
-          {!confirming && idramBillNo && (
+          {!confirming && returnBillNo && (
             <p className="text-sm text-muted mt-4">
-              <span>Idram bill number:</span> <span translate="no" className="font-mono text-fg">{idramBillNo}</span>
+              <span>{viaArca ? 'Payment reference:' : 'Idram bill number:'}</span> <span translate="no" className="font-mono text-fg">{returnBillNo}</span>
             </p>
           )}
           {!confirming && (
@@ -793,9 +851,11 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {idramStatus === 'failed' && (
+        {returnStatus === 'failed' && (
           <div className="checkout-error mb-8" role="alert">
-            Your Idram payment was not completed. Your bag is still saved — please try again or choose another payment method.
+            {returnVia === 'arca'
+              ? 'Your card payment was not completed. Your bag is still saved — please try again or choose another payment method.'
+              : 'Your Idram payment was not completed. Your bag is still saved — please try again or choose another payment method.'}
           </div>
         )}
 
@@ -804,7 +864,7 @@ export default function CheckoutPage() {
             up front, not discovered only after filling in the whole form —
             and the submit button below is disabled for the same reason, so
             this can't be missed and clicked through anyway. */}
-        {form.paymentMethod === 'card' && stripeConfigured === false && (
+        {form.paymentMethod === 'card' && cardUnavailable && (
           <div className="checkout-error mb-8" role="alert">
             Online card payment isn't available right now. Please select Cash on Delivery, or check back shortly.
           </div>
@@ -917,7 +977,7 @@ export default function CheckoutPage() {
                       <span className="checkout-payment__icon" aria-hidden="true">{method.icon}</span>
                       <span>
                         <strong>{method.label}</strong>
-                        <small>{method.description}</small>
+                        <small>{method.value === 'card' && arcaConfigured ? ARCA_CARD_DESCRIPTION : method.description}</small>
                       </span>
                     </label>
                   ))}
@@ -1084,7 +1144,7 @@ export default function CheckoutPage() {
                 <button
                   ref={submitBtnRef}
                   type="submit"
-                  disabled={isSubmitting || (form.paymentMethod === 'card' && stripeConfigured === false)}
+                  disabled={isSubmitting || (form.paymentMethod === 'card' && cardUnavailable)}
                   className={`checkout-submit magnetic-btn w-full btn-primary py-4 uppercase text-xs tracking-[.2em] mt-7 disabled:opacity-50 ${isSubmitting ? 'is-processing' : ''}`}
                 >
                   {isSubmitting ? 'Processing…' : form.paymentMethod === 'card' ? 'Continue to Payment' : form.paymentMethod === 'idram' ? 'Pay with Idram' : 'Complete order'}

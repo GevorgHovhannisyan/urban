@@ -13,6 +13,11 @@ import {
   getProviderName,
 } from "./server/payment/paymentService.mjs";
 import { describeIdramConfig } from "./server/payment/idramService.mjs";
+import {
+  describeArcaConfig,
+  isArcaConfigured,
+  reconcilePendingArcaPayments,
+} from "./server/payment/arcaService.mjs";
 import { describeSmtpConfig } from "./server/mailer.mjs";
 
 // Refuses to boot (throws, crashing the process before it ever listens) if
@@ -34,6 +39,7 @@ console.log(
   `Payment: provider=${getProviderName()} env=${getPaymentEnv()} — ${describePaymentConfig().message}`,
 );
 console.log(`Payment: ${describeIdramConfig().message}`);
+console.log(`Payment: ${describeArcaConfig().message}`);
 
 // Same diagnostic-only pattern as Stripe above — never blocks startup, never
 // logs the App Password itself, just whether SMTP_HOST/PORT/USER/PASS are
@@ -61,3 +67,16 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`Urban Phoenix server running on http://localhost:${port}`);
   console.log(`Admin panel: http://localhost:${port}/admin`);
 });
+
+// ArCa safety net: every 5 minutes, ask ArCa about recent card payments that
+// never came back to the return URL (customer closed the tab after paying)
+// and create the order for any that were actually paid.
+if (isArcaConfigured()) {
+  setInterval(() => {
+    reconcilePendingArcaPayments()
+      .then(({ succeeded }) => {
+        if (succeeded) console.log(`[arca] reconciliation created ${succeeded} paid order(s)`);
+      })
+      .catch((error) => console.error("[arca] reconciliation failed:", error));
+  }, 5 * 60 * 1000).unref();
+}

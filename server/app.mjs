@@ -131,6 +131,12 @@ import {
   handleIdramResult,
   isIdramConfigured,
 } from "./payment/idramService.mjs";
+import {
+  createArcaPayment,
+  getArcaPaymentStatus,
+  handleArcaReturn,
+  isArcaConfigured,
+} from "./payment/arcaService.mjs";
 
 // Idram posts x-www-form-urlencoded (RESULT_URL callbacks and, possibly, the
 // success/fail redirects) — parsed only on those routes.
@@ -404,6 +410,9 @@ export function createApp({ allowFraming = false } = {}) {
       paymentProvider: getProviderName(),
       paymentEnv: getPaymentEnv(),
       idramConfigured: isIdramConfigured(),
+      // When ArCa is configured the checkout's card option pays through
+      // ArCa's own payment page instead of Stripe.
+      arcaConfigured: isArcaConfigured(),
     });
   });
 
@@ -463,6 +472,27 @@ export function createApp({ allowFraming = false } = {}) {
   publicApi.get("/checkout/idram/:billNo/status", readLimiter, async (req, res) => {
     const result = await getIdramPaymentStatus(
       req.params.billNo,
+      String(req.query.token || ""),
+    );
+    res.status(result.status).json(result.body);
+  });
+
+  // ArCa card payment: registers the order with ArCa and returns its payment
+  // page URL. The order itself is only created once the server has checked
+  // with ArCa that it was paid (see server/payment/arcaService.mjs).
+  publicApi.post("/checkout/arca", writeLimiter, async (req, res) => {
+    const base = (
+      process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`
+    ).replace(/\/+$/, "");
+    const result = await createArcaPayment(
+      { ...req.body, customerId: optionalCustomerId(req) },
+      { returnUrl: `${base}/payment/arca/return` },
+    );
+    res.status(result.status).json(result.body);
+  });
+  publicApi.get("/checkout/arca/:orderNumber/status", readLimiter, async (req, res) => {
+    const result = await getArcaPaymentStatus(
+      req.params.orderNumber,
       String(req.query.token || ""),
     );
     res.status(result.status).json(result.body);
@@ -613,6 +643,20 @@ export function createApp({ allowFraming = false } = {}) {
       res.redirect(303, `/payment/${outcome}${bill ? `?bill=${bill}` : ""}`);
     });
   }
+
+  // ArCa returnUrl/failUrl (https://urbanphoenix.am/payment/arca/return).
+  // ArCa sends the customer here with ?orderId=…; the server asks ArCa for
+  // the real status before anything is created, then sends the customer to
+  // the storefront's /payment/success or /payment/fail page.
+  app.get("/payment/arca/return", readLimiter, async (req, res) => {
+    try {
+      const { location } = await handleArcaReturn(req.query);
+      res.redirect(303, location);
+    } catch (error) {
+      console.error("[arca] return handling failed:", error);
+      res.redirect(303, "/payment/fail?via=arca");
+    }
+  });
 
   // ---------- Account API (authenticated customers) ----------
   const accountRouter = express.Router();
