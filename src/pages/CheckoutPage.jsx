@@ -99,6 +99,11 @@ export default function CheckoutPage() {
   const { cart, cartTotal, formatMoney, clearCart, navigate, pageData, language, visitorCountry, isUnitedStates, updateQuantity, removeFromCart, user, accountFetch, currency, promo, discountAmount, giftCard, giftCardAmount, theme } = useApp();
   const [form, setForm] = useState(initialForm);
   const [fieldErrors, setFieldErrors] = useState({});
+  // Bumped on every submit that fails validation; the effect below then
+  // brings the first invalid field into view (only after a failed submit —
+  // never on load, while typing, or when switching payment method).
+  const [validationFailures, setValidationFailures] = useState(0);
+  const formRef = useRef(null);
   const [requestError, setRequestError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [order, setOrder] = useState(null);
@@ -521,6 +526,50 @@ export default function CheckoutPage() {
     return Object.keys(errors).length === 0;
   };
 
+  // After a failed submit has rendered its errors: scroll the first invalid
+  // field (in form order) to just below the fixed header, with its label and
+  // error message visible, and focus it. Smooth unless the visitor prefers
+  // reduced motion.
+  useEffect(() => {
+    if (!validationFailures || !formRef.current) return;
+    // Document order = visual order of the form; the first match is either an
+    // invalid input or a field-level error (e.g. delivery method).
+    const firstError = formRef.current.querySelector('[aria-invalid="true"], .checkout-field-error');
+    if (!firstError) return;
+    const container = firstError.closest('label') || firstError.closest('fieldset') || firstError;
+    const field = firstError.matches('input, select, textarea')
+      ? firstError
+      : container.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea');
+    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--site-header-h')) || 68;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const top = Math.max(0, container.getBoundingClientRect().top + window.scrollY - headerHeight - 24);
+    const focusField = () => { if (field && !field.disabled) field.focus({ preventScroll: true }); };
+    // 'instant', not 'auto': the page's CSS sets scroll-behavior: smooth.
+    if (reduceMotion || Math.abs(window.scrollY - top) < 2) {
+      window.scrollTo({ top, behavior: 'instant' });
+      focusField();
+      return undefined;
+    }
+    window.scrollTo({ top, behavior: 'smooth' });
+    // Focus once the scroll has finished — focusing mid-scroll lets a field
+    // that opens a list (City) scroll the page itself and cut this short.
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('scrollend', finish);
+      clearTimeout(fallback);
+      focusField();
+    };
+    window.addEventListener('scrollend', finish);
+    const fallback = setTimeout(finish, 900); // browsers without 'scrollend'
+    return () => {
+      done = true;
+      window.removeEventListener('scrollend', finish);
+      clearTimeout(fallback);
+    };
+  }, [validationFailures]);
+
   // Fetches the full, server-authoritative order (items, delivery, totals —
   // the same shape TrackOrderPage already renders from, see order-api.mjs's
   // trackOrder/serializeOrder) for the confirmation screen below, rather than
@@ -656,7 +705,11 @@ export default function CheckoutPage() {
     // (createPayment returns 503 when Stripe isn't configured). Cash on
     // Delivery never depends on Stripe at all and must never be blocked by
     // this check.
-    if (!validate() || isSubmitting || !cart.length || (form.paymentMethod === 'card' && cardUnavailable)) return;
+    if (!validate()) {
+      setValidationFailures((count) => count + 1);
+      return;
+    }
+    if (isSubmitting || !cart.length || (form.paymentMethod === 'card' && cardUnavailable)) return;
 
     if (form.paymentMethod === 'card' && arcaConfigured) {
       await startArcaPayment();
@@ -889,7 +942,7 @@ export default function CheckoutPage() {
             Your cart is empty — continue shopping
           </button>
         ) : (
-          <form onSubmit={submit} noValidate className="grid lg:grid-cols-[1fr_420px] gap-12">
+          <form ref={formRef} onSubmit={submit} noValidate className="grid lg:grid-cols-[1fr_420px] gap-12">
             <div className="space-y-10">
               <fieldset>
                 <legend className="text-sm font-mono uppercase tracking-widest mb-5">Contact</legend>
