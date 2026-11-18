@@ -131,8 +131,8 @@ export async function createArcaPayment(payload = {}, { returnUrl } = {}) {
 //   'succeeded'  — paid; the order exists (created now or earlier)
 //   'failed'     — declined / reversed / refunded, or not payable
 //   'unpaid'     — registered at ArCa but nothing paid (e.g. cancelled)
-//   'processing' — anything else (3-D Secure in progress, order could not be
-//                  saved yet); checked again later
+//   'processing' — anything else (unknown status, ArCa unreachable, order
+//                  could not be saved yet); checked again later
 async function syncWithArca(pendingId) {
   const pending = await loadPending(pendingId);
   if (!pending) return 'failed';
@@ -178,12 +178,19 @@ async function syncWithArca(pendingId) {
     return 'succeeded';
   }
 
+  // The bank's reason, e.g. "actionCode -2006: 3-D Secure: issuing bank
+  // rejected authentication" — read it with `journalctl -u urban-phoenix`.
+  const reason = `orderStatus ${status.orderStatus}, ${arca.describeActionCode(status.actionCode)}${status.actionCodeDescription ? ` (${status.actionCodeDescription})` : ''}`;
   if (arca.isFailed(status)) {
     await run(`UPDATE pending_checkouts SET status = 'expired' WHERE id = ? AND status = 'pending'`, [pending.id]);
-    console.log(`[arca] order ${pending.id} not paid (orderStatus ${status.orderStatus}, actionCode ${status.actionCode})`);
+    console.log(`[arca] order ${pending.id} declined — ${reason}`);
     return 'failed';
   }
-  if (arca.isUnpaid(status)) return 'unpaid';
+  if (arca.isUnpaid(status)) {
+    console.log(`[arca] order ${pending.id} not paid — ${reason}`);
+    return 'unpaid';
+  }
+  console.log(`[arca] order ${pending.id} still processing — ${reason}`);
   return 'processing';
 }
 

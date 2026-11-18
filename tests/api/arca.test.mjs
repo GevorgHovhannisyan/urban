@@ -48,7 +48,7 @@ function startFakeGateway() {
         errorMessage: 'Success',
         orderNumber: order.orderNumber,
         orderStatus: order.orderStatus,
-        actionCode: order.orderStatus === 2 ? 0 : -2007,
+        actionCode: order.orderStatus === 1 || order.orderStatus === 2 ? 0 : -2007,
         amount: order.paidAmount ?? Number(order.amount),
         currency: order.currency,
         cardAuthInfo: { maskedPan: '411111**1111', approvalCode: '123456' },
@@ -127,6 +127,7 @@ test('starting a payment registers the TEST amount (10 AMD = 1000 minor units) w
   assert.equal(registered.amount, '1000');
   assert.equal(registered.currency, '051');
   assert.equal(registered.language, 'hy');
+  assert.equal(registered.features, 'FORCE_TDS', '3-D Secure is forced (EPG guide: register.do features)');
   assert.equal(registered.returnUrl, 'https://shop.example/payment/arca/return');
   assert.equal(registered.failUrl, 'https://shop.example/payment/arca/return');
   assert.equal(fake.calls.at(-1).contentType, 'application/x-www-form-urlencoded');
@@ -145,7 +146,9 @@ test('coming back without paying goes to the fail page and creates no order', as
 
 test('a paid order creates exactly one paid order with the REAL price; repeated returns are idempotent', async () => {
   const { body, orderId, registered } = await startPayment();
-  registered.orderStatus = 2; // customer paid on ArCa's page
+  // Customer paid on ArCa's page. For a one-phase payment (register.do) the
+  // EPG guide's orderStatus table defines 1 as "Transaction has been approved".
+  registered.orderStatus = 1;
 
   const first = await returnFromArca(orderId);
   assert.equal(first.status, 303);
@@ -256,5 +259,16 @@ test('without ArCa credentials the card endpoint is unavailable', async () => {
     assert.equal((await (await fetch(`${BASE}/api/config`)).json()).arcaConfigured, false);
   } finally {
     process.env.ARCA_USERNAME = USER;
+  }
+});
+
+test('ARCA_FORCE_3DS=false stops forcing 3-D Secure (the bank setting decides)', async () => {
+  process.env.ARCA_FORCE_3DS = 'false';
+  try {
+    const { status, registered } = await startPayment();
+    assert.equal(status, 200);
+    assert.equal(registered.features, undefined);
+  } finally {
+    delete process.env.ARCA_FORCE_3DS;
   }
 });
