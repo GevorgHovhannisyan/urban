@@ -21,10 +21,10 @@
 //   ARCA_USERNAME    — merchant API user name (from the bank)
 //   ARCA_PASSWORD    — merchant API password. Goes in the server's .env only;
 //                      never sent to the browser, never logged.
-//   ARCA_TEST_AMOUNT — optional. When set (e.g. 10), every card payment
-//                      charges exactly this many AMD instead of the real
-//                      order total. Prices shown on the site and stored on
-//                      the order are NOT changed. Remove it to go live.
+//   ARCA_FORCE_3DS   — optional, default true: register every payment with
+//                      features=FORCE_TDS (3-D Secure 2). "false" turns it off.
+//
+// Every payment charges the real order total, converted to AMD.
 import { RATES } from '../../../src/data/currency.js';
 
 export const ARCA_TEST_API_URL = 'https://ipaytest.arca.am:8445/payment/rest';
@@ -64,12 +64,6 @@ export function isConfigured() {
   return Boolean(env('ARCA_USERNAME') && env('ARCA_PASSWORD'));
 }
 
-// Fixed AMD amount to charge instead of the real total, or null when off.
-export function getTestAmount() {
-  const value = Number(env('ARCA_TEST_AMOUNT'));
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
-
 // register.do "features" parameter (EPG guide 4.1): FORCE_TDS = "transaction
 // is processed as 3DS2" — the customer gets the card issuer's 3-D Secure page
 // (SMS code / bank app) after entering the card on ArCa's page. On by default;
@@ -86,12 +80,9 @@ export function describeConfig() {
   let host = getApiUrl();
   try { host = new URL(host).host; } catch { /* keep the raw value */ }
   const gateway = `${isTestGateway() ? `TEST gateway ${host}` : `gateway ${host}`}, 3-D Secure ${isForce3dsEnabled() ? 'forced (FORCE_TDS)' : 'per bank setting'}`;
-  const testAmount = getTestAmount();
   return {
     status: 'configured',
-    message: testAmount
-      ? `ArCa card payments are configured (${gateway}) — TEST MODE: every card payment charges ${testAmount} AMD instead of the real total (ARCA_TEST_AMOUNT).`
-      : `ArCa card payments are configured (${gateway}) — payments charge the real order total in AMD.`,
+    message: `ArCa card payments are configured (${gateway}) — payments charge the real order total in AMD.`,
   };
 }
 
@@ -99,8 +90,6 @@ export function describeConfig() {
 // Same conversion the checkout page shows in its "Payments are processed in
 // Armenian dram" note.
 export function chargeAmountAmd(totalUsd) {
-  const testAmount = getTestAmount();
-  if (testAmount) return testAmount;
   return Math.round(Number(totalUsd) * RATES.AMD);
 }
 

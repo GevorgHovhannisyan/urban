@@ -18,10 +18,8 @@
 //                        to the browser
 //   IDRAM_EMAIL        — optional EDP_EMAIL override (Idram emails this address
 //                        if our RESULT_URL doesn't answer "OK" to a confirmation)
-//   IDRAM_TEST_AMOUNT  — optional. When set (e.g. 10), every Idram payment
-//                        charges exactly this many AMD instead of the real
-//                        order total. Prices shown on the site and stored on
-//                        the order are NOT changed. Remove it to go live.
+//
+// Every payment charges the real order total, converted to AMD.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { RATES } from '../../../src/data/currency.js';
 
@@ -39,31 +37,17 @@ export function isConfigured() {
   return Boolean(getRecAccount() && env('IDRAM_SECRET_KEY'));
 }
 
-// Fixed AMD amount to charge instead of the real total, or null when off.
-export function getTestAmount() {
-  const value = Number(env('IDRAM_TEST_AMOUNT'));
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
-
 export function describeConfig() {
   if (!isConfigured()) {
     return { status: 'unconfigured', message: 'Idram is not configured (IDRAM_REC_ACCOUNT / IDRAM_SECRET_KEY) — the Idram option is hidden at checkout.' };
   }
-  const testAmount = getTestAmount();
-  return {
-    status: 'configured',
-    message: testAmount
-      ? `Idram is configured — TEST MODE: every Idram payment charges ${testAmount} AMD instead of the real total (IDRAM_TEST_AMOUNT).`
-      : 'Idram is configured — payments charge the real order total in AMD.',
-  };
+  return { status: 'configured', message: 'Idram is configured — payments charge the real order total in AMD.' };
 }
 
 // Orders are USD internally (see src/data/currency.js); Idram charges AMD.
 // Same conversion the checkout page shows in its "Payments are processed in
 // Armenian dram" note, so the customer sees exactly what Idram will ask for.
 export function chargeAmountAmd(totalUsd) {
-  const testAmount = getTestAmount();
-  if (testAmount) return testAmount;
   return Math.round(Number(totalUsd) * RATES.AMD);
 }
 

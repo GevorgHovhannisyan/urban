@@ -9,7 +9,6 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { get, run, toJson, fromJson } from '../db.mjs';
 import { validateOrderDraft, completePayment } from '../order-api.mjs';
-import { getPaymentEnv } from './paymentService.mjs';
 import * as idram from './providers/idram.mjs';
 
 const PENDING_TYPE = 'idram';
@@ -61,16 +60,13 @@ export async function createIdramPayment(payload = {}) {
     return { status: 400, body: { error: 'Order total must be greater than zero to pay with Idram.' } };
   }
 
-  // `payment` = what Idram is actually asked to charge (AMD). It can differ
-  // from draft.total only in test mode (IDRAM_TEST_AMOUNT); the order itself
-  // always keeps the real prices. `source` is the original request, re-run at
-  // precheck time so a bill that can no longer be fulfilled is refused before
-  // any money moves.
+  // `payment` = what Idram is asked to charge: the real order total in AMD.
+  // `source` is the original request, re-run at precheck time so a bill that
+  // can no longer be fulfilled is refused before any money moves.
   const payment = {
     provider: PROVIDER,
     amount,
     currency: 'AMD',
-    testMode: Boolean(idram.getTestAmount()),
     statusToken: randomUUID(),
   };
 
@@ -158,9 +154,10 @@ async function confirm(params) {
     provider: PROVIDER,
     providerTransactionId: transId,
     pendingCheckoutId: billNo,
-    // A test-amount payment did not collect the real total — mark it so the
-    // admin panel labels it (same "sandbox" badge as Stripe test payments).
-    paymentEnv: payment.testMode ? 'sandbox' : getPaymentEnv(),
+    // Idram has no test environment — a confirmed bill is real money, so it
+    // never gets the admin "sandbox" badge (PAYMENT_ENV is Stripe's setting).
+    // testMode only exists on bills started under the old 10 AMD test mode.
+    paymentEnv: payment.testMode ? 'sandbox' : 'production',
   });
   if (result.status !== 201) {
     // Not answering "OK" makes Idram email IDRAM_EMAIL / the merchant email,

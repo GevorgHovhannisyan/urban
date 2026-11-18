@@ -19,7 +19,6 @@ let BASE;
 before(async () => {
   process.env.IDRAM_REC_ACCOUNT = REC_ACCOUNT;
   process.env.IDRAM_SECRET_KEY = SECRET;
-  process.env.IDRAM_TEST_AMOUNT = '10';
   server = await startTestServer('idram');
   BASE = server.baseUrl;
   await server.db.prepare('DELETE FROM products WHERE id = ?').run(PRODUCT_ID);
@@ -80,16 +79,16 @@ test('config exposes idramConfigured so checkout can show the option', async () 
   assert.equal(data.idramConfigured, true);
 });
 
-test('starting a payment returns the Idram form with the TEST amount (10 AMD) and creates no order yet', async () => {
+test('starting a payment returns the Idram form with the real total in AMD and creates no order yet', async () => {
   const { status, body } = await startPayment();
   assert.equal(status, 200);
   assert.equal(body.action, 'https://banking.idram.am/Payment/GetPayment');
   assert.equal(body.fields.EDP_REC_ACCOUNT, REC_ACCOUNT);
-  assert.equal(body.fields.EDP_AMOUNT, '10');
+  assert.equal(body.fields.EDP_AMOUNT, String(Math.round(body.total * 390)));
   assert.equal(body.fields.EDP_LANGUAGE, 'AM');
   assert.match(body.fields.EDP_BILL_NO, /^\d{12}$/);
   assert.equal(body.fields.EDP_BILL_NO, body.billNo);
-  assert.ok(body.total > 10, 'the real order total is unchanged — only the charged amount is 10 AMD');
+  assert.ok(body.total > 0);
   assert.ok(body.statusToken);
   assert.equal(body.fields.EDP_CHECKSUM, undefined, 'the secret never reaches the browser');
   assert.equal(await orderFor(body.billNo), undefined);
@@ -97,18 +96,19 @@ test('starting a payment returns the Idram form with the TEST amount (10 AMD) an
 
 test('precheck answers OK for a real bill and refuses a wrong amount, account or unknown bill', async () => {
   const { body } = await startPayment();
-  const base = { EDP_PRECHECK: 'YES', EDP_BILL_NO: body.billNo, EDP_REC_ACCOUNT: REC_ACCOUNT, EDP_AMOUNT: '10' };
+  const amount = body.fields.EDP_AMOUNT;
+  const base = { EDP_PRECHECK: 'YES', EDP_BILL_NO: body.billNo, EDP_REC_ACCOUNT: REC_ACCOUNT, EDP_AMOUNT: amount };
 
   assert.deepEqual(await postResult(base), { status: 200, text: 'OK' });
-  assert.equal((await postResult({ ...base, EDP_AMOUNT: '10.00' })).text, 'OK', 'fraction formatting is accepted');
-  assert.notEqual((await postResult({ ...base, EDP_AMOUNT: String(Math.round(body.total * 390)) })).text, 'OK');
+  assert.equal((await postResult({ ...base, EDP_AMOUNT: `${amount}.00` })).text, 'OK', 'fraction formatting is accepted');
+  assert.notEqual((await postResult({ ...base, EDP_AMOUNT: '10' })).text, 'OK');
   assert.notEqual((await postResult({ ...base, EDP_REC_ACCOUNT: '999' })).text, 'OK');
   assert.notEqual((await postResult({ ...base, EDP_BILL_NO: '123456789012' })).text, 'OK');
 });
 
 test('a confirmation with a bad checksum is rejected and creates no order', async () => {
   const { body } = await startPayment();
-  const fields = { ...confirmation(body.billNo, '10.00'), EDP_CHECKSUM: '0'.repeat(32) };
+  const fields = { ...confirmation(body.billNo, `${body.fields.EDP_AMOUNT}.00`), EDP_CHECKSUM: '0'.repeat(32) };
   const res = await postResult(fields);
   assert.notEqual(res.text, 'OK');
   assert.equal(await orderFor(body.billNo), undefined);
@@ -123,7 +123,7 @@ test('a confirmation for the wrong amount is rejected even with a valid checksum
 
 test('a valid signed confirmation creates exactly one paid order with the REAL price; repeats are idempotent', async () => {
   const { body } = await startPayment();
-  const fields = confirmation(body.billNo, '10.00');
+  const fields = confirmation(body.billNo, `${body.fields.EDP_AMOUNT}.00`);
 
   assert.deepEqual(await postResult(fields), { status: 200, text: 'OK' });
   assert.deepEqual(await postResult(fields), { status: 200, text: 'OK' }, 'a repeated confirmation still answers OK');
@@ -136,11 +136,11 @@ test('a valid signed confirmation creates exactly one paid order with the REAL p
   assert.equal(order.paymentMethod, 'idram');
   assert.equal(order.paymentProvider, 'idram');
   assert.equal(order.providerTransactionId, fields.EDP_TRANS_ID);
-  assert.equal(Number(order.total), body.total, 'the order keeps the real total, not the 10 AMD test charge');
-  assert.equal(order.paymentEnv, 'sandbox', 'test-amount payments are labeled in the admin panel');
+  assert.equal(Number(order.total), body.total);
+  assert.equal(order.paymentEnv, 'production', 'a real payment never gets the admin "sandbox" badge');
 
   // A paid bill can't be paid again.
-  const again = await postResult({ EDP_PRECHECK: 'YES', EDP_BILL_NO: body.billNo, EDP_REC_ACCOUNT: REC_ACCOUNT, EDP_AMOUNT: '10' });
+  const again = await postResult({ EDP_PRECHECK: 'YES', EDP_BILL_NO: body.billNo, EDP_REC_ACCOUNT: REC_ACCOUNT, EDP_AMOUNT: body.fields.EDP_AMOUNT });
   assert.notEqual(again.text, 'OK');
 });
 
@@ -151,7 +151,7 @@ test('the status endpoint needs the per-bill token and reports the order once co
   assert.equal((await fetch(statusUrl('wrong-token'))).status, 404);
   assert.equal((await (await fetch(statusUrl(body.statusToken))).json()).status, 'pending');
 
-  await postResult(confirmation(body.billNo, '10'));
+  await postResult(confirmation(body.billNo, body.fields.EDP_AMOUNT));
   const done = await (await fetch(statusUrl(body.statusToken))).json();
   assert.equal(done.status, 'succeeded');
   assert.match(done.order.orderNumber, /^UP-/);
@@ -176,14 +176,14 @@ test('a POST to the success URL is redirected to the storefront page with the bi
   assert.equal(res.headers.get('location'), '/payment/success?bill=123456789012');
 });
 
-test('without IDRAM_TEST_AMOUNT the real total is charged, converted to AMD', async () => {
-  delete process.env.IDRAM_TEST_AMOUNT;
+test('a leftover IDRAM_TEST_AMOUNT setting is ignored — the real total is always charged', async () => {
+  process.env.IDRAM_TEST_AMOUNT = '10';
   try {
     const { status, body } = await startPayment();
     assert.equal(status, 200);
     assert.equal(body.fields.EDP_AMOUNT, String(Math.round(body.total * 390)));
   } finally {
-    process.env.IDRAM_TEST_AMOUNT = '10';
+    delete process.env.IDRAM_TEST_AMOUNT;
   }
 });
 
