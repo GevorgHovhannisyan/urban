@@ -7,6 +7,8 @@ const BADGES = {
   mastercard: { src: '/images/payments/mastercard.svg', alt: 'Mastercard', padding: '3px 7px' },
   amex: { src: '/images/payments/amex.svg', alt: 'American Express', padding: '0', fill: true },
   arca: { src: '/images/payments/arca.png', alt: 'ArCa', padding: '4px 5px' },
+  // Official Idram logo (full wordmark), on a wider card so it stays readable.
+  idram: { src: '/images/payments/idram.svg', alt: 'Idram', padding: '4px 6px', wide: true },
 };
 
 export default function PaymentBadge({ name, className = '' }) {
@@ -14,7 +16,7 @@ export default function PaymentBadge({ name, className = '' }) {
   if (!badge) return null;
   return (
     <span
-      className={`inline-flex items-center justify-center bg-white rounded-[3px] border border-black/10 overflow-hidden w-[38px] h-[24px] ${className}`}
+      className={`inline-flex items-center justify-center bg-white rounded-[3px] border border-black/10 overflow-hidden ${badge.wide ? 'w-[64px]' : 'w-[38px]'} h-[24px] ${className}`}
       style={{ padding: badge.padding }}
     >
       <img
