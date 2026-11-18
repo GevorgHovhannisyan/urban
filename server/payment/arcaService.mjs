@@ -17,7 +17,6 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { get, all, run, toJson, fromJson } from '../db.mjs';
 import { validateOrderDraft, completePayment } from '../order-api.mjs';
-import { getPaymentEnv } from './paymentService.mjs';
 import * as arca from './providers/arca.mjs';
 
 const PENDING_TYPE = 'arca';
@@ -72,14 +71,11 @@ export async function createArcaPayment(payload = {}, { returnUrl } = {}) {
     return { status: 400, body: { error: 'Order total must be greater than zero to pay by card.' } };
   }
 
-  // `payment` = what ArCa is actually asked to charge (AMD). It differs from
-  // draft.total only in test mode (ARCA_TEST_AMOUNT); the order itself always
-  // keeps the real prices.
+  // `payment` = what ArCa is asked to charge: the real order total in AMD.
   const payment = {
     provider: PROVIDER,
     amount,
     currency: 'AMD',
-    testMode: Boolean(arca.getTestAmount()),
     testGateway: arca.isTestGateway(),
     statusToken: randomUUID(),
   };
@@ -161,9 +157,10 @@ async function syncWithArca(pendingId) {
       provider: PROVIDER,
       providerTransactionId: pending.paymentIntentId,
       pendingCheckoutId: pending.id,
-      // A test-amount payment (or one on ArCa's test gateway) did not collect
-      // the real total — mark it so the admin panel labels it.
-      paymentEnv: payment.testMode || payment.testGateway ? 'sandbox' : getPaymentEnv(),
+      // Real money, so no admin "sandbox" badge (PAYMENT_ENV is Stripe's
+      // setting) — unless it ran on ArCa's public test gateway. testMode only
+      // exists on payments started under the old 10 AMD test mode.
+      paymentEnv: payment.testMode || payment.testGateway ? 'sandbox' : 'production',
     });
     if (result.status !== 201) {
       console.error(`[arca] order ${pending.id} paid (ArCa orderId ${pending.paymentIntentId}) but the order could not be created: ${result.body?.error || result.status}`);

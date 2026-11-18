@@ -66,7 +66,6 @@ before(async () => {
   process.env.ARCA_API_URL = `${GATEWAY}/payment/rest`;
   process.env.ARCA_USERNAME = USER;
   process.env.ARCA_PASSWORD = PASS;
-  process.env.ARCA_TEST_AMOUNT = '10';
   // The return URL is built from PUBLIC_URL, like in production.
   process.env.PUBLIC_URL = 'https://shop.example/';
   server = await startTestServer('arca');
@@ -115,16 +114,16 @@ test('config exposes arcaConfigured so checkout sends card payments to ArCa', as
   assert.equal(data.arcaConfigured, true);
 });
 
-test('starting a payment registers the TEST amount (10 AMD = 1000 minor units) with ArCa and creates no order yet', async () => {
+test('starting a payment registers the real total (AMD minor units) with ArCa and creates no order yet', async () => {
   const { status, body, registered } = await startPayment();
   assert.equal(status, 200);
   assert.ok(body.formUrl.startsWith(`${GATEWAY}/payment/merchants/`));
   assert.match(body.orderNumber, /^\d{12}$/);
   assert.ok(body.statusToken);
-  assert.ok(body.total > 10, 'the real order total is unchanged — only the charged amount is 10 AMD');
+  assert.ok(body.total > 0);
 
   assert.equal(registered.orderNumber, body.orderNumber);
-  assert.equal(registered.amount, '1000');
+  assert.equal(registered.amount, String(Math.round(body.total * 390) * 100), 'real total, AMD x 100');
   assert.equal(registered.currency, '051');
   assert.equal(registered.language, 'hy');
   assert.equal(registered.features, 'FORCE_TDS', '3-D Secure is forced (EPG guide: register.do features)');
@@ -164,8 +163,8 @@ test('a paid order creates exactly one paid order with the REAL price; repeated 
   assert.equal(order.paymentMethod, 'card');
   assert.equal(order.paymentProvider, 'arca');
   assert.equal(order.providerTransactionId, orderId);
-  assert.equal(Number(order.total), body.total, 'the order keeps the real total, not the 10 AMD test charge');
-  assert.equal(order.paymentEnv, 'sandbox', 'test-amount payments are labeled in the admin panel');
+  assert.equal(Number(order.total), body.total);
+  assert.equal(order.paymentEnv, 'production', 'a real payment never gets the admin "sandbox" badge');
 
   const done = await (await fetch(statusUrl(body.orderNumber, body.statusToken))).json();
   assert.equal(done.status, 'succeeded');
@@ -236,14 +235,14 @@ test('an ArCa error while registering (e.g. wrong credentials) returns 502 and c
   }
 });
 
-test('without ARCA_TEST_AMOUNT the real total is charged, converted to AMD minor units', async () => {
-  delete process.env.ARCA_TEST_AMOUNT;
+test('a leftover ARCA_TEST_AMOUNT setting is ignored — the real total is always charged', async () => {
+  process.env.ARCA_TEST_AMOUNT = '10';
   try {
     const { status, body, registered } = await startPayment();
     assert.equal(status, 200);
     assert.equal(registered.amount, String(Math.round(body.total * 390) * 100));
   } finally {
-    process.env.ARCA_TEST_AMOUNT = '10';
+    delete process.env.ARCA_TEST_AMOUNT;
   }
 });
 
