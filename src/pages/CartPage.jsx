@@ -225,7 +225,7 @@ export default function CartPage() {
 
                 {/* Payment methods */}
                 <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-                  {['visa', 'mastercard', 'arca'].map((m) => <PaymentBadge key={m} name={m} />)}
+                  {['visa', 'mastercard', 'arca', 'idram'].map((m) => <PaymentBadge key={m} name={m} />)}
                 </div>
               </div>
             </div>

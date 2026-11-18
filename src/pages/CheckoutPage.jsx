@@ -45,14 +45,7 @@ const paymentMethods = [
       <PaymentBadge name="arca" />
     </span>
   ) },
-  { value: 'idram', label: 'Idram', description: "You'll be redirected to Idram to pay securely with your Idram wallet.", icon: (
-    <span
-      translate="no"
-      className="inline-flex items-center justify-center bg-white rounded-[3px] border border-black/10 w-[38px] h-[24px] text-[11px] font-bold tracking-tight text-[#f36f21]"
-    >
-      idram
-    </span>
-  ) },
+  { value: 'idram', label: 'Idram', description: "You'll be redirected to Idram to pay securely with your Idram wallet.", icon: <PaymentBadge name="idram" /> },
   { value: 'cash_on_delivery', label: 'Cash on Delivery', description: 'Pay when your order is delivered.', icon: null },
 ];
 const ARCA_CARD_DESCRIPTION = "You'll be redirected to ArCa's secure payment page to pay by card.";

@@ -159,12 +159,11 @@ export default function Footer() {
             © {new Date().getFullYear()} {footerContent.copyrightName}. {t('All rights reserved.')}
           </p>
 
-          {/* Accepted card networks. PayPal/Idram remain unconnected
-              server-side placeholders (see order-api.mjs's
-              ALLOWED_PAYMENT_METHODS) and must not be shown here as if
+          {/* Accepted payment methods. PayPal/Telcell remain unconnected
+              server-side placeholders and must not be shown here as if
               customers could pay with them. */}
           <div className="site-footer__payments" aria-label="Accepted payment methods">
-            {['visa', 'mastercard', 'arca'].map((method) => (
+            {['visa', 'mastercard', 'arca', 'idram'].map((method) => (
               <PaymentBadge key={method} name={method} />
             ))}
           </div>
