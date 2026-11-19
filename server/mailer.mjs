@@ -733,11 +733,18 @@ function editionOwnershipLine(item, { forAdmin = false } = {}) {
   return `<p style="margin:8px 0 0;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${C.accent};">${escapeHtml(text)}</p>`;
 }
 
+// Product images are stored as site-relative paths (/uploads/…), which an
+// email client can't resolve — make them absolute.
+function absoluteImageUrl(src) {
+  if (!src) return null;
+  return /^https?:\/\//i.test(src) ? src : `${getPublicUrl()}${src.startsWith("/") ? "" : "/"}${src}`;
+}
+
 function orderItemsHtml(order, { forAdmin = false } = {}) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${C.line};">${order.items
     .map((item) => {
       const imageCell = item.image
-        ? `<img src="${escapeHtml(item.image)}" width="72" height="90" alt="${escapeHtml(item.name)}" style="display:block;width:72px;height:90px;object-fit:cover;background:${C.panel};border:0;" />`
+        ? `<img src="${escapeHtml(absoluteImageUrl(item.image))}" width="72" height="90" alt="${escapeHtml(item.name)}" style="display:block;width:72px;height:90px;object-fit:cover;background:${C.panel};border:0;" />`
         : `<table role="presentation" width="72" height="90" cellpadding="0" cellspacing="0" style="width:72px;height:90px;background:${C.panel};"><tr><td align="center" valign="middle" style="font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.15em;color:${C.faint};">UP</td></tr></table>`;
       return `
       <tr>
@@ -774,7 +781,11 @@ function sectionTitle(text) {
 // serializeOrder() (items carry resolved `.image`, all totals present) — the
 // same object the storefront's own order-confirmation/tracking views render
 // from, so this email can never drift from real order/product data.
-export async function sendOrderConfirmationEmail({ order }) {
+// Builds the email without sending it (used by sendOrderConfirmationEmail
+// below and by scripts/order-email.mjs's preview). Throws only on a
+// malformed order — callers send through sendOrderConfirmationEmail, which
+// never throws.
+export function buildOrderConfirmationEmail({ order }) {
   const to = order.customer.email;
   const trackUrl = order.orderNumber
     ? `${getPublicUrl()}/track?order=${encodeURIComponent(order.orderNumber)}`
@@ -915,6 +926,27 @@ export async function sendOrderConfirmationEmail({ order }) {
     cta: trackUrl ? { url: trackUrl, label: "Track your order" } : null,
   });
 
+  return {
+    from: formatSender("orders"),
+    to,
+    replyTo: EMAIL_SENDERS.support.email,
+    subject: `Urban Phoenix — Order #${order.orderNumber} Confirmed`,
+    text: textLines,
+    html,
+  };
+}
+
+// Never throws: building or sending problems come back as
+// { sent: false, error } so the caller can record them on the order.
+// subjectPrefix: "[TEST] " for test sends from scripts/order-email.mjs.
+export async function sendOrderConfirmationEmail({ order, subjectPrefix = "" }) {
+  let mail;
+  try {
+    mail = buildOrderConfirmationEmail({ order });
+  } catch (error) {
+    console.error(`[mail] order confirmation (#${order?.orderNumber}) could not be built:`, error);
+    return { sent: false, reason: "build-failed", error: `Could not build the email: ${error.message}` };
+  }
   if (!isConfigured) {
     console.log(
       "--------------------------------------------------------------",
@@ -922,23 +954,16 @@ export async function sendOrderConfirmationEmail({ order }) {
     console.log(
       `SMTP is not configured — order confirmation email not actually sent.`,
     );
-    console.log(`Order confirmation for ${to}: #${order.orderNumber}`);
+    console.log(`Order confirmation for ${mail.to}: #${order.orderNumber}`);
     console.log(
       "--------------------------------------------------------------",
     );
-    return { sent: false };
+    return { sent: false, reason: "unconfigured", error: "Email is not configured: set ZEPTOMAIL_TOKEN (production) or SMTP_HOST/PORT/USER/PASS." };
   }
 
   // The order is already committed by the time this runs — deliver() never
   // throws, so a failed email can never look like a failed order.
-  return deliver({
-    from: formatSender("orders"),
-    to,
-    replyTo: EMAIL_SENDERS.support.email,
-    subject: `Urban Phoenix — Order #${order.orderNumber} Confirmed`,
-    text: textLines,
-    html,
-  }, `order confirmation (#${order.orderNumber})`);
+  return deliver({ ...mail, subject: `${subjectPrefix}${mail.subject}` }, `order confirmation (#${order.orderNumber})`);
 }
 
 export async function sendVerificationEmail({ to, name, link }) {

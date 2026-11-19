@@ -490,6 +490,11 @@ export function initDb() {
       await ensureColumn("orders", "paymentEnv", "VARCHAR(16) NULL");
       await ensureColumn("orders", "confirmationEmailSentAt", "DATETIME NULL");
       await ensureColumn("orders", "confirmationEmailError", "TEXT NULL");
+      // Retry bookkeeping for the confirmation email (order-api.mjs's
+      // retryPendingConfirmationEmails): how many sends were tried and when
+      // the last one started, so failed sends are retried with backoff.
+      await ensureColumn("orders", "confirmationEmailAttempts", "INT NOT NULL DEFAULT 0");
+      await ensureColumn("orders", "confirmationEmailLastAttemptAt", "DATETIME NULL");
       // UP Society rewards (server/loyalty.mjs): points taken back from an
       // order (cancel/refund/return) and whether the points spent on it were
       // given back — together they make every reversal happen at most once.

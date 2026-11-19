@@ -188,7 +188,8 @@ export default function AdminOrders({ onNavigate }) {
               <br />Payment status: <span className="font-mono">{PAYMENT_STATUS_LABELS[detailOrder.paymentStatus] || detailOrder.paymentStatus}</span>
               {detailOrder.paymentProvider && <><br />Payment provider: <span className="font-mono">{detailOrder.paymentProvider}</span></>}
               {detailOrder.providerTransactionId && <><br />Provider reference: <span className="font-mono">{detailOrder.providerTransactionId}</span></>}
-              <br />Confirmation email: <span className="font-mono">{detailOrder.confirmationEmailSentAt ? `sent ${new Date(detailOrder.confirmationEmailSentAt).toLocaleString()}` : 'not sent'}</span>
+              <br />Confirmation email: <span className="font-mono">{detailOrder.confirmationEmailSentAt ? `sent ${new Date(detailOrder.confirmationEmailSentAt).toLocaleString()}` : `not sent${detailOrder.confirmationEmailAttempts ? ` (${detailOrder.confirmationEmailAttempts} attempt${detailOrder.confirmationEmailAttempts === 1 ? '' : 's'})` : ''}`}</span>
+              {!detailOrder.confirmationEmailSentAt && detailOrder.confirmationEmailError && <><br />Email error: <span className="font-mono text-red-300 break-all">{detailOrder.confirmationEmailError}</span></>}
             </div>
           </>
         )}

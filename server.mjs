@@ -20,6 +20,7 @@ import {
   reconcilePendingArcaPayments,
 } from "./server/payment/arcaService.mjs";
 import { describeSmtpConfig } from "./server/mailer.mjs";
+import { retryPendingConfirmationEmails } from "./server/order-api.mjs";
 
 // Refuses to boot (throws, crashing the process before it ever listens) if
 // NODE_ENV=production and ADMIN_PASSWORD is unset or still the documented
@@ -46,6 +47,13 @@ console.log(`Payment: ${describeArcaConfig().message}`);
 // logs the App Password itself, just whether SMTP_HOST/PORT/USER/PASS are
 // present.
 console.log(`SMTP: ${describeSmtpConfig().message}`);
+// Production runs on DigitalOcean, which blocks outgoing SMTP (465/587), so
+// order confirmations only work there through ZeptoMail (HTTPS).
+if (process.env.NODE_ENV === "production" && !process.env.ZEPTOMAIL_TOKEN) {
+  console.warn(
+    "WARNING: ZEPTOMAIL_TOKEN is not set — on this server SMTP ports are blocked, so order confirmation emails will FAIL. Set ZEPTOMAIL_TOKEN in .env (see .env.example).",
+  );
+}
 
 // Creates every table on a fresh 'urban' database (no-op once they already
 // exist) — must resolve before anything below queries the database.
@@ -84,3 +92,16 @@ if (isArcaConfigured()) {
       .catch((error) => console.error("[arca] reconciliation failed:", error));
   }, 5 * 60 * 1000).unref();
 }
+
+// Order confirmation emails that failed (provider down, bad config, process
+// restarted mid-send) are retried with backoff for recent orders — see
+// retryPendingConfirmationEmails() in server/order-api.mjs. First run shortly
+// after startup, then every 5 minutes.
+const retryConfirmationEmails = () =>
+  retryPendingConfirmationEmails()
+    .then(({ sent, failed }) => {
+      if (sent || failed) console.log(`[mail] confirmation retry: ${sent} sent, ${failed} still failing`);
+    })
+    .catch((error) => console.error("[mail] confirmation retry sweep failed:", error));
+setTimeout(retryConfirmationEmails, 60 * 1000).unref();
+setInterval(retryConfirmationEmails, 5 * 60 * 1000).unref();

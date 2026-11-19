@@ -493,27 +493,104 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
 
   const row = await get('SELECT * FROM orders WHERE id = ?', [id]);
 
-  // Fires only once, right after the INSERT above has actually committed —
-  // never from the idempotency-duplicate branches earlier in this function,
-  // which return an order that was already created (and already emailed) on
-  // a prior request. sendOrderConfirmationEmail() catches its own errors and
-  // never throws (mirrors every other mailer.mjs function), so a failed send
-  // can't undo or fail this already-saved order — the order is the thing
-  // that matters and is already committed above; email delivery is tracked
-  // (confirmationEmailSentAt/confirmationEmailError) but never blocks or
-  // rolls back a successful order.
-  // serializeOrderSingle (not bare serializeOrder) so each item carries its
-  // real product image in the email instead of the monogram placeholder.
-  const emailOrder = await serializeOrderSingle(row);
-  const emailResult = await sendOrderConfirmationEmail({ order: emailOrder });
-  await run(
-    'UPDATE orders SET confirmationEmailSentAt = ?, confirmationEmailError = ? WHERE id = ?',
-    [emailResult.sent ? now.toISOString().slice(0, 19).replace('T', ' ') : null, emailResult.sent ? null : (emailResult.error || 'not sent'), id]
-  );
-  // Store-owner alert — fire-and-forget, never affects the customer's order.
-  sendAdminNewOrderEmail({ order: emailOrder }).catch(() => {});
+  // The order is committed. Emails go out in the background: nothing about
+  // them may delay or fail this response — the payment provider's callback
+  // (Idram's RESULT_URL waits for our "OK") and the customer's redirect both
+  // run through here. Fires only on a fresh INSERT, never from the
+  // idempotency-duplicate branches above. A send that fails (or a process
+  // restart before it finishes) is picked up again by
+  // retryPendingConfirmationEmails().
+  queueOrderEmails(id);
 
   return { status: 201, body: successBody(row) };
+}
+
+function queueOrderEmails(orderId) {
+  setImmediate(async () => {
+    await sendConfirmationForOrder(orderId);
+    try {
+      const order = await serializeOrderSingle(await get('SELECT * FROM orders WHERE id = ?', [orderId]));
+      // Store-owner alert — best effort, never affects the customer's order.
+      if (order) await sendAdminNewOrderEmail({ order });
+    } catch (error) {
+      console.error(`[mail] admin new-order alert for order ${orderId} failed: ${error.message}`);
+    }
+  });
+}
+
+// ---------- Order confirmation email: send, record, retry ----------
+// Backoff between attempts: 5, 10, 20, 40, 80, 160, 320 minutes, then it
+// stops (about 10.5 hours of retries) and the error stays on the order for
+// the admin to see (Admin → Orders → order details) and resend by hand
+// (scripts/order-email.mjs).
+const CONFIRMATION_MAX_ATTEMPTS = 8;
+// Only orders this recent are retried automatically, so turning the sweep on
+// can never email customers about old orders.
+const CONFIRMATION_RETRY_WINDOW_HOURS = 72;
+
+const sqlNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+// Sends the confirmation email for one order and records the outcome on it
+// (confirmationEmailSentAt / confirmationEmailError / attempts). Never throws.
+// Skips orders that were already emailed. The UPDATE…WHERE claim makes sure
+// two callers (the checkout itself and the retry sweep) can't send the same
+// email twice at the same moment.
+export async function sendConfirmationForOrder(orderId) {
+  let orderNumber = orderId;
+  try {
+    const claim = await run(
+      `UPDATE orders SET confirmationEmailAttempts = confirmationEmailAttempts + 1, confirmationEmailLastAttemptAt = ?
+        WHERE id = ? AND confirmationEmailSentAt IS NULL
+          AND (confirmationEmailLastAttemptAt IS NULL OR confirmationEmailLastAttemptAt < ?)`,
+      [sqlNow(), orderId, new Date(Date.now() - 2 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')]
+    );
+    if (!claim.affectedRows) return { sent: false, skipped: true };
+    const row = await get('SELECT * FROM orders WHERE id = ?', [orderId]);
+    orderNumber = row.orderNumber;
+    // serializeOrderSingle (not bare serializeOrder) so each item carries its
+    // real product image in the email instead of the monogram placeholder.
+    const result = await sendOrderConfirmationEmail({ order: await serializeOrderSingle(row) });
+    await run('UPDATE orders SET confirmationEmailSentAt = ?, confirmationEmailError = ? WHERE id = ?', [
+      result.sent ? sqlNow() : null,
+      result.sent ? null : clean(result.error || 'Email was not sent (mail is not configured).', 1000),
+      orderId,
+    ]);
+    if (!result.sent) console.error(`[mail] order confirmation #${orderNumber} NOT sent (attempt ${row.confirmationEmailAttempts}/${CONFIRMATION_MAX_ATTEMPTS}): ${result.error || 'mail is not configured'}`);
+    return result;
+  } catch (error) {
+    // Anything unexpected (building the email, a DB hiccup): log it loudly
+    // and leave it on the order so the retry sweep and the admin can see it.
+    console.error(`[mail] order confirmation #${orderNumber} FAILED:`, error);
+    await run('UPDATE orders SET confirmationEmailError = ? WHERE id = ?', [clean(`Unexpected error: ${error.message}`, 1000), orderId]).catch(() => {});
+    return { sent: false, error: error.message };
+  }
+}
+
+// Runs every few minutes from server.mjs. Picks up recent orders whose
+// confirmation email failed or never went out, respecting the backoff above.
+// Cancelled/refunded orders are skipped.
+export async function retryPendingConfirmationEmails() {
+  const rows = await all(
+    `SELECT id, confirmationEmailAttempts AS attempts, confirmationEmailLastAttemptAt AS lastAttempt FROM orders
+      WHERE confirmationEmailSentAt IS NULL
+        AND status <> 'cancelled' AND paymentStatus <> 'refunded'
+        AND confirmationEmailAttempts < ?
+        AND createdAt >= ?
+      ORDER BY createdAt ASC LIMIT 25`,
+    [CONFIRMATION_MAX_ATTEMPTS, new Date(Date.now() - CONFIRMATION_RETRY_WINDOW_HOURS * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ')]
+  );
+  let sent = 0;
+  let failed = 0;
+  for (const row of rows) {
+    // DATETIMEs are stored and read back as UTC 'YYYY-MM-DD HH:MM:SS' strings.
+    const last = row.lastAttempt ? new Date(`${String(row.lastAttempt).replace(' ', 'T')}Z`).getTime() : 0;
+    const waitMs = row.attempts > 0 ? 5 * 60 * 1000 * 2 ** (row.attempts - 1) : 0;
+    if (last && Date.now() - last < waitMs) continue;
+    const result = await sendConfirmationForOrder(row.id);
+    if (result.sent) sent += 1;
+    else if (!result.skipped) failed += 1;
+  }
+  return { sent, failed };
 }
 
 export async function createOrder(payload = {}) {
@@ -589,9 +666,16 @@ export async function listOrdersByEmail(email) {
   return { status: 200, body: { orders: await serializeOrders(rows) } };
 }
 
+// Admin only (GET /api/admin/orders). Adds the confirmation email's delivery
+// details, which the customer-facing serializers deliberately leave out.
 export async function listOrders() {
   const rows = await all('SELECT * FROM orders ORDER BY createdAt DESC');
-  return serializeOrders(rows);
+  const orders = await serializeOrders(rows);
+  return orders.map((order, i) => ({
+    ...order,
+    confirmationEmailError: rows[i].confirmationEmailError || null,
+    confirmationEmailAttempts: Number(rows[i].confirmationEmailAttempts || 0),
+  }));
 }
 
 // Verified Purchase Reviews: an order only counts as a real purchase once
@@ -732,10 +816,7 @@ export async function updateOrderStatus(id, { status, paymentStatus }) {
     if (existing.confirmationEmailSentAt) {
       sendOrderStatusEmail({ order: row, event: 'confirmed' }).catch(() => {});
     } else {
-      serializeOrderSingle(row)
-        .then((order) => sendOrderConfirmationEmail({ order }))
-        .then((r) => r.sent && run('UPDATE orders SET confirmationEmailSentAt = CURRENT_TIMESTAMP, confirmationEmailError = NULL WHERE id = ?', [orderId]))
-        .catch(() => {});
+      sendConfirmationForOrder(orderId);
     }
   }
   if (justShipped) sendOrderStatusEmail({ order: row, event: 'shipped' }).catch(() => {});
