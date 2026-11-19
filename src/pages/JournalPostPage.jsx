@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, setJournalPostMeta } from '../context/AppContext';
+import { staticPageMeta } from '../seo/pageMeta';
 import { handleImgError } from '../utils/imageFallback';
 import ProductCard from '../components/ProductCard';
 import ScrollReveal from '../components/ScrollReveal';
@@ -24,6 +25,13 @@ export default function JournalPostPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [slug]);
+
+  // The article's own title/description/cover image for the tab and share
+  // previews (the server renders the same tags into the first response).
+  useEffect(() => {
+    if (post) setJournalPostMeta(post);
+    else if (notFound) document.title = staticPageMeta('not-found').title;
+  }, [post, notFound]);
 
   if (loading) return <PageSkeleton />;
 

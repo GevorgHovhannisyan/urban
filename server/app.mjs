@@ -96,6 +96,8 @@ import {
 import { getSiteContent, updateSiteContentSection } from "./content-api.mjs";
 import { submitContactForm } from "./contact-api.mjs";
 import { createRateLimiter } from "./rate-limit.mjs";
+import { imageVariants } from "./image-variants.mjs";
+import { SITEMAP_PAGES, pageToPath } from "../src/seo/pageMeta.js";
 import {
   uploadsDir,
   uploadImage,
@@ -210,6 +212,19 @@ export function createApp({ allowFraming = false } = {}) {
       app.set("trust proxy", Number(trustProxySetting));
     else app.set("trust proxy", trustProxySetting);
   }
+
+  // www → apex: 301 to the canonical PUBLIC_URL host (e.g.
+  // www.urbanphoenix.am/shop → https://urbanphoenix.am/shop). nginx should
+  // do this first with its own `return 301`; this is the fallback if a www
+  // request ever reaches Node. No-op when PUBLIC_URL isn't set (local dev).
+  let canonicalHost = "";
+  try { canonicalHost = process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).host : ""; } catch { /* invalid PUBLIC_URL: skip */ }
+  if (canonicalHost && !canonicalHost.startsWith("www.")) {
+    app.use((req, res, next) => {
+      if ((req.get("host") || "").toLowerCase() !== `www.${canonicalHost}`) return next();
+      return res.redirect(301, `${process.env.PUBLIC_URL.replace(/\/$/, "")}${req.originalUrl}`);
+    });
+  }
   // A small, hand-written set of security headers rather than pulling in
   // helmet for a handful of values, matching this app's existing
   // no-extra-dependency style (see the custom rate limiter).
@@ -283,6 +298,10 @@ export function createApp({ allowFraming = false } = {}) {
   // Every upload gets a unique, never-reused filename (server/uploads.mjs),
   // so a given URL's bytes never change — safe to cache for a year. Without
   // this, browsers re-checked large files like the hero video on every visit.
+  // ?w=400|800|1200|1600 → a resized WebP of the uploaded photo (cached;
+  // originals untouched) — what the storefront's srcset requests. See
+  // server/image-variants.mjs.
+  app.use("/uploads", imageVariants(uploadsDir));
   app.use("/uploads", express.static(uploadsDir, { maxAge: "365d", immutable: true }));
 
   // ---------- Public API ----------
@@ -1207,11 +1226,17 @@ export function createApp({ allowFraming = false } = {}) {
     const base = (
       process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`
     ).replace(/\/$/, "");
-    const staticPaths = ["/", "/shop", "/collection", "/about", "/contact", "/contact-info", "/shipping", "/refund", "/cancellation", "/terms", "/privacy"];
+    // Generated on every request: public pages from the shared page list
+    // (src/seo/pageMeta.js), plus every live product and published journal
+    // article from the database — new ones appear automatically.
+    const staticPaths = SITEMAP_PAGES.map((page) => pageToPath(page));
     const productPaths = (await listProducts({ isLoggedIn: false })).map(
-      (p) => `/product/${encodeURIComponent(p.id)}`,
+      (p) => pageToPath("product", { id: p.id }),
     );
-    const urls = [...staticPaths, ...productPaths]
+    const journalPaths = (await listPublishedPosts()).map((post) =>
+      pageToPath("journal-post", { slug: post.slug }),
+    );
+    const urls = [...staticPaths, ...productPaths, ...journalPaths]
       .map((path) => `  <url><loc>${base}${path}</loc></url>`)
       .join("\n");
     res

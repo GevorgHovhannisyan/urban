@@ -10,6 +10,7 @@ import PrivacyPopup from './components/PrivacyPopup';
 import RegionPopup from './components/RegionPopup';
 import { PageSkeleton } from './components/Skeleton';
 import ProductsUnavailable from './components/ProductsUnavailable';
+import { KNOWN_PAGES } from './seo/pageMeta';
 
 // HomePage loads eagerly (the most common landing page — no reason to show a
 // loading flash for it). Every other route is code-split so a first-time
@@ -75,7 +76,7 @@ function EmailVerificationBanner() {
 // of them and silently rendered an empty page-transition div (just header/
 // footer, no content, no error message). Anything not in this set now falls
 // through to NotFoundPage instead of rendering nothing.
-const KNOWN_PAGES = new Set(['home','shop','product','collection','about','cart','wishlist','search','login','reset-password','account','checkout','track','contact','journal','journal-post','drop','gift-cards','sizing','shipping','faq','privacy','terms','cookies','campaign','refund','cancellation','legal','contact-info']);
+// Page list shared with the server (real 404 status for anything else).
 
 function NotFoundPage(){const {navigate}=useApp(); return <main className="min-h-screen flex items-center justify-center px-6 pt-[var(--site-header-h,68px)]"><div className="text-center max-w-xl"><p className="text-accent font-mono uppercase tracking-widest mb-5">404</p><h1 className="font-display font-black text-4xl uppercase mb-5">Page not found</h1><p className="text-muted mb-8">The page you're looking for doesn't exist or may have moved.</p><button onClick={() => navigate('home')} className="btn-primary px-8 py-4 uppercase text-xs tracking-widest">Return home</button></div></main>;}
 

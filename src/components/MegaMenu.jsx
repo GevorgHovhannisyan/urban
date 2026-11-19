@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, pageToPath } from '../context/AppContext';
+import { variantUrl } from '../utils/responsiveImage';
 
 // Only live categories (see data/categories.js) appear in navigation.
 export { CATEGORIES, CATEGORY_LABELS, LIVE_CATEGORIES } from '../data/categories';
@@ -13,7 +14,15 @@ import { CATEGORIES, CATEGORY_LABELS } from '../data/categories';
 // focus/blur) are both still supported.
 function MegaMenuShell({ label, href, onNavigate, panel }) {
   const [open, setOpen] = useState(false);
+  // The panel stays mounted (invisible) so it can fade in; `activated` lets
+  // heavy panel media (the Shop menu video) wait until the first open
+  // instead of downloading on every page load.
+  const [activated, setActivated] = useState(false);
   const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (open) setActivated(true);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +43,7 @@ function MegaMenuShell({ label, href, onNavigate, panel }) {
       <a href={href} onClick={onNavigate} className="up-nav">{label}</a>
       <div className={`${open ? 'visible opacity-100 translate-y-0' : 'invisible opacity-0 translate-y-1'} transition-all duration-200 absolute left-0 top-full pt-5 z-50`}>
         <div className="bg-bg border border-border shadow-2xl w-[min(90vw,480px)]">
-          {panel}
+          {typeof panel === 'function' ? panel(activated) : panel}
         </div>
       </div>
     </div>
@@ -46,19 +55,22 @@ function MegaMenuShell({ label, href, onNavigate, panel }) {
 // set; otherwise falls back to a plain wordmark treatment (matching
 // Footer.css's `.site-footer__wordmark` oversized-brand-text idea, scaled
 // down to fit this panel).
-function ShopMegaMenuBrandPanel({ video }) {
+function ShopMegaMenuBrandPanel({ video, active }) {
   if (video?.videoUrl) {
     return (
       <div className="relative overflow-hidden bg-card border-l border-border h-full min-h-[220px]">
-        <video
-          src={video.videoUrl}
-          poster={video.posterUrl || undefined}
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        {active && (
+          <video
+            src={video.videoUrl}
+            poster={variantUrl(video.posterUrl, 800) || undefined}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
       </div>
     );
   }
@@ -86,7 +98,7 @@ export function ShopMegaMenu({ navigate }) {
       label={t('Shop')}
       href={pageToPath('shop')}
       onNavigate={go}
-      panel={
+      panel={(active) => (
         <div className="grid grid-cols-[1fr_1fr]">
           <div className="p-8">
             <p className="text-[10px] font-mono text-muted tracking-[0.2em] uppercase mb-5">Shop By Category</p>
@@ -107,9 +119,9 @@ export function ShopMegaMenu({ navigate }) {
               {t('Shop All')} →
             </a>
           </div>
-          <ShopMegaMenuBrandPanel video={content.shopMenuVideo} />
+          <ShopMegaMenuBrandPanel video={content.shopMenuVideo} active={active} />
         </div>
-      }
+      )}
     />
   );
 }

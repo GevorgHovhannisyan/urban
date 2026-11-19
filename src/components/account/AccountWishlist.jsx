@@ -1,5 +1,6 @@
 import { useApp } from '../../context/AppContext';
 import { EmptyState } from './AccountOrders';
+import { responsiveImage } from '../../utils/responsiveImage';
 
 export default function AccountWishlist() {
   const { wishlist, products, toggleWishlist, navigate, formatMoney } = useApp();
@@ -23,7 +24,7 @@ export default function AccountWishlist() {
         {items.map((product) => (
           <div key={product.id} className="border border-border">
             <button onClick={() => navigate('product', product)} className="block w-full aspect-[3/4] bg-card overflow-hidden">
-              {product.images?.[0] && <img src={product.images[0]} alt={product.name} className="w-full h-full up-photo object-cover" />}
+              {product.images?.[0] && <img {...responsiveImage(product.images[0], '(min-width: 1024px) 25vw, 50vw')} loading="lazy" alt={product.name} className="w-full h-full up-photo object-cover" />}
             </button>
             <div className="p-4">
               {product.collection && <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-1">{product.collection}</p>}

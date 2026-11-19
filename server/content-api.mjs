@@ -159,7 +159,7 @@ const DEFAULTS = {
     productsHeadingMode: 'dynamic',
     productsHeadingCustom: '',
     // 05 — SEO (this page's own; product/other-page SEO is out of scope here)
-    seoTitle: 'Collection 001 — Urban Phoenix',
+    seoTitle: 'Collection 001 | Urban Phoenix',
     seoDescription: 'Freedom To Become. Urban Phoenix Collection 001 — three pieces built for those who choose evolution over comfort.',
     seoImage: '',
   },

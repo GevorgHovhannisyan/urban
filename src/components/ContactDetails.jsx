@@ -22,7 +22,7 @@ export default function ContactDetails({ className = '', itemClassName = '', lab
         <div key={label} className={itemClassName}>
           <dt className={labelClassName}>{t(label)}</dt>
           <dd className={`whitespace-pre-line ${valueClassName}`}>
-            {href ? <a href={href} className="hover:text-accent transition-colors" translate="no">{value}</a> : value}
+            {href ? <a href={href} className="tap-target relative hover:text-accent transition-colors" translate="no">{value}</a> : value}
             {note && <span className="block mt-1 text-[11px] opacity-60">{note}</span>}
           </dd>
         </div>

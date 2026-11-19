@@ -1136,6 +1136,20 @@ Object.assign(translations.ru, {
   "Free shipping on orders delivered within Armenia. International orders add a flat 10,000 AMD shipping fee, calculated at checkout.": "Бесплатная доставка по Армении. Международные заказы облагаются фиксированной доставкой в 10 000 драм, рассчитывается при оформлении заказа.",
 });
 
+// ---- Screen-reader-only labels (accessible names, not visible text) ----
+Object.assign(translations.hy, {
+  "Decrease quantity": "Նվազեցնել քանակը",
+  "Increase quantity": "Ավելացնել քանակը",
+  "Topic": "Թեմա",
+  "Verification code": "Հաստատման կոդ",
+});
+Object.assign(translations.ru, {
+  "Decrease quantity": "Уменьшить количество",
+  "Increase quantity": "Увеличить количество",
+  "Topic": "Тема",
+  "Verification code": "Код подтверждения",
+});
+
 // ---- Full storefront review (October 2026) — must stay LAST ----
 // Corrects earlier mixed-language/inconsistent entries and fills every gap
 // found by crawling the site; see src/i18n/storefront.js.

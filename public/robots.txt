@@ -6,4 +6,4 @@ Disallow: /account
 Disallow: /admin
 Disallow: /reset-password
 
-Sitemap: /sitemap.xml
+Sitemap: https://urbanphoenix.am/sitemap.xml

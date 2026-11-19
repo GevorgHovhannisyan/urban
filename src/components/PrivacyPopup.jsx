@@ -1,38 +1,43 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useDialogBehavior } from '../hooks/useDialogBehavior';
+import { hasPrivacyChoice, savePrivacyChoice } from '../utils/privacyChoice';
 
-const STORAGE_KEY = 'up_privacy_choice';
-
+// New visitors make this choice inside the first-visit country dialog
+// (RegionPopup). This standalone version only appears for visitors who
+// already picked a country but never chose (e.g. before the two were
+// combined). Escape = "Essential only".
 export default function PrivacyPopup({ onOpenPrivacy }) {
   const [open, setOpen] = useState(false);
+  const dialogRef = useRef(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
+    if (!hasPrivacyChoice()) {
       const timer = window.setTimeout(() => setOpen(true), 450);
       return () => window.clearTimeout(timer);
     }
   }, []);
 
   const saveChoice = (choice) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      choice,
-      savedAt: new Date().toISOString(),
-    }));
+    savePrivacyChoice(choice);
     setOpen(false);
   };
+
+  useDialogBehavior(open, () => saveChoice('essential'), dialogRef, { lockScroll: false, focusContainer: true });
 
   if (!open) return null;
 
   return (
     <div className="privacy-popup-overlay" role="presentation">
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         className="privacy-popup"
         role="dialog"
         aria-modal="true"
         aria-labelledby="privacy-popup-title"
       >
         <div className="privacy-popup__mark" aria-hidden="true">
-          <img src="/images/brand/up-logo.png" alt="" className="privacy-popup__mark-img" style={{ filter: 'invert(1)', mixBlendMode: 'screen' }} />
+          <img src="/images/brand/up-logo-400.png" alt="" className="privacy-popup__mark-img" style={{ filter: 'invert(1)', mixBlendMode: 'screen' }} />
         </div>
         <p className="privacy-popup__eyebrow">Your privacy, your choice</p>
         <h2 id="privacy-popup-title">A cleaner browsing experience</h2>

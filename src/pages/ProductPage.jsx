@@ -16,6 +16,7 @@ import Icon from '../components/Icon';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { FREE_US_SHIPPING_THRESHOLD, DELIVERY_ESTIMATES } from '../data/shippingRules';
 import { localizeProductField, standardShippingText, standardReturnsText } from '../data/productTranslations';
+import { responsiveImage, variantUrl } from '../utils/responsiveImage';
 // Accordion keys stay stable (openSections, tabContent) — only the
 // customer-facing label changes, separating emotional "Product Story" copy
 // from the technical spec sections per the storytelling/technical split.
@@ -231,9 +232,9 @@ export default function ProductPage({ product }) {
     return (<main className="bg-bg min-h-screen pt-[var(--site-header-h,68px)]">
       {/* Breadcrumb */}
       <div className="max-w-screen-2xl mx-auto px-6 lg:px-12 py-4 flex items-center gap-2">
-        <button onClick={() => navigate('home')} className="text-[10px] font-mono text-muted hover:text-fg transition-colors tracking-wide uppercase">Home</button>
+        <button onClick={() => navigate('home')} className="tap-target relative text-[10px] font-mono text-muted hover:text-fg transition-colors tracking-wide uppercase">Home</button>
         <span className="text-muted/40 text-[10px] font-mono">/</span>
-        <button onClick={() => navigate('shop')} className="text-[10px] font-mono text-muted hover:text-fg transition-colors tracking-wide uppercase">Shop</button>
+        <button onClick={() => navigate('shop')} className="tap-target relative text-[10px] font-mono text-muted hover:text-fg transition-colors tracking-wide uppercase">Shop</button>
         <span className="text-muted/40 text-[10px] font-mono">/</span>
         <span className="text-[10px] font-mono text-fg/70 tracking-wide uppercase truncate max-w-[160px]">{product.name}</span>
       </div>
@@ -246,7 +247,7 @@ export default function ProductPage({ product }) {
             <div className="flex lg:hidden overflow-x-auto snap-x snap-mandatory" style={{ scrollbarWidth: 'none' }}>
               {galleryImages.map((img, i) => (
                 <div key={i} className="relative shrink-0 w-full snap-center bg-card" style={{ aspectRatio: '4/5' }} onClick={() => { setActiveImage(i); setLightboxOpen(true); }}>
-                  <img src={img} onError={handleImgError} alt={product.name} fetchPriority={i === 0 ? 'high' : undefined} loading={i === 0 ? undefined : 'lazy'} className="w-full h-full up-photo object-cover"/>
+                  <img {...responsiveImage(img, '100vw', 1200)} onError={handleImgError} alt={product.name} fetchPriority={i === 0 ? 'high' : undefined} loading={i === 0 ? undefined : 'lazy'} className="w-full h-full up-photo object-cover"/>
                   {i === 0 && product.isNew && (<div className="absolute top-4 left-4">
                       <span className="bg-accent text-white text-[10px] font-mono tracking-widest uppercase px-2 py-0.5">New</span>
                     </div>)}
@@ -267,7 +268,7 @@ export default function ProductPage({ product }) {
               {galleryImages.map((img, i) => (
                 <img
                   key={img + i}
-                  src={img}
+                  {...responsiveImage(img, '50vw')}
                   onError={handleImgError}
                   alt={product.name}
                   fetchPriority={i === 0 ? 'high' : undefined}
@@ -285,8 +286,8 @@ export default function ProductPage({ product }) {
 
             {/* Thumbnails (desktop) */}
             {galleryImages.length > 1 && (<div className="hidden lg:flex gap-2">
-                {galleryImages.map((img, i) => (<button key={i} onClick={() => setActiveImage(i)} className={`relative overflow-hidden bg-card transition-all duration-200 ${activeImage === i ? 'ring-1 ring-accent' : 'opacity-50 hover:opacity-80'}`} style={{ width: '72px', aspectRatio: '3/4' }}>
-                    <img src={img} onError={handleImgError} alt="" className="w-full h-full up-photo object-cover"/>
+                {galleryImages.map((img, i) => (<button key={i} type="button" aria-label={`Show image ${i + 1} of ${galleryImages.length}`} aria-pressed={activeImage === i} onClick={() => setActiveImage(i)} className={`relative overflow-hidden bg-card transition-all duration-200 ${activeImage === i ? 'ring-1 ring-accent' : 'opacity-50 hover:opacity-80'}`} style={{ width: '72px', aspectRatio: '3/4' }}>
+                    <img {...responsiveImage(img, '96px', 400)} loading="lazy" onError={handleImgError} alt="" className="w-full h-full up-photo object-cover"/>
                   </button>))}
               </div>)}
           </div>
@@ -339,7 +340,7 @@ export default function ProductPage({ product }) {
                   {sizeError ? (quantity > 1 ? 'Please choose a size for every piece' : 'Please select a size') : (quantity > 1 ? 'Size for all pieces' : 'Size')}
                 </p>
                 {hasSizes && (
-                  <button type="button" onClick={() => setSizeGuideOpen(true)} className="text-[10px] font-mono text-muted underline underline-offset-2 hover:text-fg transition-colors tracking-wide">
+                  <button type="button" onClick={() => setSizeGuideOpen(true)} className="tap-target relative text-[10px] font-mono text-muted underline underline-offset-2 hover:text-fg transition-colors tracking-wide">
                     Size Guide
                   </button>
                 )}
@@ -378,7 +379,7 @@ export default function ProductPage({ product }) {
             <div className="mb-8">
               <p className="text-[10px] font-mono text-muted tracking-[0.2em] uppercase mb-3">Quantity</p>
               <div className="flex items-center border border-border w-fit">
-                <button onClick={() => setQuantitySafe(quantity - 1)} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-r border-border">
+                <button type="button" aria-label="Decrease quantity" onClick={() => setQuantitySafe(quantity - 1)} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-r border-border">
                   −
                 </button>
                 <input
@@ -390,7 +391,7 @@ export default function ProductPage({ product }) {
                   onChange={(event) => setQuantitySafe(event.target.value)}
                   aria-label="Quantity"
                 />
-                <button disabled={quantity >= 100} onClick={() => setQuantitySafe(quantity + 1)} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-l border-border">
+                <button type="button" aria-label="Increase quantity" disabled={quantity >= 100} onClick={() => setQuantitySafe(quantity + 1)} className="w-11 h-11 flex items-center justify-center text-muted hover:text-fg transition-colors text-lg border-l border-border">
                   +
                 </button>
               </div>
@@ -488,7 +489,7 @@ export default function ProductPage({ product }) {
             </div>
 
             {/* Wishlist */}
-            <button onClick={() => toggleWishlist(product.id)} className="flex items-center gap-2 text-[11px] font-mono text-muted hover:text-fg transition-colors tracking-widest uppercase mb-8">
+            <button onClick={() => toggleWishlist(product.id)} className="tap-target relative flex items-center gap-2 text-[11px] font-mono text-muted hover:text-fg transition-colors tracking-widest uppercase mb-8">
               <svg width="14" height="14" viewBox="0 0 24 24" fill={wishlisted ? '#C65D1E' : 'none'} stroke={wishlisted ? '#C65D1E' : 'currentColor'} strokeWidth="1.5">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
@@ -693,7 +694,7 @@ export default function ProductPage({ product }) {
           ) : !hasSizes ? (
             <span className="px-6 py-3 text-[10px] font-mono tracking-widest uppercase bg-[var(--hover-overlay)] text-muted border border-border shrink-0">Coming Soon</span>
           ) : (
-            <button onClick={handleAddToCart} className={`px-6 py-3 text-[10px] font-mono tracking-[0.2em] uppercase shrink-0 transition-colors ${addedMsg ? 'bg-fg text-bg' : 'bg-accent text-white hover:bg-accent-light'}`}>
+            <button onClick={handleAddToCart} className={`tap-target relative px-6 py-3 text-[10px] font-mono tracking-[0.2em] uppercase shrink-0 transition-colors ${addedMsg ? 'bg-fg text-bg' : 'bg-accent text-white hover:bg-accent-light'}`}>
               {addedMsg ? '✓ Added' : 'Add to Bag'}
             </button>
           )}
@@ -726,9 +727,9 @@ export default function ProductPage({ product }) {
               <line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
-          <img src={galleryImages[activeImage]} onError={handleImgError} alt={product.name} className="max-w-3xl max-h-[90vh] w-full object-contain modal-panel" onClick={e => e.stopPropagation()}/>
+          <img src={variantUrl(galleryImages[activeImage], 1600)} onError={handleImgError} alt={product.name} className="max-w-3xl max-h-[90vh] w-full object-contain modal-panel" onClick={e => e.stopPropagation()}/>
           {galleryImages.length > 1 && (<div className="absolute bottom-6 flex gap-3">
-              {galleryImages.map((_, i) => (<button key={i} onClick={e => { e.stopPropagation(); setActiveImage(i); }} className={`w-2 h-2 rounded-full transition-colors ${activeImage === i ? 'bg-accent' : 'bg-white/30'}`}/>))}
+              {galleryImages.map((_, i) => (<button key={i} type="button" aria-label={`Show image ${i + 1} of ${galleryImages.length}`} aria-pressed={activeImage === i} onClick={e => { e.stopPropagation(); setActiveImage(i); }} className={`tap-target relative w-2 h-2 rounded-full transition-colors ${activeImage === i ? 'bg-accent' : 'bg-white/30'}`}/>))}
             </div>)}
         </div>, document.body)}
     </main>);

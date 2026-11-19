@@ -68,7 +68,7 @@ export default function TrackOrderPage() {
         </p>
 
         <form onSubmit={submit} className="flex flex-col sm:flex-row gap-3">
-          <input name="order" required placeholder="Order number" defaultValue={prefillOrder} className="up-input flex-1" />
+          <input name="order" required placeholder="Order number" aria-label="Order number" defaultValue={prefillOrder} className="up-input flex-1" />
           <button disabled={loading} className="btn-primary px-8 uppercase text-xs tracking-widest py-3.5 sm:py-0 disabled:opacity-60">
             {loading ? 'Searching…' : 'Track'}
           </button>

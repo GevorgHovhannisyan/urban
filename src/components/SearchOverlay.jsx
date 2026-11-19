@@ -4,6 +4,7 @@ import { useApp, pageToPath } from '../context/AppContext';
 import { handleImgError } from '../utils/imageFallback';
 import { useDialogBehavior } from '../hooks/useDialogBehavior';
 import { useExitAnimation } from '../hooks/useExitAnimation';
+import { responsiveImage } from '../utils/responsiveImage';
 
 const POPULAR_SEARCHES = ['Hoodie', 'Cargo Pant', 'Bomber', 'Tee', 'Limited Edition'];
 
@@ -89,7 +90,7 @@ export default function SearchOverlay({ open, onClose }) {
                   style={{ animationDelay: `${i * 40}ms` }}
                 >
                   <div className="w-14 h-[72px] bg-card shrink-0 overflow-hidden">
-                    <img src={product.images[0]} onError={handleImgError} alt="" className="w-full h-full up-photo object-cover" />
+                    <img {...responsiveImage(product.images[0], '96px', 400)} onError={handleImgError} alt="" className="w-full h-full up-photo object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-mono text-muted tracking-widest uppercase mb-0.5">{product.subtitle}</p>

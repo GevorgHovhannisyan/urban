@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_OG_IMAGE, collectionPageMeta, journalPostMeta, pageToPath, pathToPageInfo, productPageMeta, staticPageMeta } from '../seo/pageMeta';
 import { translate, translateDocument } from '../i18n/translations';
 import { RATES } from '../data/currency';
 import { LIVE_CATEGORIES } from '../data/categories';
@@ -100,7 +101,7 @@ const DEFAULT_CONTENT = {
     productsEyebrow: 'Shop The Collection',
     productsHeadingMode: 'dynamic',
     productsHeadingCustom: '',
-    seoTitle: 'Collection 001 — Urban Phoenix',
+    seoTitle: 'Collection 001 | Urban Phoenix',
     seoDescription: 'Freedom To Become. Urban Phoenix Collection 001 — three pieces built for those who choose evolution over comfort.',
     seoImage: '',
   },
@@ -142,55 +143,10 @@ const DEFAULT_CONTENT = {
   },
 };
 
-const PAGE_TITLES = {
-  home: 'Urban Phoenix — Freedom To Become',
-  shop: 'Shop All — Urban Phoenix',
-  collection: 'Collection 001 — Urban Phoenix',
-  about: 'About — Urban Phoenix',
-  cart: 'Your Bag — Urban Phoenix',
-  wishlist: 'Wishlist — Urban Phoenix',
-  search: 'Search — Urban Phoenix',
-  login: 'Sign In — Urban Phoenix',
-  'reset-password': 'Reset Password — Urban Phoenix',
-  account: 'My Account — Urban Phoenix',
-  checkout: 'Checkout — Urban Phoenix',
-  track: 'Track Your Order — Urban Phoenix',
-  contact: 'Contact — Urban Phoenix',
-  journal: 'Journal — Urban Phoenix',
-  drop: 'New Drop — Urban Phoenix',
-  'gift-cards': 'Buy a Gift Card — Urban Phoenix',
-};
-
-// Path <-> page-state mapping, kept intentionally simple so every existing
-// navigate(page, data) call site keeps working untouched: this just mirrors
-// whatever page state is active into the URL (and reads it back on load/back-forward),
-// so refreshing, sharing a link, or using the browser back button no longer dumps
-// the visitor back to the homepage.
-export function pageToPath(page, data, selectedProduct) {
-  if (page === 'home') return '/';
-  if (page === 'product') {
-    const id = data?.product?.id || data?.id || selectedProduct?.id;
-    return id ? `/product/${encodeURIComponent(id)}` : '/shop';
-  }
-  if (page === 'journal-post') {
-    const slug = data?.slug;
-    return slug ? `/journal/${encodeURIComponent(slug)}` : '/journal';
-  }
-  return `/${page}`;
-}
-
-function pathToPageInfo(pathname) {
-  const clean = pathname.replace(/\/+$/, '') || '/';
-  if (clean === '/') return { page: 'home' };
-  const productMatch = clean.match(/^\/product\/([^/]+)$/);
-  if (productMatch) return { page: 'product', productId: decodeURIComponent(productMatch[1]) };
-  const journalMatch = clean.match(/^\/journal\/([^/]+)$/);
-  if (journalMatch) return { page: 'journal-post', slug: decodeURIComponent(journalMatch[1]) };
-  // Idram's SUCCESS_URL / FAIL_URL — handled by the checkout page.
-  const paymentReturnMatch = clean.match(/^\/payment\/(success|fail)$/);
-  if (paymentReturnMatch) return { page: 'checkout', paymentReturn: paymentReturnMatch[1] };
-  return { page: clean.slice(1) };
-}
+// Path <-> page-state mapping lives in src/seo/pageMeta.js so the server can
+// resolve the same routes (per-page <head>, real 404 status, sitemap).
+// Re-exported here because the rest of the app imports it from this module.
+export { pageToPath };
 
 function setMetaTag(name, property, content) {
   const selector = property ? `meta[property="${property}"]` : `meta[name="${name}"]`;
@@ -288,29 +244,49 @@ function buildProductSchema(product, origin) {
 function setDocumentMeta(page, product, content) {
   // Collection 001's own SEO fields (Admin → Site Content → Collections →
   // Collection 001 → 05 SEO) — the only page with CMS-managed SEO today;
-  // every other page keeps its fixed PAGE_TITLES entry. `content` is
+  // every other page uses its src/seo/pageMeta.js entry. `content` is
   // optional (the very first mount-time call fires before the CMS fetch
   // resolves) — DEFAULT_CONTENT.collection001 above covers that case.
   const collectionSeo = content?.collection001;
-  const title = page === 'product' && product
-    ? `${product.name} — Urban Phoenix`
-    : page === 'collection' && collectionSeo?.seoTitle
-      ? collectionSeo.seoTitle
-      : (PAGE_TITLES[page] || 'Urban Phoenix');
-  const description = page === 'product' && product
-    ? (product.description || '').slice(0, 155)
-    : page === 'collection' && collectionSeo?.seoDescription
-      ? collectionSeo.seoDescription
-      : 'Urban Phoenix — streetwear built for those who refuse to stay who they were. Heavyweight tees, hoodies, and outerwear from Collection 001.';
-  document.title = title;
-  setMetaTag('description', null, description);
-  setMetaTag(null, 'og:title', title);
-  setMetaTag(null, 'og:description', description);
-  if (page === 'product' && product?.images?.[0]) setMetaTag(null, 'og:image', product.images[0]);
-  else if (page === 'collection' && (collectionSeo?.seoImage || collectionSeo?.heroImageUrl)) setMetaTag(null, 'og:image', collectionSeo.seoImage || collectionSeo.heroImageUrl);
-  setCanonicalLink(pageToPath(page, {}, product));
+  const meta = page === 'product'
+    ? productPageMeta(product)
+    : page === 'collection' ? collectionPageMeta(collectionSeo) : staticPageMeta(page);
+  // Journal articles: JournalPostPage calls setJournalPostMeta once the post
+  // has loaded. Product pages before the catalogue has loaded: the product
+  // effect below calls this again once it resolves. Until then keep the
+  // server-rendered tags as they are.
+  if (page === 'journal-post' || (page === 'product' && !product)) return;
+  applyMeta(meta, pageToPath(page, {}, product));
   setJsonLd('ld-product', page === 'product' ? buildProductSchema(product, window.location.origin) : null);
   setJsonLd('ld-breadcrumbs', buildBreadcrumbs(page, page === 'product' ? product : null));
+}
+
+function absoluteUrl(url) {
+  if (!url) return url;
+  try { return new URL(url, window.location.origin).href; } catch { return url; }
+}
+
+// Title, description, social tags and canonical — the same set server/seo.mjs
+// writes into the first HTML response.
+function applyMeta(meta, path) {
+  const image = absoluteUrl(meta.image || DEFAULT_OG_IMAGE);
+  document.title = meta.title;
+  setMetaTag('description', null, meta.description);
+  setMetaTag(null, 'og:title', meta.title);
+  setMetaTag(null, 'og:description', meta.description);
+  setMetaTag(null, 'og:image', image);
+  setMetaTag(null, 'og:url', `${window.location.origin}${path}`);
+  setMetaTag('twitter:title', null, meta.title);
+  setMetaTag('twitter:description', null, meta.description);
+  setMetaTag('twitter:image', null, image);
+  setCanonicalLink(path);
+}
+
+export function setJournalPostMeta(post) {
+  if (typeof document === 'undefined') return;
+  applyMeta(journalPostMeta(post), pageToPath('journal-post', { slug: post?.slug }));
+  setJsonLd('ld-product', null);
+  setJsonLd('ld-breadcrumbs', null);
 }
 
 function setOrganizationSchema() {

@@ -11,6 +11,7 @@ import CitySelect from '../components/CitySelect';
 import { DELIVERY_ESTIMATES, deliveryHandoffText } from '../data/shippingRules';
 import { RATES } from '../data/currency';
 import { getCountryName, getCountryCode, SUPPORTED_SHIPPING_COUNTRIES, isSupportedShippingCountry } from '../data/countries';
+import { responsiveImage } from '../utils/responsiveImage';
 
 const initialForm = {
   firstName: '',
@@ -1050,7 +1051,7 @@ export default function CheckoutPage() {
               <div className="space-y-4">
                 {cart.map((item) => (
                   <div key={`${item.product.id}-${item.size}-${item.color}-${(item.editionNumbers || []).join(',')}`} className="flex gap-4">
-                    <img src={item.product.images[0]} onError={handleImgError} alt="" className="w-16 h-20 up-photo object-cover" />
+                    <img {...responsiveImage(item.product.images[0], '96px', 400)} onError={handleImgError} alt="" className="w-16 h-20 up-photo object-cover" />
                     <div className="flex-1">
                       <p>{item.product.name}</p>
                       <p className="text-xs text-muted">{item.size} / {item.color}</p>

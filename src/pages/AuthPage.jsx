@@ -162,7 +162,7 @@ export default function AuthPage() {
                 Enter the email on your account and we'll send you a link to choose a new password.
               </p>
               <form onSubmit={submitForgot} className="space-y-5">
-                <input name="email" type="email" required placeholder="Email" className="up-input" autoComplete="email" autoFocus />
+                <input name="email" type="email" required placeholder="Email" aria-label="Email" className="up-input" autoComplete="email" autoFocus />
                 {error && <p className="text-sm status-error">{error}</p>}
                 <button disabled={isSubmitting} className="w-full btn-primary py-4 uppercase font-mono text-xs tracking-[.2em] disabled:opacity-50">
                   {isSubmitting ? 'Sending…' : 'Send reset link'}
@@ -218,6 +218,7 @@ export default function AuthPage() {
               pattern="[0-9]{6}"
               maxLength="6"
               placeholder="000000"
+              aria-label="Verification code"
               value={codeDigits}
               onChange={(e) => setCodeDigits(e.target.value.replace(/\D/g, '').slice(0, 6))}
               className="up-input text-center text-2xl tracking-[0.4em] font-mono"
@@ -248,15 +249,15 @@ export default function AuthPage() {
         <form onSubmit={submit} className="space-y-5">
           {mode === 'register' && (
             <div className="grid grid-cols-2 gap-4">
-              <input name="firstName" required placeholder="First name" className="up-input" />
-              <input name="lastName" required placeholder="Last name" className="up-input" />
+              <input name="firstName" required placeholder="First name" aria-label="First name" className="up-input" />
+              <input name="lastName" required placeholder="Last name" aria-label="Last name" className="up-input" />
             </div>
           )}
-          <input name="email" type="email" required placeholder="Email" className="up-input" autoComplete="email" />
+          <input name="email" type="email" required placeholder="Email" aria-label="Email" className="up-input" autoComplete="email" />
           {mode === 'register' && (
             <>
               <CountrySelect name="country" value={registerCountry} onChange={setRegisterCountry} required />
-              <input name="phone" type="tel" placeholder="Phone (optional)" className="up-input" autoComplete="tel" />
+              <input name="phone" type="tel" placeholder="Phone (optional)" aria-label="Phone (optional)" className="up-input" autoComplete="tel" />
             </>
           )}
           {/* No minLength on login: an existing account's real password
@@ -265,9 +266,9 @@ export default function AuthPage() {
               still what actually authenticates it, so client-side length
               validation must not block a legitimately-short existing
               password from even being submitted. */}
-          <PasswordInput name="password" required minLength={mode === 'register' ? '8' : undefined} placeholder="Password" className="up-input" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+          <PasswordInput name="password" required minLength={mode === 'register' ? '8' : undefined} placeholder="Password" aria-label="Password" className="up-input" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
           {mode === 'register' && (
-            <PasswordInput name="confirmPassword" required minLength="8" placeholder="Confirm password" className="up-input" autoComplete="new-password" />
+            <PasswordInput name="confirmPassword" required minLength="8" placeholder="Confirm password" aria-label="Confirm password" className="up-input" autoComplete="new-password" />
           )}
           {mode === 'login' && (
             <button type="button" onClick={() => { setMode('forgot'); setError(''); }} className="text-xs text-muted underline block -mt-2">

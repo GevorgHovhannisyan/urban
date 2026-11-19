@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { handleImgError } from '../utils/imageFallback';
 import ScrollReveal from '../components/ScrollReveal';
 import { PageSkeleton } from '../components/Skeleton';
+import { responsiveImage } from '../utils/responsiveImage';
 
 function useCountdown(target) {
   const [remaining, setRemaining] = useState(() => Math.max(0, new Date(target).getTime() - Date.now()));
@@ -60,7 +61,7 @@ function NotifyForm() {
 
   return (
     <form onSubmit={submit} className="flex flex-col sm:flex-row gap-0 max-w-md">
-      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email address" required className="flex-1 bg-transparent border border-border px-5 py-4 text-sm text-fg placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors" />
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email address" aria-label="Your email address" autoComplete="email" required className="flex-1 bg-transparent border border-border px-5 py-4 text-sm text-fg placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors" />
       <button type="submit" disabled={status === 'submitting'} className="bg-accent text-white px-8 py-4 text-[11px] font-mono tracking-[0.2em] uppercase hover:bg-accent-light transition-colors shrink-0 disabled:opacity-50">
         {status === 'submitting' ? 'Submitting…' : 'Notify Me'}
       </button>
@@ -111,7 +112,7 @@ export default function DropPage() {
     <main className="bg-bg min-h-screen">
       {/* Cinematic hero */}
       <section className="relative h-screen min-h-[600px] flex items-end overflow-hidden">
-        <img src={next.images?.[0]} onError={handleImgError} alt="" fetchPriority="high" className="up-photo absolute inset-0 w-full h-full object-cover scale-110" style={{ filter: 'brightness(0.55) blur(2px)' }} />
+        <img {...responsiveImage(next.images?.[0], '100vw')} onError={handleImgError} alt="" fetchPriority="high" className="up-photo absolute inset-0 w-full h-full object-cover scale-110" style={{ filter: 'brightness(0.55) blur(2px)' }} />
         {/* Literal black/white, not bg-bg/text-fg: this scrim and the
             content over it sit on top of photography, not page chrome, so
             they must not flip with the theme. */}
@@ -166,7 +167,7 @@ export default function DropPage() {
             {drops.map((d, i) => (
               <ScrollReveal key={d.id} delay={i * 80}>
                 <div className="relative overflow-hidden bg-card" style={{ aspectRatio: '3/4' }}>
-                  <img src={d.images?.[0]} onError={handleImgError} alt={d.name} loading="lazy" decoding="async" className="up-photo absolute inset-0 w-full h-full object-cover" style={{ filter: d.dropStatus === 'upcoming' ? 'blur(12px) brightness(0.6)' : 'none' }} />
+                  <img {...responsiveImage(d.images?.[0], '(min-width: 1024px) 33vw, 100vw')} onError={handleImgError} alt={d.name} loading="lazy" decoding="async" className="up-photo absolute inset-0 w-full h-full object-cover" style={{ filter: d.dropStatus === 'upcoming' ? 'blur(12px) brightness(0.6)' : 'none' }} />
                   <div className="absolute top-3 left-3">
                     <span className="border border-border text-fg text-[10px] font-mono font-medium px-2 py-0.5 tracking-widest uppercase bg-bg/80">
                       {d.dropStatus === 'early-access' ? 'Early Access' : 'Locked'}

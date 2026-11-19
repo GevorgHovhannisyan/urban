@@ -1657,6 +1657,7 @@ body.size-guide-open .site-header {
     var(--surface);
   box-shadow: 0 35px 100px rgba(0,0,0,.72);
 }
+.privacy-popup:focus { outline: none; }
 .privacy-popup__mark {
   display: grid;
   place-items: center;
@@ -1824,6 +1825,52 @@ body.size-guide-open .site-header {
 .region-popup__skip {
   display: block;
   margin: 30px auto 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* The dialog opens by itself and gets focus programmatically; the focus
+   ring belongs on its controls, not on the whole panel. */
+.region-popup:focus { outline: none; }
+/* Cookie choice inside the first-visit dialog (same copy and button
+   language as .privacy-popup, compact). The two buttons are a toggle; the
+   choice is saved together with the country. */
+.region-popup__privacy {
+  margin-top: 30px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+.region-popup__privacy-text {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.region-popup__privacy-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.region-popup__privacy-actions button {
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+.region-popup__privacy-actions button:hover,
+.region-popup__privacy-actions button:focus-visible { border-color: var(--accent); }
+.region-popup__privacy-actions button[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.region-popup__privacy-link {
+  margin-top: 14px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -2774,4 +2821,32 @@ html:lang(ru) :is(h1, h2, h3, h4, .font-display) {
   .admin-main table:not([data-keep-table]) td:not([data-label])::before { display: none; }
   .admin-main table:not([data-keep-table]) td[colspan] { justify-content: center; text-align: center; }
   .admin-main table:not([data-keep-table]) td img { max-width: 64px; height: auto; }
+}
+
+/* ── Touch hit areas ──
+   Invisible ::before that grows a control's tappable area to at least
+   44×44px on phones/touch screens without changing how it looks or moving
+   anything (it's absolutely positioned, centred on the control). The
+   element itself must be positioned (relative/absolute) — markup adds
+   `relative` where needed. ::before because some of these already use
+   ::after (the footer link underline). */
+@media (max-width: 1023px), (pointer: coarse) {
+  .tap-target::before,
+  .up-icon::before,
+  .site-footer__logo::before,
+  .site-footer__social-link::before,
+  .site-footer__link::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+  .site-footer__logo,
+  .site-footer__social-link { position: relative; }
+  /* Footer link rows sit 37px apart (21px text + 16px gap), so a full 44px
+     would overlap the next link: fill the gap exactly instead. */
+  .site-footer__link::before { height: calc(100% + 16px); }
 }

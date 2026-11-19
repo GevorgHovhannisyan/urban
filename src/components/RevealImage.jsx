@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { handleImgError } from '../utils/imageFallback';
+import { responsiveImage } from '../utils/responsiveImage';
 
 // Branded image load reveal: starts slightly blurred/scaled/dim and settles
 // to sharp/full opacity once the browser has actually decoded the image.
@@ -7,7 +8,7 @@ import { handleImgError } from '../utils/imageFallback';
 // or images the browser prefetched) skip the reveal entirely — checked
 // synchronously on mount so there's never an artificial delay on an image
 // that's already sitting in the browser's cache.
-export default function RevealImage({ src, alt = '', wrapperClassName = '', className = '', style, ...imgProps }) {
+export default function RevealImage({ src, alt = '', wrapperClassName = '', className = '', style, sizes = '100vw', ...imgProps }) {
   const imgRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -19,7 +20,7 @@ export default function RevealImage({ src, alt = '', wrapperClassName = '', clas
     <div className={`reveal-img ${loaded ? 'is-loaded' : ''} ${wrapperClassName}`} style={style}>
       <img
         ref={imgRef}
-        src={src}
+        {...responsiveImage(src, sizes)}
         alt={alt}
         onLoad={() => setLoaded(true)}
         onError={handleImgError}

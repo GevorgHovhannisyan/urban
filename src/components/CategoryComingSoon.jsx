@@ -55,6 +55,8 @@ export default function CategoryComingSoon({ categoryLabel, onShopHoodies }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Your email address"
+              aria-label="Your email address"
+              autoComplete="email"
               required
               className="flex-1 min-w-0 bg-transparent border border-border px-4 py-3 text-sm text-fg placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"
             />

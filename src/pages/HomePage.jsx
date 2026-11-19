@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, pageToPath } from '../context/AppContext';
 import ScrollReveal from '../components/ScrollReveal';
 import ProductCard from '../components/ProductCard';
 import TrustBar from '../components/TrustBar';
@@ -12,6 +12,7 @@ import { ProductGridSkeleton } from '../components/Skeleton';
 // isFeatured-filtered section would render empty.
 import { getFeaturedProducts, getSaleProducts } from '../data/productHelpers';
 import { handleImgError } from '../utils/imageFallback';
+import { responsiveImage, variantUrl } from '../utils/responsiveImage';
 import { useMagnetic } from '../hooks/useMagnetic';
 function HeroSection() {
     const { navigate, content } = useApp();
@@ -59,7 +60,7 @@ function HeroSection() {
           // fixed zoom only enlarged — and softened — the video further.
           // key: switching between the desktop and phone source must load
           // the new file, not keep playing the old one.
-          <video key={heroVideoUrl} src={heroVideoUrl} poster={(isPhone && hero.mobileImageUrl) || hero.imageUrl} autoPlay muted loop playsInline preload="auto" disablePictureInPicture className="w-full h-full up-photo object-cover" />
+          <video key={heroVideoUrl} src={heroVideoUrl} poster={variantUrl((isPhone && hero.mobileImageUrl) || hero.imageUrl, isPhone ? 800 : 1600)} autoPlay muted loop playsInline preload="metadata" disablePictureInPicture className="w-full h-full up-photo object-cover" />
         ) : (
           // A dedicated mobile crop is optional (Admin → Site Content →
           // Home Hero) — <picture>'s media-query source only ever swaps
@@ -68,8 +69,8 @@ function HeroSection() {
           // image has been set, so this never depends on JS viewport
           // detection or risks a blank hero before hydration.
           <picture>
-            {hero.mobileImageUrl && <source media="(max-width: 767px)" srcSet={hero.mobileImageUrl} />}
-            <img src={hero.imageUrl} onError={handleImgError} alt={hero.imageAlt || ''} fetchPriority="high" className="w-full h-full up-photo object-cover scale-110"/>
+            {hero.mobileImageUrl && <source media="(max-width: 767px)" srcSet={responsiveImage(hero.mobileImageUrl, '100vw', 800).srcSet || hero.mobileImageUrl} sizes="100vw" />}
+            <img {...responsiveImage(hero.imageUrl, '100vw')} onError={handleImgError} alt={hero.imageAlt || ''} fetchPriority="high" className="w-full h-full up-photo object-cover scale-110"/>
           </picture>
         )}
         {/* Gradient overlays — darken the hero photo for text legibility.
@@ -239,9 +240,9 @@ function JournalTeaser() {
         <div className="grid sm:grid-cols-3 gap-6">
           {posts.map((post, i) => (
             <ScrollReveal key={post.id} delay={i * 80}>
-              <a href="/journal" onClick={(e) => { e.preventDefault(); navigate('journal-post', { slug: post.slug }); }} className="group block">
+              <a href={pageToPath('journal-post', { slug: post.slug })} onClick={(e) => { e.preventDefault(); navigate('journal-post', { slug: post.slug }); }} className="group block">
                 <div className="relative overflow-hidden bg-card mb-4" style={{ aspectRatio: '4/5' }}>
-                  <img src={post.coverImage} onError={handleImgError} alt={post.title} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+                  <img {...responsiveImage(post.coverImage, '(min-width: 640px) 33vw, 100vw')} onError={handleImgError} alt={post.title} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
                 </div>
                 <h3 className="font-display font-black uppercase text-fg leading-tight" style={{ fontSize: '1.2rem' }}>{post.title}</h3>
               </a>
@@ -255,7 +256,7 @@ function CollectionBanner() {
     const { navigate, content } = useApp();
     const banner = content.homeBanner;
     return (<section className="relative h-[70vh] min-h-[500px] overflow-hidden">
-      <img src={banner.imageUrl} onError={handleImgError} alt={banner.imageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover"/>
+      <img {...responsiveImage(banner.imageUrl, '100vw')} onError={handleImgError} alt={banner.imageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover"/>
       <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent"/>
       <div className="absolute inset-0 bg-black/30"/>
       <div className="relative z-10 h-full flex items-center">
@@ -334,7 +335,7 @@ function EditorialSection() {
         <div className="grid lg:grid-cols-2 gap-4">
           {/* Large image */}
           <div className="relative overflow-hidden bg-card group" style={{ aspectRatio: '4/5' }}>
-            {editorial.largeImageUrl && (<img src={editorial.largeImageUrl} onError={handleImgError} alt={editorial.largeImageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>)}
+            {editorial.largeImageUrl && (<img {...responsiveImage(editorial.largeImageUrl, '(min-width: 1024px) 50vw, 100vw')} onError={handleImgError} alt={editorial.largeImageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>)}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"/>
             <div className="absolute bottom-8 left-8 right-8">
               <p className="text-[10px] font-mono text-white/70 tracking-widest uppercase mb-2">Collection 001</p>
@@ -349,7 +350,7 @@ function EditorialSection() {
           {/* Right column */}
           <div className="flex flex-col gap-4">
             <div className="relative overflow-hidden bg-card flex-1 group" style={{ minHeight: '280px' }}>
-              {editorial.originImageUrl && (<img src={editorial.originImageUrl} onError={handleImgError} alt={editorial.originImageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>)}
+              {editorial.originImageUrl && (<img {...responsiveImage(editorial.originImageUrl, '(min-width: 1024px) 50vw, 100vw')} onError={handleImgError} alt={editorial.originImageAlt || ''} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full up-photo object-cover transition-transform duration-700 group-hover:scale-[1.03]"/>)}
               <div className="absolute inset-0 bg-black/40"/>
               <div className="absolute inset-0 flex flex-col justify-end p-8">
                 <p className="text-[10px] font-mono text-white/70 tracking-widest uppercase mb-2">Our Origin</p>
@@ -373,7 +374,7 @@ function EditorialSection() {
                   <br />
                   <span className="text-accent">the process of rebuilding yourself."</span>
                 </blockquote>
-                <button onClick={() => navigate('about')} className="mt-8 text-[11px] font-mono text-muted hover:text-fg transition-colors tracking-[0.2em] uppercase border-b border-muted/30 pb-0.5 self-start">
+                <button onClick={() => navigate('about')} className="tap-target relative mt-8 text-[11px] font-mono text-muted hover:text-fg transition-colors tracking-[0.2em] uppercase border-b border-muted/30 pb-0.5 self-start">
                   Read Our Story →
                 </button>
               </ScrollReveal>
@@ -414,7 +415,7 @@ function ShopByCategory() {
                 className="relative block overflow-hidden bg-card group"
                 style={{ aspectRatio: '3/4' }}
               >
-                <img src={tile.image} onError={handleImgError} alt={tile.label} loading="lazy" decoding="async" className="up-photo absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"/>
+                <img {...responsiveImage(tile.image, '(min-width: 1024px) 20vw, 50vw')} onError={handleImgError} alt={tile.label} loading="lazy" decoding="async" className="up-photo absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"/>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent"/>
                 <div className="absolute inset-x-0 bottom-0 p-5">
                   <p className="font-display font-black uppercase text-white text-xl">{t(tile.label)}</p>
@@ -537,7 +538,7 @@ function Newsletter() {
                   Welcome to Urban Phoenix.
                 </p>
               </div>) : (<form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-0 max-w-md mx-auto">
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email address" required className="flex-1 bg-bg border border-border px-5 py-4 text-sm font-body text-fg placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"/>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email address" aria-label="Your email address" autoComplete="email" required className="flex-1 bg-bg border border-border px-5 py-4 text-sm font-body text-fg placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"/>
                 <button type="submit" disabled={isSubmitting} className="bg-accent text-white px-8 py-4 text-[11px] font-mono tracking-[0.2em] uppercase hover:bg-accent-light transition-colors shrink-0 disabled:opacity-50">
                   {isSubmitting ? 'Subscribing…' : 'Subscribe'}
                 </button>

@@ -5,6 +5,7 @@ import PaymentBadge from '../components/PaymentBadge';
 import { handleImgError } from '../utils/imageFallback';
 import { useMagnetic } from '../hooks/useMagnetic';
 import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping, DELIVERY_ESTIMATES } from '../data/shippingRules';
+import { responsiveImage } from '../utils/responsiveImage';
 export default function CartPage() {
     const { cart, formatMoney, removeFromCart, updateQuantity, cartTotal, navigate, promo, discountAmount, applyPromoCode, removePromoCode, giftCard, giftCardAmount, applyGiftCard, removeGiftCard, visitorCountry, freeShippingThresholdApplies } = useApp();
     const checkoutBtnRef = useMagnetic(4);
@@ -109,7 +110,7 @@ export default function CartPage() {
               <div className="divide-y divide-border">
                 {cart.map(item => (<div key={`${item.product.id}-${item.size}-${item.color}-${(item.editionNumbers || []).join(',')}`} className="flex gap-5 py-6 first:pt-0">
                     <div className="bg-card overflow-hidden shrink-0 cursor-pointer" style={{ width: '100px', aspectRatio: '3/4' }} onClick={() => navigate('product', item.product)}>
-                      <img src={item.product.images[0]} onError={handleImgError} alt={item.product.name} className="w-full h-full up-photo object-cover hover:scale-105 transition-transform duration-500"/>
+                      <img {...responsiveImage(item.product.images[0], '160px', 400)} onError={handleImgError} alt={item.product.name} className="w-full h-full up-photo object-cover hover:scale-105 transition-transform duration-500"/>
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col">
                       <div className="flex items-start justify-between gap-2 mb-1">

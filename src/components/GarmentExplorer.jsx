@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getGarmentExplorer } from '../data/garmentExplorer';
 import { handleImgError } from '../utils/imageFallback';
 import ScrollReveal from './ScrollReveal';
+import { responsiveImage } from '../utils/responsiveImage';
 
 // Fixed section manifesto — reads the same for every product (matches the
 // reference layout: "BUILT WITH INTENTION." + intro line never change per
@@ -151,7 +152,7 @@ export default function GarmentExplorer({ product }) {
               style={{ transformOrigin: `${active.x}% ${active.y}%` }}
             >
               <img
-                src={config.frontImage}
+                {...responsiveImage(config.frontImage, '(min-width: 1024px) 50vw, 100vw')}
                 onError={handleImgError}
                 alt={`${product.name} — front`}
                 fetchPriority="high"
@@ -159,7 +160,7 @@ export default function GarmentExplorer({ product }) {
               />
               {hasBack && (
                 <img
-                  src={config.backImage}
+                  {...responsiveImage(config.backImage, '(min-width: 1024px) 50vw, 100vw')}
                   onError={handleImgError}
                   alt={`${product.name} — back`}
                   loading="lazy"

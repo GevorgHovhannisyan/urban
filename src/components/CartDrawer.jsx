@@ -4,6 +4,7 @@ import { handleImgError } from '../utils/imageFallback';
 import { useDialogBehavior } from '../hooks/useDialogBehavior';
 import { useExitAnimation } from '../hooks/useExitAnimation';
 import { FREE_US_SHIPPING_THRESHOLD, qualifiesForFreeUsShipping } from '../data/shippingRules';
+import { responsiveImage } from '../utils/responsiveImage';
 
 export default function CartDrawer() {
     const { cart, formatMoney, cartOpen, setCartOpen, removeFromCart, updateQuantity, cartTotal, navigate, freeShippingThresholdApplies } = useApp();
@@ -94,7 +95,7 @@ export default function CartDrawer() {
                 const itemKey = cartItemKey(item);
                 return (<li key={itemKey} className={`cart-item-row flex gap-4 px-6 py-5 ${removingKey === itemKey ? 'is-removing' : ''}`}>
                   <div className="w-24 h-32 bg-card shrink-0 overflow-hidden">
-                    <img src={item.product.images[0]} onError={handleImgError} alt={item.product.name} className="w-full h-full up-photo object-cover"/>
+                    <img {...responsiveImage(item.product.images[0], '96px', 400)} onError={handleImgError} alt={item.product.name} className="w-full h-full up-photo object-cover"/>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between gap-2 mb-1">

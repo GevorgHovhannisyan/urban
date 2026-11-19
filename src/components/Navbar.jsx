@@ -375,7 +375,7 @@ export default function Navbar() {
               and sits naturally at the left edge next to where the nav
               links would be, with the icon cluster's `ml-auto` still
               pushing itself to the right as before. */}
-          <a href={pageToPath('home')} onClick={go('home')} className="shrink-0 lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2" aria-label="Urban Phoenix — home">
+          <a href={pageToPath('home')} onClick={go('home')} className="tap-target relative shrink-0 lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2" aria-label="Urban Phoenix — home">
             {/* Source art is black ink on a solid white backdrop (no alpha
                 channel). Over the transparent state (still floating on the
                 hero photo, which carries its own dark scrim independent of
@@ -389,7 +389,7 @@ export default function Navbar() {
                 light header — only invert there when the dark theme is
                 active; light theme keeps the original black ink as-is. */}
             <img
-              src="/images/brand/up-logo.png"
+              src="/images/brand/up-logo-400.png"
               alt="Urban Phoenix"
               className="h-9 sm:h-10 w-auto"
               style={

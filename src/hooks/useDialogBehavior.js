@@ -12,7 +12,13 @@ const FOCUSABLE_SELECTOR = [
 // pattern. Only SizeGuideDrawer had any of this originally; every other
 // overlay let the page scroll behind it, had no keyboard dismissal, and let
 // Tab escape into the page behind an open modal.
-export function useDialogBehavior(open, onClose, containerRef) {
+//
+// options.lockScroll (default true): false keeps the page scrollbar, for a
+// dialog that opens by itself on page load, where hiding the scrollbar would
+// shift the layout. options.focusContainer: focus the dialog element itself
+// (needs tabIndex={-1}) instead of its first control, so no focus ring
+// appears on a button the visitor never touched.
+export function useDialogBehavior(open, onClose, containerRef, { lockScroll = true, focusContainer = false } = {}) {
   // Callers overwhelmingly pass an inline `() => setOpen(false)`, a fresh
   // function reference on every render of the parent. That used to be a
   // dependency of the effect below, so any state update in the parent while
@@ -29,12 +35,12 @@ export function useDialogBehavior(open, onClose, containerRef) {
     if (!open) return undefined;
 
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    if (lockScroll) document.body.style.overflow = 'hidden';
     const previouslyFocused = document.activeElement;
 
     if (containerRef?.current) {
       const focusable = containerRef.current.querySelectorAll(FOCUSABLE_SELECTOR);
-      (focusable[0] || containerRef.current).focus?.();
+      (focusContainer ? containerRef.current : (focusable[0] || containerRef.current)).focus?.({ preventScroll: true });
     }
 
     const handleKeyDown = (event) => {
@@ -50,7 +56,7 @@ export function useDialogBehavior(open, onClose, containerRef) {
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === containerRef.current)) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -61,9 +67,9 @@ export function useDialogBehavior(open, onClose, containerRef) {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (lockScroll) document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
       if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus?.();
     };
-  }, [open, containerRef]);
+  }, [open, containerRef, lockScroll, focusContainer]);
 }

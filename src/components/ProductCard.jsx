@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useApp, pageToPath } from '../context/AppContext';
 import { handleImgError, FALLBACK_SRC } from '../utils/imageFallback';
 import { triggerProductContinuity } from '../utils/productContinuity';
+import { responsiveImage } from '../utils/responsiveImage';
 export default function ProductCard({ product }) {
     const { navigate, toggleWishlist, isWishlisted, formatMoney } = useApp();
     const imgRef = useRef(null);
@@ -35,7 +36,7 @@ export default function ProductCard({ product }) {
         // or depends on navigate(), so it can't break routing, back/
         // forward, or scroll restoration even if skipped entirely.
         if (imgRef.current && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            triggerProductContinuity(product.images[0], imgRef.current.getBoundingClientRect());
+            triggerProductContinuity(imgRef.current.currentSrc || product.images[0], imgRef.current.getBoundingClientRect());
         }
         navigate('product', product);
     };
@@ -47,8 +48,8 @@ export default function ProductCard({ product }) {
       {/* Image container */}
       <div className="relative img-swap-container bg-card" style={{ aspectRatio: '3/4' }}>
         <a href={href} onClick={handleImageNavigate} className="absolute inset-0 z-0 cursor-pointer" aria-hidden="true" tabIndex={-1}>
-          <img ref={imgRef} src={galleryImages[0]} onError={handleImgError} alt={product.name} loading="lazy" decoding="async" className="up-photo img-swap-front absolute inset-0 w-full h-full object-cover"/>
-          {galleryImages[1] && (<img src={galleryImages[1]} onError={handleImgError} alt={`${product.name} alternate`} loading="lazy" decoding="async" className="up-photo img-swap-back"/>)}
+          <img ref={imgRef} {...responsiveImage(galleryImages[0], '(min-width: 1024px) 25vw, 50vw')} onError={handleImgError} alt={product.name} loading="lazy" decoding="async" className="up-photo img-swap-front absolute inset-0 w-full h-full object-cover"/>
+          {galleryImages[1] && (<img {...responsiveImage(galleryImages[1], '(min-width: 1024px) 25vw, 50vw')} onError={handleImgError} alt={`${product.name} alternate`} loading="lazy" decoding="async" className="up-photo img-swap-back"/>)}
         </a>
 
         {/* Badges */}
@@ -79,7 +80,7 @@ export default function ProductCard({ product }) {
         </div>
 
         {/* Wishlist */}
-        <button onClick={handleWishlist} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200" aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}>
+        <button onClick={handleWishlist} className="tap-target absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200" aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill={wishlisted ? '#C65D1E' : 'none'} stroke={wishlisted ? '#C65D1E' : '#F5F5F3'} strokeWidth="1.5">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>

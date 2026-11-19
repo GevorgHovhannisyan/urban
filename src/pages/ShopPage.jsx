@@ -193,7 +193,7 @@ function ViewSwitcher({ value, onChange }) {
                         onClick={() => onChange(mode.value)}
                         aria-pressed={active}
                         aria-label={mode.label}
-                        className={`flex items-center justify-center w-10 h-10 transition-colors duration-200 ${i > 0 ? 'border-l border-border' : ''} ${active
+                        className={`tap-target relative flex items-center justify-center w-10 h-10 transition-colors duration-200 ${i > 0 ? 'border-l border-border' : ''} ${active
                             ? 'bg-accent text-white'
                             : 'text-muted hover:text-fg hover:bg-[var(--hover-overlay)]'}`}
                     >

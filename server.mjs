@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { initDb } from "./server/db.mjs";
 import { runSeed } from "./server/seed.mjs";
 import { createApp } from "./server/app.mjs";
+import { storefrontHandler } from "./server/seo.mjs";
 import { assertSecureAdminConfig } from "./server/admin-config-guard.mjs";
 import { assertSecurePaymentConfig } from "./server/payment-config-guard.mjs";
 import {
@@ -58,10 +59,13 @@ const port = Number(process.env.PORT || 4173);
 const app = createApp();
 
 // ---------- Storefront (static build) ----------
-app.use(express.static(dist));
-app.get("/{*splat}", (req, res) => {
-  res.sendFile(path.join(dist, "index.html"));
-});
+// index: false — "/" must go through storefrontHandler too, so it gets its
+// page-specific <head> like every other route.
+app.use(express.static(dist, { index: false }));
+// Every other URL: the SPA shell with that page's title/description/social
+// tags written in, and HTTP 404 (same design) for unknown pages, products
+// and journal articles — see server/seo.mjs.
+app.get("/{*splat}", storefrontHandler(dist));
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`Urban Phoenix server running on http://localhost:${port}`);
