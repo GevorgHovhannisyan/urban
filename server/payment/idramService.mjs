@@ -158,6 +158,9 @@ async function confirm(params) {
     // never gets the admin "sandbox" badge (PAYMENT_ENV is Stripe's setting).
     // testMode only exists on bills started under the old 10 AMD test mode.
     paymentEnv: payment.testMode ? 'sandbox' : 'production',
+    // Verified above: signed by Idram (EDP_CHECKSUM), amount matches the bill.
+    paidAmount: payment.amount,
+    paidCurrency: 'AMD',
   });
   if (result.status !== 201) {
     // Not answering "OK" makes Idram email IDRAM_EMAIL / the merchant email,

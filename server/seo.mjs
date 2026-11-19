@@ -120,7 +120,8 @@ export function storefrontHandler(dist) {
         description: meta.description,
         image: absolute(base, meta.image || DEFAULT_OG_IMAGE),
         canonical: `${base}${canonicalPath}`,
-        noindex: status === 404,
+        // Receipts are private (secret link); never indexed.
+        noindex: status === 404 || pathToPageInfo(req.path).page === 'receipt',
       });
       return res.status(status).type("html").send(html);
     } catch (error) {

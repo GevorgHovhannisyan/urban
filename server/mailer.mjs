@@ -1141,6 +1141,59 @@ export async function sendWelcomeEmail({ to, name }) {
   }, "welcome");
 }
 
+// Electronic cash register (ՀԴՄ) fiscal receipt for a paid order —
+// server/hdm/fiscalService.mjs. `receipt` is the stored, already-issued
+// receipt (resending never calls SRC again). Never throws.
+function fmtAmd(value) {
+  return `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} AMD`;
+}
+
+export async function sendFiscalReceiptEmail({ to, firstName, orderNumber, receipt, receiptUrl }) {
+  if (!isConfigured) return { sent: false, reason: "unconfigured", error: "Email is not configured: set ZEPTOMAIL_TOKEN (production) or SMTP_HOST/PORT/USER/PASS." };
+  try {
+    const when = receipt.time ? new Date(receipt.time).toLocaleString("en-GB", { timeZone: "Asia/Yerevan" }) : "";
+    const rows = [
+      ["Order number", escapeHtml(orderNumber)],
+      ["Fiscal number", escapeHtml(receipt.fiscal || "—")],
+      ["Receipt number", escapeHtml(receipt.receiptId || "—")],
+      ["Register (CRN)", escapeHtml(receipt.crn || "—")],
+      ["Date", escapeHtml(when || "—")],
+      ["Total", escapeHtml(fmtAmd(receipt.total))],
+    ];
+    const text = [
+      `Your Urban Phoenix tax receipt (ՀԴՄ կտրոն)`,
+      ``,
+      `Order: ${orderNumber}`,
+      `Fiscal number: ${receipt.fiscal || "-"}`,
+      `Receipt number: ${receipt.receiptId || "-"}`,
+      `Register (CRN): ${receipt.crn || "-"}`,
+      `Date: ${when || "-"}`,
+      `Total: ${fmtAmd(receipt.total)}`,
+      ``,
+      `View the receipt with its QR code: ${receiptUrl}`,
+      ``,
+      `— Urban Phoenix`,
+    ].join("\n");
+    return deliver({
+      from: formatSender("orders"),
+      to,
+      replyTo: EMAIL_SENDERS.support.email,
+      subject: `Urban Phoenix — Tax receipt for order #${orderNumber}`,
+      text,
+      html: brandedEmail({
+        preheader: `Your tax receipt for order ${orderNumber}.`,
+        eyebrow: "Tax receipt · ՀԴՄ կտրոն",
+        heading: `Your receipt${firstName ? `, ${escapeHtml(firstName)}` : ""}`,
+        bodyHtml: `${para("Here is the electronic cash register receipt for your payment, registered with the State Revenue Committee of Armenia.")}${infoBox(rows)}`,
+        cta: { url: receiptUrl, label: "View receipt & QR code" },
+      }),
+    }, `fiscal receipt (#${orderNumber})`);
+  } catch (error) {
+    console.error(`[mail] fiscal receipt (#${orderNumber}) could not be built:`, error);
+    return { sent: false, reason: "build-failed", error: error.message };
+  }
+}
+
 // Sent after a customer permanently deletes their account.
 export async function sendAccountDeletedEmail({ to, name }) {
   if (!isConfigured) return { sent: false, reason: "unconfigured" };

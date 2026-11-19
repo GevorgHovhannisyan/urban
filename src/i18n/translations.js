@@ -1142,12 +1142,16 @@ Object.assign(translations.hy, {
   "Increase quantity": "Ավելացնել քանակը",
   "Topic": "Թեմա",
   "Verification code": "Հաստատման կոդ",
+  "In your bag": "Ձեր զամբյուղում",
+  "Bag": "Զամբյուղ",
 });
 Object.assign(translations.ru, {
   "Decrease quantity": "Уменьшить количество",
   "Increase quantity": "Увеличить количество",
   "Topic": "Тема",
   "Verification code": "Код подтверждения",
+  "In your bag": "В вашей корзине",
+  "Bag": "Корзина",
 });
 
 // ---- Full storefront review (October 2026) — must stay LAST ----

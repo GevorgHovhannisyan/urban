@@ -2382,6 +2382,7 @@ button:disabled {
 .edition-modal__legend > span { display:inline-flex; align-items:center; gap:7px; }
 .edition-swatch { width:14px; height:14px; display:inline-block; border:1px solid var(--border-color); background:var(--surface); }
 .edition-swatch.is-selected { border-color:var(--accent); background:rgba(198,93,30,.35); }
+.edition-swatch.is-in-bag { border-style:dashed; border-color:var(--accent); }
 .edition-swatch.is-sold { opacity:.6; background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 2px,var(--border-color) 2px,var(--border-color) 4px); }
 .edition-modal__random { margin-left:auto; padding:7px 12px; border:1px solid var(--border-color); color:var(--text-primary); font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; transition:border-color .18s ease, color .18s ease; }
 .edition-modal__random:not(:disabled):hover { border-color:var(--accent); color:var(--accent); }
@@ -2396,6 +2397,10 @@ button:disabled {
 .edition-number.is-selected { border-color:var(--accent); background:rgba(198,93,30,.22); color:#e97834; box-shadow:inset 0 0 0 1px var(--accent); }
 .edition-number.is-sold { opacity:.42; border-color:rgba(160,50,50,.35); background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 5px,var(--border-color) 5px,var(--border-color) 10px); text-decoration:line-through; cursor:not-allowed; }
 .edition-number:disabled:not(.is-sold) { opacity:.35; cursor:not-allowed; }
+/* Already in this shopper's bag — NOT sold (the bag is local to this browser
+   and claims nothing); just can't be picked twice. */
+.edition-number.is-in-bag, .edition-number.is-in-bag:disabled { opacity:1; border-style:dashed; border-color:var(--accent); background:var(--surface); color:var(--text-secondary); cursor:default; }
+.edition-number.is-in-bag small { font-family:'DM Mono',monospace; font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
 .edition-modal__loading { min-height:360px; display:grid; place-items:center; color:var(--text-secondary); }
 .edition-modal__footer { position:sticky; bottom:0; display:grid; grid-template-columns:160px 1fr; gap:10px; padding:18px 28px; border-top:1px solid var(--border-color); background:rgba(12,12,12,.97); }
 .edition-modal__clear, .edition-modal__confirm { min-height:52px; text-transform:uppercase; letter-spacing:.08em; font-size:12px; }

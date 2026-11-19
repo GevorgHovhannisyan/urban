@@ -25,6 +25,122 @@ const PAYMENT_METHOD_LABELS = {
   telcell: 'Telcell',
 };
 
+// Fiscal receipt (ՀԴՄ) status — separate from payment and email status.
+const FISCAL_STYLES = {
+  issued: ['Issued', 'border-emerald-400/50 text-emerald-400'],
+  pending: ['Pending', 'border-white/30 text-white/60'],
+  processing: ['Sending', 'border-white/30 text-white/60'],
+  blocked: ['Blocked', 'border-amber-400/50 text-amber-400'],
+  failed: ['Failed', 'border-red-400/50 text-red-400'],
+  unknown: ['Unknown', 'border-orange-400/60 text-orange-400'],
+};
+const utcLocal = (value) => new Date(`${String(value).replace(' ', 'T')}Z`).toLocaleString();
+
+function FiscalBadge({ receipt }) {
+  if (!receipt) return <span className="text-white/25 text-xs">—</span>;
+  const [label, cls] = FISCAL_STYLES[receipt.status] || [receipt.status, 'border-white/30 text-white/60'];
+  return <span className={`inline-block px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-widest border ${cls}`}>{label}</span>;
+}
+
+function HdmStatusBar({ adminFetch, toast }) {
+  const [status, setStatus] = useState(null);
+  const [check, setCheck] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    adminFetch('/hdm/status').then(setStatus).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!status) return null;
+  const runCheck = async () => {
+    setBusy(true);
+    try {
+      setCheck(await adminFetch('/hdm/check-connection', { method: 'POST', body: '{}' }));
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const counts = Object.entries(status.counts || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
+  return (
+    <div className="border border-white/8 px-4 py-3 mb-4 text-xs flex flex-wrap items-center gap-3">
+      <span className="font-mono uppercase tracking-widest text-white/40">ՀԴՄ</span>
+      <span className="text-white/70 flex-1 min-w-[240px]">{status.config.message}{counts ? ` — ${counts}` : ''}</span>
+      {check && (
+        <span className={check.ok ? 'text-emerald-400' : 'text-red-400'}>
+          checkConnection: {check.ok ? 'OK' : `failed (HTTP ${check.httpStatus ?? '–'}, code ${check.code ?? '–'}) ${check.message || ''}`}
+        </span>
+      )}
+      <Button variant="secondary" onClick={runCheck} disabled={busy}>{busy ? 'Checking…' : 'Check connection'}</Button>
+    </div>
+  );
+}
+
+function FiscalPanel({ order, adminFetch, toast, onChanged }) {
+  const r = order.fiscalReceipt;
+  const [busy, setBusy] = useState(false);
+  const act = async (path, body, success) => {
+    setBusy(true);
+    try {
+      await adminFetch(`/orders/${encodeURIComponent(order.id)}/fiscal/${path}`, { method: 'POST', body: JSON.stringify(body || {}) });
+      toast(success);
+      onChanged();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const link = () => {
+    const receiptId = window.prompt('Receipt number from the SRC portal for this payment:');
+    if (receiptId) act('link', { receiptId: receiptId.trim() }, 'Receipt linked.');
+  };
+  const notIssued = () => {
+    const ok = window.confirm('Only continue if you checked the SRC portal and NO receipt exists for this payment. A new receipt will be sent. Continue?');
+    if (ok) act('confirm-not-issued', { confirm: true }, 'Marked as not issued — sending again.');
+  };
+  if (!r) {
+    return (
+      <p className="text-sm text-white/50">
+        No fiscal receipt for this order{order.paymentStatus === 'paid' ? ' (HDM was off, or this payment method is not fiscalized online).' : '.'}
+      </p>
+    );
+  }
+  return (
+    <div className="text-sm space-y-1.5">
+      <p>
+        <FiscalBadge receipt={r} /> <span className="font-mono ml-2">{r.amount} {r.currency}</span>
+        {r.resolvedBy && r.resolvedBy !== 'print' ? <span className="text-white/40 text-xs ml-2">(resolved by {r.resolvedBy})</span> : null}
+      </p>
+      {r.status === 'issued' && (
+        <p className="text-white/70 font-mono text-xs">
+          Receipt {r.receiptId} · Fiscal {r.fiscal || '—'} · CRN {r.crn}{r.receiptTime ? ` · ${new Date(r.receiptTime).toLocaleString()}` : ''}
+        </p>
+      )}
+      {r.status === 'unknown' && (
+        <p className="text-orange-400 text-xs">
+          The request reached SRC but no answer came back — a receipt may exist. It is never resent automatically; reconciliation checks every minute.
+          If it stays unknown, look it up in the SRC portal, then link it or confirm none exists.
+        </p>
+      )}
+      {r.lastError && <p className="text-xs text-red-300 break-all">{r.lastError}</p>}
+      <p className="text-xs text-white/50">Attempts: {r.attempts}{r.nextAttemptAt ? ` · next try ${utcLocal(r.nextAttemptAt)}` : ''}</p>
+      {r.status === 'issued' && (
+        <p className="text-xs text-white/50">
+          Receipt email: {r.email.sentAt ? `sent ${utcLocal(r.email.sentAt)}` : `not sent${r.email.attempts ? ` (${r.email.attempts} attempt${r.email.attempts === 1 ? '' : 's'})` : ''}`}
+          {!r.email.sentAt && r.email.error ? ` — ${r.email.error}` : ''}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {['failed', 'blocked'].includes(r.status) && <Button variant="secondary" disabled={busy} onClick={() => act('retry', {}, 'Queued again.')}>Retry</Button>}
+        {['unknown', 'failed'].includes(r.status) && <Button variant="secondary" disabled={busy} onClick={link}>Link SRC receipt…</Button>}
+        {r.status === 'unknown' && <Button variant="secondary" disabled={busy} onClick={notIssued}>Confirm not issued</Button>}
+        {r.status === 'issued' && <Button variant="secondary" disabled={busy} onClick={() => act('resend-email', {}, 'Receipt email sent.')}>Resend receipt email</Button>}
+        {r.receiptUrl && <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="text-xs underline text-white/70 self-center">Open receipt</a>}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminOrders({ onNavigate }) {
   const { adminFetch } = useAdminAuth();
   const toast = useToast();
@@ -46,6 +162,16 @@ export default function AdminOrders({ onNavigate }) {
 
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reload the list and keep the open details modal in sync after a fiscal action.
+  const reloadKeepingDetail = () => {
+    adminFetch('/orders')
+      .then((data) => {
+        setOrders(data.orders);
+        setDetailOrder((current) => (current ? data.orders.find((o) => o.id === current.id) || null : null));
+      })
+      .catch((err) => toast(err.message, true));
+  };
+
   const updateStatus = async (order, field, value) => {
     const key = `${order.id}:${field}`;
     setPendingValues((prev) => ({ ...prev, [key]: value }));
@@ -64,6 +190,7 @@ export default function AdminOrders({ onNavigate }) {
 
   return (
     <AdminLayout section="orders" onNavigate={onNavigate} title="Orders" subtitle={`${orders.length} order(s)`}>
+      <HdmStatusBar adminFetch={adminFetch} toast={toast} />
       {loading ? (
         <p className="text-white/40 text-sm">Loading…</p>
       ) : (
@@ -110,6 +237,7 @@ export default function AdminOrders({ onNavigate }) {
                     <Select value={pendingValues[`${o.id}:paymentStatus`] ?? o.paymentStatus} onChange={(e) => updateStatus(o, 'paymentStatus', e.target.value)}>
                       {PAYMENT_STATUSES.map((s) => <option key={s} value={s}>{PAYMENT_STATUS_LABELS[s] || s}</option>)}
                     </Select>
+                    {o.fiscalReceipt && <div className="mt-1.5" title="Fiscal receipt (ՀԴՄ)"><FiscalBadge receipt={o.fiscalReceipt} /></div>}
                   </td>
                   <td className="px-4 py-3 text-white/40 font-mono text-xs">{new Date(o.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right">
@@ -190,6 +318,10 @@ export default function AdminOrders({ onNavigate }) {
               {detailOrder.providerTransactionId && <><br />Provider reference: <span className="font-mono">{detailOrder.providerTransactionId}</span></>}
               <br />Confirmation email: <span className="font-mono">{detailOrder.confirmationEmailSentAt ? `sent ${new Date(detailOrder.confirmationEmailSentAt).toLocaleString()}` : `not sent${detailOrder.confirmationEmailAttempts ? ` (${detailOrder.confirmationEmailAttempts} attempt${detailOrder.confirmationEmailAttempts === 1 ? '' : 's'})` : ''}`}</span>
               {!detailOrder.confirmationEmailSentAt && detailOrder.confirmationEmailError && <><br />Email error: <span className="font-mono text-red-300 break-all">{detailOrder.confirmationEmailError}</span></>}
+            </div>
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-widest text-white/40 mb-1.5">Fiscal receipt (ՀԴՄ)</p>
+              <FiscalPanel order={detailOrder} adminFetch={adminFetch} toast={toast} onChanged={reloadKeepingDetail} />
             </div>
           </>
         )}

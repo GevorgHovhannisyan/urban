@@ -9,6 +9,7 @@
 // correctly, and normal checkout keeps working unchanged.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { startTestServer } from '../helpers/test-server.mjs';
 
 let server;
@@ -214,3 +215,48 @@ test('normal (non-limited) checkout still works exactly as before', async () => 
   assert.equal(status, 201);
   assert.equal(body.status, 'confirmed');
 });
+
+// ---- A serial is taken only by a completed purchase ----
+const editionsSold = async () => (await fetch(`${BASE}/api/editions?productId=${LIMITED_PRODUCT_ID}`).then((r) => r.json())).sold;
+
+test('an unpaid direct order (non-COD method) is refused and never takes the serial', async () => {
+  await seedProducts();
+  for (const paymentMethod of ['paypal', 'telcell', 'card']) {
+    const res = await fetch(`${BASE}/api/orders`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...orderPayload(`edition-unpaid-${paymentMethod}@example.com`, LIMITED_PRODUCT_ID, 1, [12]), paymentMethod }),
+    });
+    assert.equal(res.status, 400, paymentMethod);
+    assert.match((await res.json()).error, /card, Idram or cash on delivery/);
+  }
+  assert.deepEqual(await editionsSold(), [], 'number 12 is still free');
+  const { status } = await placeOrder('edition-buyer-12@example.com', LIMITED_PRODUCT_ID, 1, [12]);
+  assert.equal(status, 201, 'another customer can still buy it');
+  assert.deepEqual(await editionsSold(), [12]);
+});
+
+test('starting an online payment does not take the serial; only the verified payment does', async () => {
+  await seedProducts();
+  process.env.IDRAM_REC_ACCOUNT = '100000114';
+  process.env.IDRAM_SECRET_KEY = 'test-idram-secret-key';
+  const start = await fetch(`${BASE}/api/checkout/idram`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(orderPayload('edition-idram@example.com', LIMITED_PRODUCT_ID, 1, [44])),
+  }).then((r) => r.json());
+  assert.ok(start.billNo, JSON.stringify(start));
+  assert.deepEqual(await editionsSold(), [], 'an abandoned payment leaves 44 available to everyone');
+
+  const fields = {
+    EDP_BILL_NO: start.billNo, EDP_REC_ACCOUNT: '100000114', EDP_PAYER_ACCOUNT: '100000999',
+    EDP_AMOUNT: `${start.fields.EDP_AMOUNT}.00`, EDP_TRANS_ID: `T${start.billNo}`.slice(0, 14), EDP_TRANS_DATE: '19/11/2026',
+  };
+  fields.EDP_CHECKSUM = createHash('md5')
+    .update([fields.EDP_REC_ACCOUNT, fields.EDP_AMOUNT, 'test-idram-secret-key', fields.EDP_BILL_NO, fields.EDP_PAYER_ACCOUNT, fields.EDP_TRANS_ID, fields.EDP_TRANS_DATE].join(':'))
+    .digest('hex').toUpperCase();
+  const confirmed = await fetch(`${BASE}/payment/idram-result`, { method: 'POST', body: new URLSearchParams(fields) }).then((r) => r.text());
+  assert.equal(confirmed, 'OK');
+  assert.deepEqual(await editionsSold(), [44], 'taken once the payment is confirmed');
+});
+

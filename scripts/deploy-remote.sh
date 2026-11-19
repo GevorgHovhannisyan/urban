@@ -121,3 +121,22 @@ if [ "$(id -u)" -eq 0 ]; then
 else
   node --env-file=.env scripts/verify-smtp.mjs 2>&1 | sed 's/^/[deploy]   /' || true
 fi
+
+# 9. Electronic cash register (ՀԴՄ) check (never fails the deploy) — names
+#    only, never values; then a READ-ONLY SRC checkConnection from this server
+#    (no activation, no receipts). Logs the HTTP status and the SRC code.
+log "HDM check"
+cd "$APP_DIR"
+if [ -f .env ] && grep -qE '^HDM_PFX_PATH=.+' .env; then
+  for key in HDM_ENABLED HDM_CRN HDM_TIN HDM_PFX_PATH HDM_CA_PATH HDM_PFX_PASSPHRASE HDM_TAX_REGIME HDM_DEPARTMENT HDM_ADG_CODE HDM_CASHIER_ID HDM_UNIT; do
+    if grep -qE "^${key}=.+" .env; then log "  $key: set"; else log "  $key: MISSING"; fi
+  done
+  grep -E '^(HDM_ENABLED|HDM_CRN|HDM_BASE_URL)=' .env | sed 's/^/[deploy]   /' || true
+  if [ "$(id -u)" -eq 0 ]; then
+    sudo -u "$APP_USER" timeout 60 node --env-file=.env scripts/hdm.mjs check 2>&1 | sed 's/^/[deploy]   /' || true
+  else
+    timeout 60 node --env-file=.env scripts/hdm.mjs check 2>&1 | sed 's/^/[deploy]   /' || true
+  fi
+else
+  log "  HDM not configured on this server (no HDM_PFX_PATH in .env) — skipped"
+fi

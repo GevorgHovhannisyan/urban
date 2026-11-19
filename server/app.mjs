@@ -98,6 +98,19 @@ import { submitContactForm } from "./contact-api.mjs";
 import { createRateLimiter } from "./rate-limit.mjs";
 import { imageVariants } from "./image-variants.mjs";
 import { SITEMAP_PAGES, pageToPath } from "../src/seo/pageMeta.js";
+import QRCode from "qrcode";
+import { describeHdmConfig } from "./hdm/config.mjs";
+import * as hdmSrc from "./hdm/srcClient.mjs";
+import {
+  getReceiptForCustomer,
+  retryTask as retryFiscalTask,
+  confirmNotIssued as confirmFiscalNotIssued,
+  linkExistingReceipt,
+  resendReceiptEmail,
+  reconcileUnknownTasks,
+  processDueTasks as processFiscalTasks,
+  fiscalSummary,
+} from "./hdm/fiscalService.mjs";
 import {
   uploadsDir,
   uploadImage,
@@ -400,6 +413,25 @@ export function createApp({ allowFraming = false } = {}) {
       return null;
     }
   }
+
+  // Fiscal receipt (ՀԴՄ) for an order: the secret link from the receipt
+  // email (?t=…) or a signed-in customer who owns the order. Anything else
+  // gets the same 404 as a non-existent order.
+  publicApi.get("/receipts/:orderNumber", readLimiter, async (req, res) => {
+    const customerId = optionalCustomerId(req);
+    const customer = customerId ? await get("SELECT email FROM customers WHERE id = ?", [customerId]) : null;
+    const result = await getReceiptForCustomer(req.params.orderNumber, {
+      token: typeof req.query.t === "string" ? req.query.t : "",
+      customerId,
+      customerEmail: customer?.email || null,
+    });
+    if (result.status === 200 && result.body.receipt?.qr) {
+      const svg = await QRCode.toString(result.body.receipt.qr, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+      result.body.receipt.qrImage = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.status(result.status).json(result.body);
+  });
 
   publicApi.post("/orders", async (req, res) => {
     const result = await createOrder({
@@ -894,6 +926,43 @@ export function createApp({ allowFraming = false } = {}) {
   );
   adminApi.patch("/orders/:id", async (req, res) => {
     const result = await updateOrderStatus(req.params.id, req.body || {});
+    res.status(result.status).json(result.body);
+  });
+
+  // ---------- Electronic cash register (ՀԴՄ) ----------
+  // Status = configuration (names/presence only, never secrets) + counts.
+  adminApi.get("/hdm/status", async (req, res) =>
+    res.json({ config: describeHdmConfig(), counts: await fiscalSummary() }),
+  );
+  // Read-only connection test (SRC checkConnection).
+  adminApi.post("/hdm/check-connection", async (req, res) => {
+    try {
+      const result = await hdmSrc.checkConnection();
+      res.json({ ok: result.outcome === "success", httpStatus: result.httpStatus ?? null, code: result.code ?? null, message: result.outcome === "success" ? (result.result || "OK") : result.error });
+    } catch (error) {
+      res.json({ ok: false, message: error.message });
+    }
+  });
+  adminApi.post("/hdm/run", async (req, res) => {
+    const processed = await processFiscalTasks();
+    const reconciliation = await reconcileUnknownTasks();
+    res.json({ processed, reconciliation });
+  });
+  adminApi.post("/orders/:id/fiscal/retry", async (req, res) => {
+    const result = await retryFiscalTask(req.params.id);
+    res.status(result.status).json(result.body);
+  });
+  adminApi.post("/orders/:id/fiscal/confirm-not-issued", async (req, res) => {
+    if (req.body?.confirm !== true) return res.status(400).json({ error: "Confirm that you checked the SRC portal and no receipt exists for this payment." });
+    const result = await confirmFiscalNotIssued(req.params.id);
+    res.status(result.status).json(result.body);
+  });
+  adminApi.post("/orders/:id/fiscal/link", async (req, res) => {
+    const result = await linkExistingReceipt(req.params.id, String(req.body?.receiptId || "").trim(), { force: req.body?.force === true });
+    res.status(result.status).json(result.body);
+  });
+  adminApi.post("/orders/:id/fiscal/resend-email", async (req, res) => {
+    const result = await resendReceiptEmail(req.params.id);
     res.status(result.status).json(result.body);
   });
 

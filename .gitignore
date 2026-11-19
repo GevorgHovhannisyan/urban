@@ -39,3 +39,14 @@ public/uploads/.variants/
 
 # Local preview written by scripts/order-email.mjs
 order-email-preview.html
+
+# Electronic cash register (HDM) private material — never commit. These
+# files belong in a private folder on the server (/etc/urban-phoenix/hdm).
+*.p12
+*.pfx
+*.jks
+*.key
+KEYSTORE_PASSWORD.txt
+28028252_*
+*HDM_INTEGRATION*
+*HDM_PRIVATE*

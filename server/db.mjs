@@ -365,6 +365,51 @@ const SCHEMA_STATEMENTS = [
     type VARCHAR(32) NOT NULL DEFAULT 'order'
   ) ENGINE=InnoDB;`,
 
+  // Electronic cash register (ՀԴՄ) fiscal receipts — one row per receipt
+  // task (server/hdm/fiscalService.mjs). Doubles as the durable outbox: the
+  // row is inserted in the SAME transaction as the paid order, and is
+  // claimed/processed by the worker. uq_hdm_order_kind = at most one original
+  // sale receipt per order; uq_hdm_crn_receipt = one SRC receipt can never be
+  // linked to two orders. status: pending | processing | issued | failed |
+  // unknown | blocked.
+  `CREATE TABLE IF NOT EXISTS hdm_receipts (
+    id VARCHAR(36) PRIMARY KEY,
+    orderId VARCHAR(64) NOT NULL,
+    kind VARCHAR(16) NOT NULL DEFAULT 'sale',
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    crn VARCHAR(16) NULL,
+    amount DECIMAL(14,2) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'AMD',
+    paymentProvider VARCHAR(32) NULL,
+    providerTransactionId VARCHAR(191) NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    nextAttemptAt DATETIME NULL,
+    lockedBy VARCHAR(64) NULL,
+    lockedUntil DATETIME NULL,
+    sentAt DATETIME NULL,
+    requestJson LONGTEXT NULL,
+    responseJson LONGTEXT NULL,
+    lastError TEXT NULL,
+    receiptId VARCHAR(32) NULL,
+    fiscal VARCHAR(32) NULL,
+    sn VARCHAR(32) NULL,
+    receiptTime BIGINT NULL,
+    receiptTotal DECIMAL(14,2) NULL,
+    qr TEXT NULL,
+    issuedAt DATETIME NULL,
+    resolvedBy VARCHAR(32) NULL,
+    accessToken VARCHAR(64) NOT NULL,
+    emailSentAt DATETIME NULL,
+    emailError TEXT NULL,
+    emailAttempts INT NOT NULL DEFAULT 0,
+    emailLastAttemptAt DATETIME NULL,
+    createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_hdm_order_kind (orderId, kind),
+    UNIQUE KEY uq_hdm_crn_receipt (crn, receiptId),
+    KEY idx_hdm_status (status)
+  ) ENGINE=InnoDB;`,
+
   `CREATE TABLE IF NOT EXISTS site_content (
     section VARCHAR(64) PRIMARY KEY,
     data JSON NOT NULL,
@@ -495,6 +540,10 @@ export function initDb() {
       // the last one started, so failed sends are retried with backoff.
       await ensureColumn("orders", "confirmationEmailAttempts", "INT NOT NULL DEFAULT 0");
       await ensureColumn("orders", "confirmationEmailLastAttemptAt", "DATETIME NULL");
+      // What the payment provider actually charged (ArCa/Idram: AMD), as
+      // confirmed by the provider — the amount the fiscal receipt is for.
+      await ensureColumn("orders", "paidAmount", "DECIMAL(14,2) NULL");
+      await ensureColumn("orders", "paidCurrency", "CHAR(3) NULL");
       // UP Society rewards (server/loyalty.mjs): points taken back from an
       // order (cancel/refund/return) and whether the points spent on it were
       // given back — together they make every reversal happen at most once.

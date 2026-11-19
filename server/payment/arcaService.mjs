@@ -161,6 +161,9 @@ async function syncWithArca(pendingId) {
       // setting) — unless it ran on ArCa's public test gateway. testMode only
       // exists on payments started under the old 10 AMD test mode.
       paymentEnv: payment.testMode || payment.testGateway ? 'sandbox' : 'production',
+      // Verified just above: ArCa says paid, for exactly this AMD amount.
+      paidAmount: payment.amount,
+      paidCurrency: 'AMD',
     });
     if (result.status !== 201) {
       console.error(`[arca] order ${pending.id} paid (ArCa orderId ${pending.paymentIntentId}) but the order could not be created: ${result.body?.error || result.status}`);

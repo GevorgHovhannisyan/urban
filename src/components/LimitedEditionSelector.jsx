@@ -14,8 +14,11 @@ const pad = (number) => String(number).padStart(3, '0');
 // the race first, checkout surfaces a clear "no longer available" error and
 // (CheckoutPage.jsx) sends the shopper back here to pick again — nothing
 // this component shows is ever treated as a guarantee by the backend.
-// `reserved`: numbers of this product already in the shopper's bag — shown
-// as taken so the same serial can't be picked twice across bag lines.
+// `reserved`: numbers of this product already in THIS browser's bag. They
+// are not sold — the bag lives only in this browser and claims nothing on
+// the server (a serial is only ever taken by a completed purchase, see
+// claimEditions()). They're shown as "In your bag" (not "Taken"), can't be
+// picked a second time for another bag line, and still count as available.
 export default function LimitedEditionSelector({ productId, total, quantity, value, onChange, error = false, reserved = [] }) {
   const { t } = useApp();
   const [open, setOpen] = useState(false);
@@ -83,12 +86,16 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sold]);
 
-  const soldList = useMemo(() => [...new Set([...(sold || []), ...reserved])], [sold, reserved]);
+  // Taken = really sold (server). In-bag numbers are blocked only for this
+  // shopper's next pick, and never reduce the public "left" count.
+  const soldList = useMemo(() => sold || [], [sold]);
+  const inBag = useMemo(() => reserved.filter((n) => !soldList.includes(n)), [reserved, soldList]);
   const remaining = useMemo(() => Math.max(0, total - soldList.length), [soldList, total]);
+  const pickable = useMemo(() => Math.max(0, remaining - inBag.length), [remaining, inBag]);
   const isComplete = selected.length === quantity;
 
   const toggle = (number) => {
-    if (soldList.includes(number)) return;
+    if (soldList.includes(number) || inBag.includes(number)) return;
     if (selected.includes(number)) {
       onChange(selected.filter((item) => item !== number));
       return;
@@ -102,7 +109,7 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
 
   const pickRandom = () => {
     const free = Array.from({ length: total }, (_, i) => i + 1)
-      .filter((n) => !soldList.includes(n) && !selected.includes(n));
+      .filter((n) => !soldList.includes(n) && !inBag.includes(n) && !selected.includes(n));
     const needed = quantity - selected.length;
     if (needed <= 0 || free.length === 0) return;
     const picks = [];
@@ -196,8 +203,9 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
             <div className="edition-modal__legend">
               <span><i className="edition-swatch" />{t('Available')}</span>
               <span><i className="edition-swatch is-selected" />{t('Your pick')}</span>
+              {inBag.length > 0 && <span><i className="edition-swatch is-in-bag" />{t('In your bag')}</span>}
               <span><i className="edition-swatch is-sold" />{t('Taken')}</span>
-              <button type="button" className="edition-modal__random" onClick={pickRandom} disabled={loading || isComplete || remaining === 0}>
+              <button type="button" className="edition-modal__random" onClick={pickRandom} disabled={loading || isComplete || pickable === 0}>
                 {t('Pick for me')}
               </button>
             </div>
@@ -208,19 +216,22 @@ export default function LimitedEditionSelector({ productId, total, quantity, val
               <div className="edition-modal__grid">
                 {Array.from({ length: total }, (_, index) => index + 1).map((number) => {
                   const isSold = soldList.includes(number);
+                  const isInBag = !isSold && inBag.includes(number);
                   const isSelected = selected.includes(number);
                   return (
                     <button
                       key={number}
                       type="button"
-                      disabled={isSold}
+                      disabled={isSold || isInBag}
                       aria-pressed={isSelected}
-                      aria-label={`${pad(number)}${isSold ? ` — ${t('Taken')}` : ''}`}
-                      className={`edition-number ${isSold ? 'is-sold' : ''} ${isSelected ? 'is-selected' : ''}`}
+                      aria-label={`${pad(number)}${isSold ? ` — ${t('Taken')}` : isInBag ? ` — ${t('In your bag')}` : ''}`}
+                      title={isInBag ? t('In your bag') : undefined}
+                      className={`edition-number ${isSold ? 'is-sold' : ''} ${isInBag ? 'is-in-bag' : ''} ${isSelected ? 'is-selected' : ''}`}
                       onClick={() => toggle(number)}
                     >
                       <strong>{pad(number)}</strong>
                       {isSelected && <small aria-hidden="true">✓</small>}
+                      {isInBag && <small aria-hidden="true">{t('Bag')}</small>}
                     </button>
                   );
                 })}

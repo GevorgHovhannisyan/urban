@@ -21,6 +21,8 @@ import {
 } from "./server/payment/arcaService.mjs";
 import { describeSmtpConfig } from "./server/mailer.mjs";
 import { retryPendingConfirmationEmails } from "./server/order-api.mjs";
+import { describeHdmConfig } from "./server/hdm/config.mjs";
+import { startHdmWorker } from "./server/hdm/fiscalService.mjs";
 
 // Refuses to boot (throws, crashing the process before it ever listens) if
 // NODE_ENV=production and ADMIN_PASSWORD is unset or still the documented
@@ -47,6 +49,8 @@ console.log(`Payment: ${describeArcaConfig().message}`);
 // logs the App Password itself, just whether SMTP_HOST/PORT/USER/PASS are
 // present.
 console.log(`SMTP: ${describeSmtpConfig().message}`);
+// Electronic cash register (ՀԴՄ): names/presence only, never the passphrase.
+console.log(`HDM: ${describeHdmConfig().message}`);
 // Production runs on DigitalOcean, which blocks outgoing SMTP (465/587), so
 // order confirmations only work there through ZeptoMail (HTTPS).
 if (process.env.NODE_ENV === "production" && !process.env.ZEPTOMAIL_TOKEN) {
@@ -105,3 +109,8 @@ const retryConfirmationEmails = () =>
     .catch((error) => console.error("[mail] confirmation retry sweep failed:", error));
 setTimeout(retryConfirmationEmails, 60 * 1000).unref();
 setInterval(retryConfirmationEmails, 5 * 60 * 1000).unref();
+
+// Fiscal receipts (ՀԴՄ): sends pending receipts, recovers tasks interrupted
+// by a restart, reconciles unknown results and retries receipt emails —
+// every minute. Does nothing while HDM_ENABLED is not true.
+startHdmWorker();

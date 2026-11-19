@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { all, get, run, toJson, fromJson } from './db.mjs';
+import { all, get, run, toJson, fromJson, withTransaction } from './db.mjs';
+import { insertSaleTask, shouldFiscalize, kickHdmWorker, receiptTasksByOrderIds, adminReceiptView } from './hdm/fiscalService.mjs';
 import { getProduct, getProductsByIds, getVariantStock, tryDecrementVariantStock, clampDecrementVariantStock, restoreVariantStock, isProductPurchasable } from './products-api.mjs';
 import { claimEditions, releaseEditionsForOrder } from './edition-api.mjs';
 import { validatePromoCode, tryCommitPromoUsage, revertPromoUsage } from './promo-api.mjs';
@@ -371,7 +372,7 @@ export async function validateOrderDraft(payload = {}) {
 // auto-refund/cancel in that case is a real policy call this pass doesn't
 // make; see the "KNOWN RISK" tests in tests/api/stripe-webhook.test.mjs for
 // the reasoning this preserves.
-async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enforceStock = true, paymentProvider = null, providerTransactionId = null, paymentEnv = null }) {
+async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enforceStock = true, paymentProvider = null, providerTransactionId = null, paymentEnv = null, paidAmount = null, paidCurrency = null }) {
   if (idempotencyKey) {
     const existing = await get('SELECT * FROM orders WHERE idempotencyKey = ?', [idempotencyKey]);
     if (existing) return { status: 201, body: successBody(existing) };
@@ -448,26 +449,37 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
     reservedItems.push(item);
   }
 
+  // A verified online payment that needs a fiscal receipt (ՀԴՄ): the
+  // receipt task is written in the SAME transaction as the paid order, so a
+  // paid order can never exist without its task (or vice versa) — see
+  // server/hdm/fiscalService.mjs.
+  const fiscalize = paymentStatus === 'paid' && paidCurrency === 'AMD' && Number(paidAmount) > 0
+    && shouldFiscalize({ provider: paymentProvider, paymentEnv });
   try {
-    await run(
-      `INSERT INTO orders (
-        id, orderNumber, createdAt, status, paymentMethod, paymentStatus, currency, region, priceMultiplier,
-        customerFirstName, customerLastName, customerEmail, customerPhone, customerCountry, customerCity,
-        customerPostalCode, customerAddress, customerApartment, deliveryNotes, items, subtotal, shipping, total, promoCode, discountAmount, customerId,
-        idempotencyKey, giftCardCode, giftCardAmount, loyaltyDiscount, loyaltyPointsUsed, loyaltyPointsGranted, deliveryMethod, deliveryEstimate,
-        paymentProvider, providerTransactionId, paymentEnv
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id, orderNumber, now.toISOString().slice(0, 19).replace('T', ' '), status, draft.paymentMethod, paymentStatus, 'USD',
-        draft.isUnitedStates ? 'US' : 'OTHER', draft.priceMultiplier,
-        draft.customer.firstName, draft.customer.lastName, draft.customer.email,
-        draft.customer.phone, draft.customer.country, draft.customer.city,
-        draft.customer.postalCode, draft.customer.address, draft.customer.apartment || null, draft.customer.deliveryNotes || null,
-        toJson(draft.items), draft.subtotal, draft.shipping, draft.total, draft.appliedPromoCode, draft.discountAmount, draft.customerId,
-        idempotencyKey, draft.appliedGiftCardCode, draft.giftCardAmount, draft.loyaltyDiscount, draft.pointsToRedeem, 0, draft.deliveryMethod || null, draft.deliveryEstimate || null,
-        paymentProvider, providerTransactionId, paymentEnv,
-      ]
-    );
+    await withTransaction(async (tx) => {
+      await tx.run(
+        `INSERT INTO orders (
+          id, orderNumber, createdAt, status, paymentMethod, paymentStatus, currency, region, priceMultiplier,
+          customerFirstName, customerLastName, customerEmail, customerPhone, customerCountry, customerCity,
+          customerPostalCode, customerAddress, customerApartment, deliveryNotes, items, subtotal, shipping, total, promoCode, discountAmount, customerId,
+          idempotencyKey, giftCardCode, giftCardAmount, loyaltyDiscount, loyaltyPointsUsed, loyaltyPointsGranted, deliveryMethod, deliveryEstimate,
+          paymentProvider, providerTransactionId, paymentEnv, paidAmount, paidCurrency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id, orderNumber, now.toISOString().slice(0, 19).replace('T', ' '), status, draft.paymentMethod, paymentStatus, 'USD',
+          draft.isUnitedStates ? 'US' : 'OTHER', draft.priceMultiplier,
+          draft.customer.firstName, draft.customer.lastName, draft.customer.email,
+          draft.customer.phone, draft.customer.country, draft.customer.city,
+          draft.customer.postalCode, draft.customer.address, draft.customer.apartment || null, draft.customer.deliveryNotes || null,
+          toJson(draft.items), draft.subtotal, draft.shipping, draft.total, draft.appliedPromoCode, draft.discountAmount, draft.customerId,
+          idempotencyKey, draft.appliedGiftCardCode, draft.giftCardAmount, draft.loyaltyDiscount, draft.pointsToRedeem, 0, draft.deliveryMethod || null, draft.deliveryEstimate || null,
+          paymentProvider, providerTransactionId, paymentEnv, paidAmount, paidCurrency,
+        ]
+      );
+      if (fiscalize) {
+        await insertSaleTask(tx, { orderId: id, amount: paidAmount, currency: paidCurrency, provider: paymentProvider, providerTransactionId });
+      }
+    });
     // Points are earned only once the order is actually paid — a Stripe
     // order is paid here; cash on delivery / manual methods earn when an
     // admin marks them Paid (updateOrderStatus). See server/loyalty.mjs.
@@ -501,6 +513,7 @@ async function commitOrder(draft, { status, paymentStatus, idempotencyKey, enfor
   // restart before it finishes) is picked up again by
   // retryPendingConfirmationEmails().
   queueOrderEmails(id);
+  if (fiscalize) kickHdmWorker();
 
   return { status: 201, body: successBody(row) };
 }
@@ -611,6 +624,15 @@ export async function createOrder(payload = {}) {
     return { status: 400, body: { error: 'Idram payments must be completed through Idram checkout.' } };
   }
 
+  // A limited-edition serial is only ever taken by a completed purchase:
+  // card (ArCa/Stripe) and Idram claim it once the payment is verified, and
+  // Cash on Delivery once the order is actually placed. Every other method
+  // on this endpoint creates an UNPAID "payment_pending" order, which would
+  // otherwise lock the serial for everyone else without anyone paying.
+  if (draft.paymentMethod !== 'cash_on_delivery' && draft.items.some((item) => item.isLimitedEdition)) {
+    return { status: 400, body: { error: 'Limited edition pieces can only be bought by card, Idram or cash on delivery.' } };
+  }
+
   // Cash on Delivery is a real, immediate order — there is no online payment
   // step to wait for, so it confirms right away (same as a Stripe order
   // confirms once the webhook verifies payment). paymentStatus stays
@@ -638,7 +660,10 @@ export async function createOrder(payload = {}) {
 // ('sandbox' or 'production') records which environment actually processed
 // the charge, so a sandbox-processed order can never be mistaken for a real
 // one in the admin panel even if PAYMENT_ENV is later flipped to production.
-export async function completePayment(draft, { provider, providerTransactionId, pendingCheckoutId, paymentEnv }) {
+// `paidAmount`/`paidCurrency`: what the provider confirmed was charged
+// (ArCa/Idram: the AMD amount verified against the provider) — recorded on
+// the order and used for the fiscal receipt.
+export async function completePayment(draft, { provider, providerTransactionId, pendingCheckoutId, paymentEnv, paidAmount = null, paidCurrency = null }) {
   // enforceStock: false — the customer has already been charged by the time
   // this runs (see commitOrder()'s doc comment); this order must be
   // committed regardless of a stock race in the meantime.
@@ -650,6 +675,8 @@ export async function completePayment(draft, { provider, providerTransactionId, 
     paymentProvider: provider,
     providerTransactionId,
     paymentEnv,
+    paidAmount,
+    paidCurrency,
   });
 }
 
@@ -671,10 +698,15 @@ export async function listOrdersByEmail(email) {
 export async function listOrders() {
   const rows = await all('SELECT * FROM orders ORDER BY createdAt DESC');
   const orders = await serializeOrders(rows);
+  const receipts = await receiptTasksByOrderIds(rows.map((row) => row.id));
   return orders.map((order, i) => ({
     ...order,
     confirmationEmailError: rows[i].confirmationEmailError || null,
     confirmationEmailAttempts: Number(rows[i].confirmationEmailAttempts || 0),
+    paidAmount: rows[i].paidAmount != null ? Number(rows[i].paidAmount) : null,
+    paidCurrency: rows[i].paidCurrency || null,
+    // Fiscal receipt (ՀԴՄ) — its own status, separate from payment and email.
+    fiscalReceipt: adminReceiptView(receipts.get(rows[i].id), rows[i].orderNumber),
   }));
 }
 

@@ -7,7 +7,7 @@ export const SITE_NAME = 'Urban Phoenix';
 export const DEFAULT_OG_IMAGE = '/images/brand/og-default.jpg';
 
 // Every page name the SPA can render (src/App.jsx). Anything else is a 404.
-export const KNOWN_PAGES = new Set(['home', 'shop', 'product', 'collection', 'about', 'cart', 'wishlist', 'search', 'login', 'reset-password', 'account', 'checkout', 'track', 'contact', 'journal', 'journal-post', 'drop', 'gift-cards', 'sizing', 'shipping', 'faq', 'privacy', 'terms', 'cookies', 'campaign', 'refund', 'cancellation', 'legal', 'contact-info']);
+export const KNOWN_PAGES = new Set(['home', 'shop', 'product', 'collection', 'about', 'cart', 'wishlist', 'search', 'login', 'reset-password', 'account', 'checkout', 'track', 'contact', 'journal', 'journal-post', 'drop', 'gift-cards', 'sizing', 'shipping', 'faq', 'privacy', 'terms', 'cookies', 'campaign', 'refund', 'cancellation', 'legal', 'contact-info', 'receipt']);
 
 // Public pages listed in /sitemap.xml (products and journal articles are
 // added from the database). Private/transactional pages are left out.
@@ -42,6 +42,7 @@ export const PAGE_META = {
   cookies: { name: 'Cookie Preferences', description: 'Manage your cookie preferences on Urban Phoenix. See which essential cookies keep your bag, language and currency working and which optional ones you control.' },
   legal: { name: 'Legal Notice', description: 'Urban Phoenix legal notice: the company behind the store, legal address in Yerevan, Armenia, contact details and the terms that apply to using this website.' },
   'contact-info': { name: 'Contact Information', description: 'Urban Phoenix contact information: support phone and email, working hours (Armenia time) and our legal address at 16, 1st Lane, Tichina, Yerevan, Armenia.' },
+  receipt: { name: 'Tax Receipt', description: 'Your Urban Phoenix electronic cash register (ՀԴՄ) receipt, registered with the State Revenue Committee of Armenia, with its fiscal number and QR code.' },
   'not-found': { name: 'Page Not Found', description: "The page you're looking for doesn't exist or may have moved. Return to the Urban Phoenix homepage to shop heavyweight oversized streetwear from Armenia." },
 };
 
@@ -112,6 +113,9 @@ export function pageToPath(page, data, selectedProduct) {
     const id = data?.product?.id || data?.id || selectedProduct?.id;
     return id ? `/product/${encodeURIComponent(id)}` : '/shop';
   }
+  if (page === 'receipt' && data?.orderNumber) {
+    return `/receipt/${encodeURIComponent(data.orderNumber)}`;
+  }
   if (page === 'journal-post') {
     const slug = data?.slug;
     return slug ? `/journal/${encodeURIComponent(slug)}` : '/journal';
@@ -124,6 +128,8 @@ export function pathToPageInfo(pathname) {
   if (clean === '/') return { page: 'home' };
   const productMatch = clean.match(/^\/product\/([^/]+)$/);
   if (productMatch) return { page: 'product', productId: safeDecode(productMatch[1]) };
+  const receiptMatch = clean.match(/^\/receipt\/([^/]+)$/);
+  if (receiptMatch) return { page: 'receipt', orderNumber: safeDecode(receiptMatch[1]) };
   const journalMatch = clean.match(/^\/journal\/([^/]+)$/);
   if (journalMatch) return { page: 'journal-post', slug: safeDecode(journalMatch[1]) };
   // Idram's SUCCESS_URL / FAIL_URL — handled by the checkout page.
