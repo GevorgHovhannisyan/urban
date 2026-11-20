@@ -1143,6 +1143,7 @@ Object.assign(translations.hy, {
   "Topic": "Թեմա",
   "Verification code": "Հաստատման կոդ",
   "In your bag": "Ձեր զամբյուղում",
+  "Tax receipt": "ՀԴՄ կտրոն",
   "Bag": "Զամբյուղ",
 });
 Object.assign(translations.ru, {
@@ -1151,6 +1152,7 @@ Object.assign(translations.ru, {
   "Topic": "Тема",
   "Verification code": "Код подтверждения",
   "In your bag": "В вашей корзине",
+  "Tax receipt": "Кассовый чек",
   "Bag": "Корзина",
 });
 

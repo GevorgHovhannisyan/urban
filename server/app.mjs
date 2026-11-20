@@ -110,6 +110,8 @@ import {
   reconcileUnknownTasks,
   processDueTasks as processFiscalTasks,
   fiscalSummary,
+  fiscalReport,
+  getInvoicePdf,
 } from "./hdm/fiscalService.mjs";
 import {
   uploadsDir,
@@ -431,6 +433,34 @@ export function createApp({ allowFraming = false } = {}) {
     }
     res.setHeader("Cache-Control", "no-store");
     res.status(result.status).json(result.body);
+  });
+
+  // The receipt's SRC QR code as a PNG — used by the invoice email, where
+  // mail clients block inline images. Same access rule as the receipt.
+  publicApi.get("/receipts/:orderNumber/qr.png", readLimiter, async (req, res) => {
+    const result = await getReceiptForCustomer(req.params.orderNumber, {
+      token: typeof req.query.t === "string" ? req.query.t : "",
+    });
+    if (result.status !== 200 || !result.body.receipt?.qr) return res.status(404).end();
+    const png = await QRCode.toBuffer(result.body.receipt.qr, { type: "png", width: 320, margin: 1, errorCorrectionLevel: "M" });
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.type("png").send(png);
+  });
+
+  // Downloadable PDF invoice for an issued receipt: the secret link, or the
+  // signed-in owner (Bearer token). Same 404 for anything else.
+  publicApi.get("/receipts/:orderNumber/invoice.pdf", readLimiter, async (req, res) => {
+    const customerId = optionalCustomerId(req);
+    const customer = customerId ? await get("SELECT email FROM customers WHERE id = ?", [customerId]) : null;
+    const result = await getInvoicePdf(req.params.orderNumber, {
+      token: typeof req.query.t === "string" ? req.query.t : "",
+      customerId,
+      customerEmail: customer?.email || null,
+    });
+    if (result.status !== 200) return res.status(404).json({ error: "Invoice not found." });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+    res.type("application/pdf").send(result.pdf);
   });
 
   publicApi.post("/orders", async (req, res) => {
@@ -942,6 +972,12 @@ export function createApp({ allowFraming = false } = {}) {
     } catch (error) {
       res.json({ ok: false, message: error.message });
     }
+  });
+  // Accounting reconciliation for a date range (Armenia time): paid online
+  // orders vs. issued fiscal receipts, with every mismatch listed.
+  adminApi.get("/hdm/report", async (req, res) => {
+    const result = await fiscalReport({ from: req.query.from, to: req.query.to });
+    res.status(result.status).json(result.body);
   });
   adminApi.post("/hdm/run", async (req, res) => {
     const processed = await processFiscalTasks();

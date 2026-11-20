@@ -690,7 +690,11 @@ export async function listOrdersByEmail(email) {
   const normalized = clean(email, 120).toLowerCase();
   if (!normalized) return { status: 400, body: { error: 'Email is required.' } };
   const rows = await all('SELECT * FROM orders WHERE customerEmail = ? ORDER BY createdAt DESC', [normalized]);
-  return { status: 200, body: { orders: await serializeOrders(rows) } };
+  const orders = await serializeOrders(rows);
+  // The customer's own orders: only whether a fiscal receipt exists — the
+  // receipt itself is fetched from /api/receipts/:orderNumber (owner check).
+  const receipts = await receiptTasksByOrderIds(rows.map((row) => row.id));
+  return { status: 200, body: { orders: orders.map((order) => ({ ...order, fiscalReceiptIssued: receipts.get(order.id)?.status === 'issued' })) } };
 }
 
 // Admin only (GET /api/admin/orders). Adds the confirmation email's delivery

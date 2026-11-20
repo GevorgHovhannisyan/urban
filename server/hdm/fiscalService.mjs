@@ -26,6 +26,7 @@ import { all, get, run, fromJson, toJson } from '../db.mjs';
 import { getHdmConfig, missingConnectionSettings } from './config.mjs';
 import * as src from './srcClient.mjs';
 import { buildSaleReceipt } from './receipt.mjs';
+import { buildInvoicePdf } from './invoicePdf.mjs';
 import { getPublicUrl, sendFiscalReceiptEmail } from '../mailer.mjs';
 
 const WORKER_ID = `${process.pid}-${randomUUID().slice(0, 8)}`;
@@ -381,6 +382,13 @@ export async function sendReceiptEmail(taskId) {
       orderNumber: order.orderNumber,
       receipt: publicReceipt(task),
       receiptUrl: receiptUrl(order.orderNumber, task.accessToken),
+      qrImageUrl: receiptQrUrl(order.orderNumber, task.accessToken),
+      pdfUrl: invoicePdfUrl(order.orderNumber, task.accessToken),
+      paymentMethod: order.paymentMethod,
+      order: {
+        subtotal: Number(order.subtotal), shipping: Number(order.shipping), discountAmount: Number(order.discountAmount || 0),
+        loyaltyDiscount: Number(order.loyaltyDiscount || 0), createdAt: order.createdAt,
+      },
     });
     await run('UPDATE hdm_receipts SET emailSentAt = ?, emailError = ? WHERE id = ?',
       [result.sent ? sqlTime() : null, result.sent ? null : clip(result.error || 'Email was not sent (mail is not configured).', 1000), taskId]);
@@ -421,6 +429,33 @@ export function receiptUrl(orderNumber, accessToken) {
   return `${getPublicUrl()}/receipt/${encodeURIComponent(orderNumber)}?t=${accessToken}`;
 }
 
+export function invoicePdfUrl(orderNumber, accessToken) {
+  return `${getPublicUrl()}/api/receipts/${encodeURIComponent(orderNumber)}/invoice.pdf?t=${accessToken}`;
+}
+
+// PDF invoice for an issued receipt — same access rule as the receipt
+// (secret link or owning customer). Returns { status, pdf?, filename? }.
+export async function getInvoicePdf(orderNumber, auth = {}) {
+  const view = await getReceiptForCustomer(orderNumber, auth);
+  if (view.status !== 200 || view.body.status !== 'issued') return { status: 404 };
+  const order = await get('SELECT customerFirstName, customerLastName, customerEmail, createdAt FROM orders WHERE orderNumber = ?', [view.body.orderNumber]);
+  const pdf = await buildInvoicePdf({
+    orderNumber: view.body.orderNumber,
+    orderDate: order?.createdAt ? new Date(`${String(order.createdAt).replace(' ', 'T')}Z`).toLocaleDateString('en-GB', { timeZone: 'Asia/Yerevan' }) : null,
+    buyerName: [order?.customerFirstName, order?.customerLastName].filter(Boolean).join(' '),
+    buyerEmail: order?.customerEmail,
+    paymentMethod: view.body.paymentMethod,
+    receipt: view.body.receipt,
+  });
+  return { status: 200, pdf, filename: `UrbanPhoenix-invoice-${view.body.orderNumber}.pdf` };
+}
+
+// PNG of the receipt's SRC QR code, for emails (mail clients block inline
+// data: images). Same secret token as the receipt link.
+export function receiptQrUrl(orderNumber, accessToken) {
+  return `${getPublicUrl()}/api/receipts/${encodeURIComponent(orderNumber)}/qr.png?t=${accessToken}`;
+}
+
 // What a customer may see: the fiscal receipt as printed (no raw SRC
 // response, no internal errors).
 function publicReceipt(task) {
@@ -455,7 +490,7 @@ function sameSecret(a, b) {
 // customer who owns the order. Anything else looks exactly like "not found".
 export async function getReceiptForCustomer(orderNumber, { token, customerId, customerEmail } = {}) {
   const notFound = { status: 404, body: { error: 'Receipt not found.' } };
-  const order = await get('SELECT id, orderNumber, customerId, customerEmail, createdAt, total, paidAmount, paidCurrency FROM orders WHERE orderNumber = ?', [String(orderNumber || '').slice(0, 64)]);
+  const order = await get('SELECT id, orderNumber, customerId, customerEmail, createdAt, total, paidAmount, paidCurrency, paymentMethod FROM orders WHERE orderNumber = ?', [String(orderNumber || '').slice(0, 64)]);
   if (!order) return notFound;
   const task = await taskForOrder(order.id);
   if (!task) return notFound;
@@ -468,6 +503,7 @@ export async function getReceiptForCustomer(orderNumber, { token, customerId, cu
     body: {
       orderNumber: order.orderNumber,
       status,
+      paymentMethod: order.paymentMethod,
       receipt: status === 'issued' ? publicReceipt(task) : null,
     },
   };
@@ -494,6 +530,7 @@ export function adminReceiptView(task, orderNumber) {
     resolvedBy: task.resolvedBy,
     email: { sentAt: task.emailSentAt, error: task.emailError, attempts: task.emailAttempts },
     receiptUrl: task.status === 'issued' ? receiptUrl(orderNumber, task.accessToken) : null,
+    invoicePdfUrl: task.status === 'issued' ? invoicePdfUrl(orderNumber, task.accessToken) : null,
     createdAt: task.createdAt,
   };
 }
@@ -507,6 +544,96 @@ export async function receiptTasksByOrderIds(orderIds) {
 export async function fiscalSummary() {
   const rows = await all('SELECT status, COUNT(*) AS n FROM hdm_receipts GROUP BY status');
   return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)]));
+}
+
+// ---------- accounting reconciliation ----------
+// Three-way check for a date range (Armenia time): money received (paid
+// online orders: ArCa card + Idram, in AMD) vs. fiscal receipts issued vs.
+// what SRC holds. Every paid online order should have exactly one ISSUED
+// receipt whose total equals the amount charged. Anything else is listed as
+// a problem with the reason. Cash-on-delivery orders are listed separately:
+// the website does not fiscalize them (their receipt is issued at delivery).
+const YEREVAN_OFFSET = '+04:00';
+export async function fiscalReport({ from, to }) {
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!day.test(String(from)) || !day.test(String(to))) return { status: 400, body: { error: 'Give from and to as YYYY-MM-DD.' } };
+  const start = new Date(`${from}T00:00:00${YEREVAN_OFFSET}`);
+  const end = new Date(new Date(`${to}T00:00:00${YEREVAN_OFFSET}`).getTime() + 24 * 3600 * 1000);
+  if (!(end > start) || end - start > 400 * 24 * 3600 * 1000) return { status: 400, body: { error: 'Choose a range of at most about a year.' } };
+
+  const rows = await all(
+    `SELECT o.id, o.orderNumber, o.createdAt, o.status, o.paymentMethod, o.paymentStatus, o.paymentProvider, o.providerTransactionId,
+            o.paymentEnv, o.total, o.paidAmount, o.paidCurrency,
+            h.status AS fiscalStatus, h.amount AS fiscalAmount, h.receiptId, h.fiscal, h.crn, h.receiptTotal, h.issuedAt, h.lastError,
+            h.emailSentAt AS receiptEmailSentAt
+       FROM orders o LEFT JOIN hdm_receipts h ON h.orderId = o.id AND h.kind = 'sale'
+      WHERE o.createdAt >= ? AND o.createdAt < ?
+      ORDER BY o.createdAt ASC`,
+    [sqlTime(start.getTime()), sqlTime(end.getTime())]);
+
+  const online = new Set(['arca', 'idram']);
+  const lines = [];
+  const summary = {
+    from, to,
+    paidOnline: { count: 0, amountAmd: 0 },
+    receiptsIssued: { count: 0, amountAmd: 0 },
+    byProvider: {},
+    problems: 0,
+    cashOnDelivery: { count: 0, note: 'Not fiscalized by the website — receipt issued at delivery.' },
+    refundedOrCancelledWithReceipt: 0,
+  };
+  for (const r of rows) {
+    const isOnlinePaid = online.has(String(r.paymentProvider || '')) && r.paymentEnv !== 'sandbox'
+      && (r.paymentStatus === 'paid' || r.paymentStatus === 'refunded');
+    if (r.paymentMethod === 'cash_on_delivery') {
+      if (r.status !== 'cancelled') summary.cashOnDelivery.count += 1;
+      continue;
+    }
+    if (!isOnlinePaid) continue;
+    const paid = r.paidCurrency === 'AMD' && r.paidAmount != null ? Number(r.paidAmount) : null;
+    let problem = null;
+    if (r.paymentStatus === 'refunded' || r.status === 'cancelled') {
+      if (r.fiscalStatus === 'issued') { problem = 'Refunded/cancelled after a receipt was issued — a return receipt is needed (not automated yet).'; summary.refundedOrCancelledWithReceipt += 1; }
+    } else {
+      summary.paidOnline.count += 1;
+      if (paid != null) summary.paidOnline.amountAmd += paid;
+      const p = (summary.byProvider[r.paymentProvider] ||= { count: 0, amountAmd: 0 });
+      p.count += 1;
+      if (paid != null) p.amountAmd += paid;
+      if (paid == null) problem = 'Charged amount in AMD not recorded (order paid before HDM was installed).';
+      else if (!r.fiscalStatus) problem = 'No receipt task — HDM was off when this order was paid.';
+      else if (r.fiscalStatus !== 'issued') problem = `Receipt ${r.fiscalStatus}${r.lastError ? `: ${r.lastError}` : ''}`;
+      else if (Math.round(Number(r.receiptTotal) * 100) !== Math.round(paid * 100)) problem = `Receipt total ${r.receiptTotal} AMD differs from the charged ${paid} AMD.`;
+    }
+    if (r.fiscalStatus === 'issued' && r.paymentStatus !== 'refunded' && r.status !== 'cancelled') {
+      summary.receiptsIssued.count += 1;
+      summary.receiptsIssued.amountAmd += Number(r.receiptTotal) || 0;
+    }
+    if (problem) summary.problems += 1;
+    lines.push({
+      orderNumber: r.orderNumber,
+      createdAt: r.createdAt,
+      provider: r.paymentProvider,
+      providerTransactionId: r.providerTransactionId,
+      paymentStatus: r.paymentStatus,
+      paidAmountAmd: paid,
+      fiscalStatus: r.fiscalStatus || 'none',
+      receiptId: r.receiptId,
+      fiscal: r.fiscal,
+      crn: r.crn,
+      receiptTotalAmd: r.receiptTotal != null ? Number(r.receiptTotal) : null,
+      issuedAt: r.issuedAt,
+      receiptEmailSent: Boolean(r.receiptEmailSentAt),
+      problem,
+    });
+  }
+  const round = (n) => Math.round(n * 100) / 100;
+  summary.paidOnline.amountAmd = round(summary.paidOnline.amountAmd);
+  summary.receiptsIssued.amountAmd = round(summary.receiptsIssued.amountAmd);
+  for (const p of Object.values(summary.byProvider)) p.amountAmd = round(p.amountAmd);
+  summary.differenceAmd = round(summary.paidOnline.amountAmd - summary.receiptsIssued.amountAmd);
+  summary.balanced = summary.problems === 0 && summary.differenceAmd === 0;
+  return { status: 200, body: { summary, lines } };
 }
 
 // ---------- background loop (server.mjs) ----------

@@ -50,3 +50,6 @@ KEYSTORE_PASSWORD.txt
 28028252_*
 *HDM_INTEGRATION*
 *HDM_PRIVATE*
+
+# Local backups of .env (contain secrets) — never commit
+.env.bak*

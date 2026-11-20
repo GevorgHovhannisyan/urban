@@ -75,6 +75,95 @@ function HdmStatusBar({ adminFetch, toast }) {
   );
 }
 
+// Accounting check: paid online orders (ArCa + Idram) vs. issued fiscal
+// receipts for a date range (Armenia time). Compare its totals with the SRC
+// portal's receipt report for the register and with the ArCa/Idram payouts.
+const amdFmt = (n) => (n == null ? '—' : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })} ֏`);
+function ymd(date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function FiscalReport({ adminFetch, toast }) {
+  const today = new Date();
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [to, setTo] = useState(ymd(today));
+  const [report, setReport] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    setBusy(true);
+    try {
+      setReport(await adminFetch(`/hdm/report?from=${from}&to=${to}`));
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const downloadCsv = () => {
+    const cols = ['orderNumber', 'createdAt', 'provider', 'providerTransactionId', 'paymentStatus', 'paidAmountAmd', 'fiscalStatus', 'receiptId', 'fiscal', 'crn', 'receiptTotalAmd', 'issuedAt', 'receiptEmailSent', 'problem'];
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [cols.join(','), ...report.lines.map((l) => cols.map((c) => cell(l[c])).join(','))].join('\r\n');
+    const url = URL.createObjectURL(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fiscal-report_${from}_${to}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const s = report?.summary;
+  return (
+    <div className="border border-white/8 px-4 py-3 mb-4 text-xs">
+      <button type="button" className="font-mono uppercase tracking-widest text-white/60 hover:text-white" onClick={() => setOpen(!open)}>
+        {open ? '▾' : '▸'} Fiscal report (accounting check)
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-white/50">From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="bg-transparent border border-white/15 px-2 py-1 ml-1" /></label>
+            <label className="text-white/50">To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="bg-transparent border border-white/15 px-2 py-1 ml-1" /></label>
+            <Button variant="secondary" onClick={load} disabled={busy}>{busy ? 'Loading…' : 'Run report'}</Button>
+            {report && report.lines.length > 0 && <Button variant="secondary" onClick={downloadCsv}>Download CSV</Button>}
+          </div>
+          {s && (
+            <>
+              <p className={s.balanced ? 'text-emerald-400' : 'text-amber-400'}>
+                {s.balanced ? 'Balanced: every paid online order has an issued receipt for exactly the amount charged.' : `${s.problems} order(s) need attention; difference ${amdFmt(s.differenceAmd)}.`}
+              </p>
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="border border-white/8 p-3">
+                  <p className="text-white/40 uppercase tracking-widest text-[10px]">Paid online (money received)</p>
+                  <p className="text-white text-base font-mono mt-1">{amdFmt(s.paidOnline.amountAmd)}</p>
+                  <p className="text-white/50">{s.paidOnline.count} order(s){Object.entries(s.byProvider).map(([k, v]) => ` · ${k}: ${amdFmt(v.amountAmd)} (${v.count})`).join('')}</p>
+                </div>
+                <div className="border border-white/8 p-3">
+                  <p className="text-white/40 uppercase tracking-widest text-[10px]">Receipts issued (ՀԴՄ)</p>
+                  <p className="text-white text-base font-mono mt-1">{amdFmt(s.receiptsIssued.amountAmd)}</p>
+                  <p className="text-white/50">{s.receiptsIssued.count} receipt(s)</p>
+                </div>
+                <div className="border border-white/8 p-3">
+                  <p className="text-white/40 uppercase tracking-widest text-[10px]">Not fiscalized online</p>
+                  <p className="text-white text-base font-mono mt-1">{s.cashOnDelivery.count}</p>
+                  <p className="text-white/50">cash-on-delivery order(s) — receipt at delivery</p>
+                </div>
+              </div>
+              {report.lines.filter((l) => l.problem).length > 0 && (
+                <div>
+                  <p className="text-white/40 uppercase tracking-widest text-[10px] mb-1">Needs attention</p>
+                  <ul className="space-y-1">
+                    {report.lines.filter((l) => l.problem).map((l) => (
+                      <li key={l.orderNumber} className="text-red-300"><span className="font-mono text-white/80">{l.orderNumber}</span> — {l.problem}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FiscalPanel({ order, adminFetch, toast, onChanged }) {
   const r = order.fiscalReceipt;
   const [busy, setBusy] = useState(false);
@@ -136,6 +225,7 @@ function FiscalPanel({ order, adminFetch, toast, onChanged }) {
         {r.status === 'unknown' && <Button variant="secondary" disabled={busy} onClick={notIssued}>Confirm not issued</Button>}
         {r.status === 'issued' && <Button variant="secondary" disabled={busy} onClick={() => act('resend-email', {}, 'Receipt email sent.')}>Resend receipt email</Button>}
         {r.receiptUrl && <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="text-xs underline text-white/70 self-center">Open receipt</a>}
+        {r.invoicePdfUrl && <a href={r.invoicePdfUrl} className="text-xs underline text-white/70 self-center">Download PDF</a>}
       </div>
     </div>
   );
@@ -191,6 +281,7 @@ export default function AdminOrders({ onNavigate }) {
   return (
     <AdminLayout section="orders" onNavigate={onNavigate} title="Orders" subtitle={`${orders.length} order(s)`}>
       <HdmStatusBar adminFetch={adminFetch} toast={toast} />
+      <FiscalReport adminFetch={adminFetch} toast={toast} />
       {loading ? (
         <p className="text-white/40 text-sm">Loading…</p>
       ) : (

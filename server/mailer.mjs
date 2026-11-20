@@ -1148,49 +1148,100 @@ function fmtAmd(value) {
   return `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} AMD`;
 }
 
-export async function sendFiscalReceiptEmail({ to, firstName, orderNumber, receipt, receiptUrl }) {
+const INVOICE_PAYMENT_LABELS = { card: "Bank card (ArCa)", idram: "Idram" };
+
+// Invoice with the fiscal (ՀԴՄ) data, sent once SRC has registered the
+// receipt. Everything printed comes from the stored, issued receipt —
+// resending never calls SRC again. Never throws.
+export async function sendFiscalReceiptEmail(args) {
   if (!isConfigured) return { sent: false, reason: "unconfigured", error: "Email is not configured: set ZEPTOMAIL_TOKEN (production) or SMTP_HOST/PORT/USER/PASS." };
+  let mail;
   try {
+    mail = buildFiscalReceiptEmail(args);
+  } catch (error) {
+    console.error(`[mail] fiscal receipt (#${args?.orderNumber}) could not be built:`, error);
+    return { sent: false, reason: "build-failed", error: error.message };
+  }
+  return deliver(mail, `fiscal receipt (#${args.orderNumber})`);
+}
+
+// Builds the invoice email without sending it (also used by tests).
+export function buildFiscalReceiptEmail({ to, firstName, orderNumber, receipt, receiptUrl, qrImageUrl = null, pdfUrl = null, paymentMethod = null }) {
+  {
     const when = receipt.time ? new Date(receipt.time).toLocaleString("en-GB", { timeZone: "Asia/Yerevan" }) : "";
-    const rows = [
-      ["Order number", escapeHtml(orderNumber)],
-      ["Fiscal number", escapeHtml(receipt.fiscal || "—")],
+    const items = Array.isArray(receipt.items) ? receipt.items : [];
+    const lineTotal = (i) => Number(i.price) * Number(i.quantity) - Number(i.discount || 0);
+    const discountTotal = items.reduce((sum, i) => sum + Number(i.discount || 0), 0);
+    const payment = INVOICE_PAYMENT_LABELS[paymentMethod] || "Non-cash";
+
+    const seller = [receipt.taxpayer, receipt.address, receipt.tin ? `ՀՎՀՀ / TIN ${receipt.tin}` : null].filter(Boolean);
+    const itemRows = items.map((i) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid ${C.line};font-family:${FONT};font-size:13px;color:${C.ink};">${escapeHtml(i.name)}<br /><span style="color:${C.muted};font-size:12px;">${Number(i.quantity)} ${escapeHtml(i.unit || "")} × ${escapeHtml(fmtAmd(i.price))}${Number(i.discount) > 0 ? ` · discount −${escapeHtml(fmtAmd(i.discount))}` : ""}</span></td>
+        <td align="right" style="padding:10px 0;border-bottom:1px solid ${C.line};font-family:${FONT};font-size:13px;font-weight:600;color:${C.ink};white-space:nowrap;">${escapeHtml(fmtAmd(lineTotal(i)))}</td>
+      </tr>`).join("");
+    const fiscalRows = [
+      ["Fiscal number (ՖՀ)", escapeHtml(receipt.fiscal || "—")],
       ["Receipt number", escapeHtml(receipt.receiptId || "—")],
-      ["Register (CRN)", escapeHtml(receipt.crn || "—")],
-      ["Date", escapeHtml(when || "—")],
-      ["Total", escapeHtml(fmtAmd(receipt.total))],
+      ["Register (ՀԴՄ ԳՀ / CRN)", escapeHtml(receipt.crn || "—")],
+      ...(receipt.sn ? [["Serial (SN)", escapeHtml(receipt.sn)]] : []),
+      ["Registered", escapeHtml(when || "—")],
     ];
+
+    const html = brandedEmail({
+      preheader: `Invoice and tax receipt for order ${orderNumber}.`,
+      eyebrow: "Invoice · ՀԴՄ կտրոն",
+      heading: `Thank you${firstName ? `, ${escapeHtml(firstName)}` : ""}`,
+      bodyHtml: `
+        ${para("Your payment is registered with the State Revenue Committee of Armenia. This is your invoice and electronic cash register receipt.")}
+        ${seller.length ? `<p style="margin:0 0 16px;font-family:${FONT};font-size:12px;line-height:1.6;color:${C.muted};">Seller:<br /><span style="color:${C.ink};">${seller.map(escapeHtml).join("<br />")}</span></p>` : ""}
+        ${infoBox([["Order", escapeHtml(orderNumber)], ["Payment", escapeHtml(payment)]])}
+        ${sectionTitle("Items")}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${C.line};">${itemRows}</table>
+        ${totalsTable(`
+          ${discountTotal > 0 ? summaryRow("Discounts", `−${escapeHtml(fmtAmd(discountTotal))}`, { accent: true }) : ""}
+          ${summaryRow("Total paid", escapeHtml(fmtAmd(receipt.total)), { strong: true })}
+        `)}
+        ${sectionTitle("Fiscal receipt")}
+        ${infoBox(fiscalRows)}
+        ${qrImageUrl ? `<p style="margin:18px 0 0;text-align:center;"><img src="${escapeHtml(qrImageUrl)}" width="160" height="160" alt="Receipt QR code" style="display:inline-block;width:160px;height:160px;border:0;background:#fff;" /></p><p style="margin:6px 0 0;text-align:center;font-family:${FONT};font-size:11px;color:${C.muted};">Scan to check the receipt</p>` : ""}
+        ${pdfUrl ? `<p style="margin:18px 0 0;text-align:center;font-family:${FONT};font-size:13px;"><a href="${escapeHtml(pdfUrl)}" style="color:${C.accent};font-weight:600;">Download PDF invoice</a></p>` : ""}`,
+      cta: { url: receiptUrl, label: "View / print receipt" },
+    });
+
     const text = [
-      `Your Urban Phoenix tax receipt (ՀԴՄ կտրոն)`,
+      `Urban Phoenix — Invoice and tax receipt (ՀԴՄ կտրոն)`,
       ``,
+      ...(seller.length ? [`Seller: ${seller.join(", ")}`, ``] : []),
       `Order: ${orderNumber}`,
+      `Payment: ${payment}`,
+      ``,
+      `Items:`,
+      ...items.map((i) => `  ${i.name} — ${Number(i.quantity)} ${i.unit || ""} × ${fmtAmd(i.price)}${Number(i.discount) > 0 ? ` − ${fmtAmd(i.discount)}` : ""} = ${fmtAmd(lineTotal(i))}`),
+      ``,
+      ...(discountTotal > 0 ? [`Discounts: −${fmtAmd(discountTotal)}`] : []),
+      `Total paid: ${fmtAmd(receipt.total)}`,
+      ``,
       `Fiscal number: ${receipt.fiscal || "-"}`,
       `Receipt number: ${receipt.receiptId || "-"}`,
       `Register (CRN): ${receipt.crn || "-"}`,
-      `Date: ${when || "-"}`,
-      `Total: ${fmtAmd(receipt.total)}`,
+      ...(receipt.sn ? [`Serial (SN): ${receipt.sn}`] : []),
+      `Registered: ${when || "-"}`,
       ``,
-      `View the receipt with its QR code: ${receiptUrl}`,
+      `View / print the receipt with its QR code: ${receiptUrl}`,
+      ...(pdfUrl ? [`Download PDF invoice: ${pdfUrl}`] : []),
       ``,
       `— Urban Phoenix`,
     ].join("\n");
-    return deliver({
+
+    return {
       from: formatSender("orders"),
       to,
       replyTo: EMAIL_SENDERS.support.email,
-      subject: `Urban Phoenix — Tax receipt for order #${orderNumber}`,
+      subject: `Urban Phoenix — Invoice & tax receipt for order #${orderNumber}`,
       text,
-      html: brandedEmail({
-        preheader: `Your tax receipt for order ${orderNumber}.`,
-        eyebrow: "Tax receipt · ՀԴՄ կտրոն",
-        heading: `Your receipt${firstName ? `, ${escapeHtml(firstName)}` : ""}`,
-        bodyHtml: `${para("Here is the electronic cash register receipt for your payment, registered with the State Revenue Committee of Armenia.")}${infoBox(rows)}`,
-        cta: { url: receiptUrl, label: "View receipt & QR code" },
-      }),
-    }, `fiscal receipt (#${orderNumber})`);
-  } catch (error) {
-    console.error(`[mail] fiscal receipt (#${orderNumber}) could not be built:`, error);
-    return { sent: false, reason: "build-failed", error: error.message };
+      html,
+    };
   }
 }
 

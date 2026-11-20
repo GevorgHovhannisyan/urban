@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext';
 // customer who owns the order. The server decides access; this page only
 // renders what it returns.
 const amd = (value) => `${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })} ֏`;
+const PAYMENT_LABELS = { card: 'Bank card (ArCa)', idram: 'Idram' };
 
 export default function ReceiptPage() {
   const { pageData, user } = useApp();
@@ -32,12 +33,48 @@ export default function ReceiptPage() {
   }, [orderNumber, user?.sessionToken]);
 
   const receipt = state.data?.receipt;
+  const [downloading, setDownloading] = useState(false);
+
+  // PDF invoice from the server (same access rule as this page: the
+  // emailed secret link or the signed-in owner).
+  const downloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const token = new URLSearchParams(window.location.search).get('t') || '';
+      const res = await fetch(`/api/receipts/${encodeURIComponent(orderNumber)}/invoice.pdf${token ? `?t=${encodeURIComponent(token)}` : ''}`, {
+        headers: user?.sessionToken ? { Authorization: `Bearer ${user.sessionToken}` } : {},
+      });
+      if (!res.ok) throw new Error('download failed');
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `UrbanPhoenix-invoice-${orderNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.alert('Could not download the PDF. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <main className="pt-[var(--site-header-h,68px)] min-h-screen">
       <section className="max-w-xl mx-auto px-6 py-20">
-        <p className="text-[10px] font-mono text-muted tracking-[0.25em] uppercase mb-4">Tax receipt · ՀԴՄ կտրոն</p>
-        <h1 className="font-display font-black text-5xl uppercase mb-8">Receipt</h1>
+        <p className="text-[10px] font-mono text-muted tracking-[0.25em] uppercase mb-4 receipt-no-print">Invoice · ՀԴՄ կտրոն</p>
+        <div className="flex items-end justify-between gap-4 mb-8">
+          <h1 className="font-display font-black text-5xl uppercase">Receipt</h1>
+          {receipt && (
+            <div className="receipt-no-print flex flex-wrap gap-2 justify-end">
+              <button type="button" onClick={downloadPdf} disabled={downloading} className="text-[11px] font-mono uppercase tracking-widest bg-accent text-white px-4 py-2.5 disabled:opacity-60">
+                {downloading ? 'Preparing…' : 'Download PDF'}
+              </button>
+              <button type="button" onClick={() => window.print()} className="text-[11px] font-mono uppercase tracking-widest border border-border px-4 py-2.5 hover:border-fg">
+                Print
+              </button>
+            </div>
+          )}
+        </div>
 
         {state.loading && <p className="text-muted">Loading…</p>}
         {!state.loading && state.error && <div className="border border-border p-7"><p>{state.error}</p></div>}
@@ -50,7 +87,7 @@ export default function ReceiptPage() {
         )}
 
         {receipt && (
-          <article className="border border-border p-7 font-mono text-sm">
+          <article className="receipt-print border border-border p-7 font-mono text-sm">
             <div className="text-center mb-6">
               {receipt.taxpayer && <p className="font-bold">{receipt.taxpayer}</p>}
               {receipt.address && <p className="text-muted text-xs mt-1">{receipt.address}</p>}
@@ -76,7 +113,7 @@ export default function ReceiptPage() {
             </ul>
             <div className="border-t border-dashed border-border my-5" />
             <div className="flex justify-between font-bold"><span>Total</span><span>{amd(receipt.total)}</span></div>
-            {receipt.cardAmount != null && <div className="flex justify-between text-xs text-muted mt-1"><span>Non-cash</span><span>{amd(receipt.cardAmount)}</span></div>}
+            {receipt.cardAmount != null && <div className="flex justify-between text-xs text-muted mt-1"><span>{PAYMENT_LABELS[state.data.paymentMethod] || 'Non-cash'}</span><span>{amd(receipt.cardAmount)}</span></div>}
             {receipt.qrImage && (
               <div className="mt-7 flex justify-center">
                 <img src={receipt.qrImage} alt="Receipt QR code" width="180" height="180" className="bg-white p-2" />

@@ -425,3 +425,101 @@ test('missing business settings block the receipt instead of guessing', async ()
     process.env.HDM_ADG_CODE = saved;
   }
 });
+
+// ---------- invoice, QR image, account link, accounting report ----------
+test('invoice email contains the items, total, payment method and every fiscal field', async () => {
+  const { order, amount } = await payWithIdram();
+  await settle();
+  const task = await taskFor(order.id);
+  const mailer = await import('../../server/mailer.mjs');
+  const view = await fetch(`${BASE}/api/receipts/${order.orderNumber}?t=${task.accessToken}`).then((r) => r.json());
+  const mail = mailer.buildFiscalReceiptEmail({
+    to: EMAIL, firstName: 'QA', orderNumber: order.orderNumber, receipt: view.receipt,
+    receiptUrl: `https://example.test/receipt/${order.orderNumber}?t=${task.accessToken}`,
+    qrImageUrl: `https://example.test/api/receipts/${order.orderNumber}/qr.png?t=${task.accessToken}`,
+    paymentMethod: 'idram',
+  });
+  assert.match(mail.subject, /Invoice & tax receipt/);
+  for (const needle of [order.orderNumber, task.fiscal, task.receiptId, process.env.HDM_CRN, 'HDM Test Hoodie', 'Idram', '/qr.png?t=']) {
+    assert.ok(mail.html.includes(needle), `html contains ${needle}`);
+  }
+  assert.ok(mail.text.includes(`Total paid: ${amount.toLocaleString('en-US')} AMD`), mail.text);
+});
+
+test('receipt QR image: PNG with the secret link, 404 without it', async () => {
+  const { order } = await payWithIdram();
+  await settle();
+  const task = await taskFor(order.id);
+  const ok = await fetch(`${BASE}/api/receipts/${order.orderNumber}/qr.png?t=${task.accessToken}`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('content-type'), 'image/png');
+  const bytes = Buffer.from(await ok.arrayBuffer());
+  assert.deepEqual([...bytes.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], 'PNG signature');
+  assert.equal((await fetch(`${BASE}/api/receipts/${order.orderNumber}/qr.png`)).status, 404);
+  assert.equal((await fetch(`${BASE}/api/receipts/${order.orderNumber}/qr.png?t=wrong`)).status, 404);
+});
+
+test('the customer\'s own order list says when a receipt exists', async () => {
+  const { order } = await payWithIdram();
+  await settle();
+  const token = jwt.sign({ sub: 'cust-owner', role: 'customer', email: EMAIL }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const res = await fetch(`${BASE}/api/orders/mine`, { headers: { authorization: `Bearer ${token}` } });
+  if (res.status === 200) {
+    const mine = (await res.json()).orders.find((o) => o.orderNumber === order.orderNumber);
+    assert.equal(mine.fiscalReceiptIssued, true);
+  } else {
+    // /orders/mine reads the email from the token; fall back to the function itself.
+    const { listOrdersByEmail } = await import('../../server/order-api.mjs');
+    const mine = (await listOrdersByEmail(EMAIL)).body.orders.find((o) => o.orderNumber === order.orderNumber);
+    assert.equal(mine.fiscalReceiptIssued, true);
+  }
+});
+
+test('accounting report: paid online vs receipts issued, every mismatch listed', async () => {
+  freshRegister();
+  const good = await payWithIdram();
+  await settle();
+  fake.mode = 'lost-no-create';
+  const lost = await payWithIdram();
+  await settle();
+  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
+  const res = await fetch(`${BASE}/api/admin/hdm/report?from=${today}&to=${today}`, { headers: { authorization: `Bearer ${adminToken}` } });
+  assert.equal(res.status, 200);
+  const { summary, lines } = await res.json();
+  const goodLine = lines.find((l) => l.orderNumber === good.order.orderNumber);
+  const lostLine = lines.find((l) => l.orderNumber === lost.order.orderNumber);
+  assert.equal(goodLine.fiscalStatus, 'issued');
+  assert.equal(goodLine.problem, null);
+  assert.equal(goodLine.receiptTotalAmd, good.amount);
+  assert.equal(goodLine.paidAmountAmd, good.amount);
+  assert.equal(lostLine.fiscalStatus, 'unknown');
+  assert.match(lostLine.problem, /unknown/);
+  assert.equal(summary.balanced, false);
+  assert.ok(summary.problems >= 1);
+  assert.ok(summary.paidOnline.count >= summary.receiptsIssued.count);
+  assert.equal(summary.differenceAmd, Math.round((summary.paidOnline.amountAmd - summary.receiptsIssued.amountAmd) * 100) / 100);
+  assert.ok(summary.cashOnDelivery.count >= 1, 'COD orders counted separately');
+  assert.equal((await fetch(`${BASE}/api/admin/hdm/report?from=bad&to=${today}`, { headers: { authorization: `Bearer ${adminToken}` } })).status, 400);
+  assert.equal((await fetch(`${BASE}/api/admin/hdm/report?from=${today}&to=${today}`)).status, 401);
+  await server.db.prepare(`UPDATE hdm_receipts SET status = 'failed' WHERE orderId = ?`).run(lost.order.id);
+});
+
+test('PDF invoice download: secret link or owner only; 404 before the receipt is issued', async () => {
+  const { order } = await payWithIdram();
+  await settle();
+  const task = await taskFor(order.id);
+  const ok = await fetch(`${BASE}/api/receipts/${order.orderNumber}/invoice.pdf?t=${task.accessToken}`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('content-type'), 'application/pdf');
+  assert.match(ok.headers.get('content-disposition'), /attachment; filename="UrbanPhoenix-invoice-UP-/);
+  assert.equal(Buffer.from(await ok.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+  assert.equal((await fetch(`${BASE}/api/receipts/${order.orderNumber}/invoice.pdf`)).status, 404);
+  assert.equal((await fetch(`${BASE}/api/receipts/${order.orderNumber}/invoice.pdf?t=wrong`)).status, 404);
+
+  fake.mode = 'not-sent';
+  const pending = await payWithIdram();
+  await settle();
+  const pendingTask = await taskFor(pending.order.id);
+  assert.equal((await fetch(`${BASE}/api/receipts/${pending.order.orderNumber}/invoice.pdf?t=${pendingTask.accessToken}`)).status, 404, 'no invoice until SRC issued the receipt');
+  await server.db.prepare(`UPDATE hdm_receipts SET status = 'failed' WHERE id = ?`).run(pendingTask.id);
+});

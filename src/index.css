@@ -2855,3 +2855,11 @@ html:lang(ru) :is(h1, h2, h3, h4, .font-display) {
      would overlap the next link: fill the gap exactly instead. */
   .site-footer__link::before { height: calc(100% + 16px); }
 }
+
+/* Receipt / invoice page (src/pages/ReceiptPage.jsx): print only the receipt. */
+@media print {
+  body * { visibility: hidden !important; }
+  .receipt-print, .receipt-print * { visibility: visible !important; color: #000 !important; }
+  .receipt-print { position: absolute; left: 0; top: 0; width: 100%; border-color: #999 !important; background: #fff !important; }
+  .receipt-no-print { display: none !important; }
+}

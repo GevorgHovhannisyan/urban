@@ -17,7 +17,7 @@ const STATUS_LABELS = {
 const RETURN_ELIGIBLE_STATUSES = new Set(['confirmed', 'processing', 'shipped', 'delivered']);
 
 export default function AccountOrders({ onNavigate }) {
-  const { accountFetch, formatMoney, navigate, user } = useApp();
+  const { accountFetch, formatMoney, navigate, user, t } = useApp();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -129,6 +129,15 @@ export default function AccountOrders({ onNavigate }) {
                 >
                   {isOpen ? 'Hide details' : 'View order'}
                 </button>
+                {order.fiscalReceiptIssued && (
+                  <a
+                    href={`/receipt/${encodeURIComponent(order.orderNumber)}`}
+                    onClick={(e) => { e.preventDefault(); navigate('receipt', { orderNumber: order.orderNumber }); }}
+                    className="text-[11px] font-mono uppercase tracking-widest underline text-muted hover:text-fg"
+                  >
+                    {t('Tax receipt')}
+                  </a>
+                )}
                 {(() => {
                   const existingReturn = returnForOrder(order.orderNumber);
                   const eligible = RETURN_ELIGIBLE_STATUSES.has(order.status) && isReturnWindowOpen(order);
