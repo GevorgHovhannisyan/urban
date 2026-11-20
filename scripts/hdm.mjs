@@ -7,6 +7,8 @@
 //   probe --regime <1|2|3|7>     SRC getGoodList: tells whether the register is
 //                                active and departments exist (196 / 201 errors)
 //   copy <receiptId>             SRC printCopy of an existing receipt
+//   info <receiptId>             SRC getReturnedReceiptInfo: each line's department,
+//                                tax regime and VAT as SRC recorded them
 //
 // State-changing at SRC (one-time administrative steps, need --yes):
 //   activate --yes               register status "Ընթացիկ" → "Գործող"
@@ -27,7 +29,7 @@ const positional = args.find((a) => !a.startsWith('--') && args[args.indexOf(a) 
 
 function usage(message) {
   if (message) console.error(`\n${message}\n`);
-  console.error('Commands: status | check | probe --regime N | copy <receiptId> | activate --yes | configure-departments --departments 1:3 --yes | run | enqueue <orderNumber> --yes');
+  console.error('Commands: status | check | probe --regime N | copy <receiptId> | info <receiptId> | activate --yes | configure-departments --departments 1:3 --yes | run | enqueue <orderNumber> --yes');
   process.exit(1);
 }
 
@@ -71,6 +73,20 @@ try {
     case 'copy': {
       if (!positional) usage('copy needs a receipt number.');
       printResult(await src.printCopy(positional));
+      break;
+    }
+    case 'info': {
+      if (!positional) usage('info needs a receipt number.');
+      const res = await src.getReceiptInfo(positional);
+      printResult(res);
+      if (res.outcome === 'success') {
+        const r = res.result || {};
+        console.log(`
+Receipt ${positional}: total ${r.totalAmount} AMD, card ${r.cardAmount}, cash ${r.cashAmount}, cashier ${r.cashierId}`);
+        for (const item of r.items || []) {
+          console.log(`  dep ${item.dep} · taxRegime ${item.taxRegime} (${TAX_REGIMES[item.taxRegime] || 'unknown'}) · ADG ${item.adgCode} · ${item.goodName} × ${item.quantity} = ${item.totalWithTaxes} AMD (VAT ${item.vat})`);
+        }
+      }
       break;
     }
     case 'activate':

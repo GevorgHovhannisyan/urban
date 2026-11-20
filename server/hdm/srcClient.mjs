@@ -167,6 +167,11 @@ export const getGoodList = (taxRegime) => call('getGoodList', { taxRegime: Numbe
 // the method name; printCopy is used.
 export const printCopy = (receiptId) => call('printCopy', { receiptId: Number(receiptId) });
 
+// Read-only: SRC's stored view of an issued receipt, including each line's
+// department, taxRegime and VAT — used to confirm which tax regime a
+// department really prints with (the department itself can't be read back).
+export const getReceiptInfo = (receiptId) => call('getReturnedReceiptInfo', { receiptId: Number(receiptId) });
+
 // State-changing, administrative (never called automatically).
 export const activate = () => call('activate', {}, { mutating: true });
 export const configureDepartments = (departments) => call('configureDepartments', { departments }, { mutating: true });
