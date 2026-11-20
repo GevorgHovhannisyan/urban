@@ -23,3 +23,11 @@ test('works without a QR code or optional seller fields', async () => {
   const pdf = await buildInvoicePdf({ orderNumber: 'UP-TEST-2', receipt: { ...receipt, qr: null, taxpayer: null, address: null, sn: null } });
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
 });
+
+test('with a download link: second QR image and a clickable link to the PDF', async () => {
+  const pdfUrl = 'https://urbanphoenix.am/api/receipts/UP-TEST-3/invoice.pdf?t=abc';
+  const pdf = await buildInvoicePdf({ orderNumber: 'UP-TEST-3', receipt, pdfUrl });
+  const raw = pdf.toString('latin1');
+  assert.ok((raw.match(/\/Subtype \/Image/g) || []).length >= 2, 'fiscal QR + download QR');
+  assert.ok(raw.includes(`/URI (${pdfUrl})`), 'clickable link to the PDF');
+});

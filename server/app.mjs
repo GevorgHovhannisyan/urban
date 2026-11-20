@@ -98,7 +98,7 @@ import { submitContactForm } from "./contact-api.mjs";
 import { createRateLimiter } from "./rate-limit.mjs";
 import { imageVariants } from "./image-variants.mjs";
 import { SITEMAP_PAGES, pageToPath } from "../src/seo/pageMeta.js";
-import { qrSvgDataUrl, qrPng } from "./hdm/qr.mjs";
+import { qrSvgDataUrl, qrPng, linkQrSvgDataUrl, linkQrPng } from "./hdm/qr.mjs";
 import { describeHdmConfig } from "./hdm/config.mjs";
 import * as hdmSrc from "./hdm/srcClient.mjs";
 import {
@@ -430,6 +430,10 @@ export function createApp({ allowFraming = false } = {}) {
     if (result.status === 200 && result.body.receipt?.qr) {
       result.body.receipt.qrImage = await qrSvgDataUrl(result.body.receipt.qr);
     }
+    if (result.status === 200 && result.body.pdfUrl) {
+      // Second QR: opens the PDF invoice (the fiscal QR above holds SRC data).
+      result.body.downloadQrImage = await linkQrSvgDataUrl(result.body.pdfUrl);
+    }
     res.setHeader("Cache-Control", "no-store");
     res.status(result.status).json(result.body);
   });
@@ -461,6 +465,16 @@ export function createApp({ allowFraming = false } = {}) {
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
     res.type("application/pdf").send(result.pdf);
+  });
+
+  // "Scan to download" QR for the invoice email: encodes the secret PDF link.
+  publicApi.get("/receipts/:orderNumber/pdf-qr.png", readLimiter, async (req, res) => {
+    const result = await getReceiptForCustomer(req.params.orderNumber, {
+      token: typeof req.query.t === "string" ? req.query.t : "",
+    });
+    if (result.status !== 200 || !result.body.pdfUrl) return res.status(404).end();
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.type("png").send(await linkQrPng(result.body.pdfUrl, 8));
   });
 
   publicApi.post("/orders", async (req, res) => {

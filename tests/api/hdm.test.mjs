@@ -523,3 +523,17 @@ test('PDF invoice download: secret link or owner only; 404 before the receipt is
   assert.equal((await fetch(`${BASE}/api/receipts/${pending.order.orderNumber}/invoice.pdf?t=${pendingTask.accessToken}`)).status, 404, 'no invoice until SRC issued the receipt');
   await server.db.prepare(`UPDATE hdm_receipts SET status = 'failed' WHERE id = ?`).run(pendingTask.id);
 });
+
+test('receipt view includes a "scan to download" QR for the PDF link; its email image needs the secret link', async () => {
+  const { order } = await payWithIdram();
+  await settle();
+  const task = await taskFor(order.id);
+  const view = await fetch(`${BASE}/api/receipts/${order.orderNumber}?t=${task.accessToken}`).then((r) => r.json());
+  assert.ok(view.pdfUrl.endsWith(`/api/receipts/${order.orderNumber}/invoice.pdf?t=${task.accessToken}`), view.pdfUrl);
+  assert.match(view.downloadQrImage, /^data:image\/svg\+xml;base64,/);
+  assert.match(view.receipt.qrImage, /^data:image\/svg\+xml;base64,/, 'fiscal QR still present');
+  const ok = await fetch(`${BASE}/api/receipts/${order.orderNumber}/pdf-qr.png?t=${task.accessToken}`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('content-type'), 'image/png');
+  assert.equal((await fetch(`${BASE}/api/receipts/${order.orderNumber}/pdf-qr.png?t=wrong`)).status, 404);
+});

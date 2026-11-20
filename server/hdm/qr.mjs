@@ -30,3 +30,19 @@ export async function qrSvgDataUrl(payload) {
 export function qrPng(payload, pixelsPerModule = 8) {
   return QRCode.toBuffer(segments(payload), { ...OPTIONS, type: 'png', scale: pixelsPerModule });
 }
+
+// ---- Download-link QR (separate from the fiscal QR) ----
+// A second, clearly labelled QR that opens the invoice PDF — phones act on
+// URLs, unlike the fiscal QR's plain-text SRC data. Same quiet zone and
+// colours; error correction M (URLs are short, so it stays small).
+const LINK_OPTIONS = { ...OPTIONS, errorCorrectionLevel: 'M' };
+const linkSegments = (url) => [{ data: String(url), mode: 'byte' }];
+
+export async function linkQrSvgDataUrl(url) {
+  const svg = await QRCode.toString(linkSegments(url), { ...LINK_OPTIONS, type: 'svg' });
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
+
+export function linkQrPng(url, pixelsPerModule = 8) {
+  return QRCode.toBuffer(linkSegments(url), { ...LINK_OPTIONS, type: 'png', scale: pixelsPerModule });
+}

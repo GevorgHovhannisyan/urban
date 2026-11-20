@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
-import { qrPng } from './qr.mjs';
+import { qrPng, linkQrPng } from './qr.mjs';
 
 const require = createRequire(import.meta.url);
 const FONT_DIR = path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf');
@@ -19,12 +19,16 @@ const PAYMENT_LABELS = { card: 'Bank card (ArCa)', idram: 'Idram' };
 // Printed QR size incl. its white border: ~5.3 cm, ≈0.93 mm per module for a
 // typical (49-module) receipt code.
 const QR_SIZE = 150;
+// The "scan to download" link QR, under the fiscal details.
+const LINK_QR_SIZE = 110;
 const amd = (value) => `${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AMD`;
 const yerevanTime = (ms) => (ms ? new Date(ms).toLocaleString('en-GB', { timeZone: 'Asia/Yerevan' }) : '—');
 
-export async function buildInvoicePdf({ orderNumber, orderDate, buyerName, buyerEmail, paymentMethod, receipt }) {
+export async function buildInvoicePdf({ orderNumber, orderDate, buyerName, buyerEmail, paymentMethod, receipt, pdfUrl = null }) {
   // 10 px per module, placed at QR_SIZE pt (quiet zone included in the image).
   const qrImage = receipt.qr ? await qrPng(receipt.qr, 10) : null;
+  // Second QR: opens this invoice online (a link phones act on).
+  const linkImage = pdfUrl ? await linkQrPng(pdfUrl, 10) : null;
   const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `Invoice ${orderNumber}`, Author: receipt.taxpayer || 'Urban Phoenix' } });
   doc.registerFont('regular', FONT);
   doc.registerFont('bold', FONT_BOLD);
@@ -120,10 +124,23 @@ export async function buildInvoicePdf({ orderNumber, orderDate, buyerName, buyer
     y += 16;
   }
   const rowsTop = y - rows.length * 16;
-  if (qrImage) doc.image(qrImage, left + width - QR_SIZE, rowsTop - 8, { width: QR_SIZE, height: QR_SIZE });
-  y = Math.max(y, qrImage ? rowsTop - 8 + QR_SIZE : y) + 12;
+  let bottom = y;
+  if (qrImage) {
+    doc.image(qrImage, left + width - QR_SIZE, rowsTop - 8, { width: QR_SIZE, height: QR_SIZE });
+    doc.font('bold').fontSize(8).fillColor('#111111').text('Fiscal QR (SRC)', left + width - QR_SIZE, rowsTop - 8 + QR_SIZE + 2, { width: QR_SIZE, align: 'center' });
+    bottom = Math.max(bottom, rowsTop - 8 + QR_SIZE + 14);
+  }
+  if (linkImage) {
+    const top = y + 10;
+    doc.image(linkImage, left, top, { width: LINK_QR_SIZE, height: LINK_QR_SIZE });
+    doc.link(left, top, LINK_QR_SIZE, LINK_QR_SIZE, pdfUrl);
+    doc.font('bold').fontSize(9).fillColor('#111111').text('Scan to download this invoice (PDF)', left + LINK_QR_SIZE + 10, top + 30, { width: width - QR_SIZE - LINK_QR_SIZE - 36 });
+    doc.font('regular').fontSize(8).fillColor(muted).text('Opens the PDF on your phone.', left + LINK_QR_SIZE + 10, doc.y + 2, { width: width - QR_SIZE - LINK_QR_SIZE - 36 });
+    bottom = Math.max(bottom, top + LINK_QR_SIZE);
+  }
+  y = bottom + 12;
   doc.font('regular').fontSize(8).fillColor(muted).text(
-    'This receipt is registered with the State Revenue Committee of the Republic of Armenia. The QR code contains the receipt data issued by SRC.',
+    'This receipt is registered with the State Revenue Committee of the Republic of Armenia. The fiscal QR code contains the receipt data issued by SRC.',
     left, y, { width },
   );
 

@@ -45,3 +45,12 @@ test('4-module white quiet zone on every side, pure black on white', async () =>
 test('typical receipt payload is a version-8 (49×49) code in one byte segment', () => {
   assert.deepEqual(qrInfo(LIVE), { version: 8, modules: 49, withQuietZone: 57 });
 });
+
+test('download-link QR decodes to the exact PDF URL, with the same quiet zone', async () => {
+  const { linkQrPng } = await import('../../server/hdm/qr.mjs');
+  const url = `https://urbanphoenix.am/api/receipts/UP-2026-CF70ECFB/invoice.pdf?t=${'0123456789abcdef'.repeat(3)}`;
+  const png = await linkQrPng(url, 8);
+  assert.equal(await decodeRaster(png), url);
+  const { data, info } = await sharp(png).greyscale().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < 32; i += 1) assert.equal(data[i * info.width + i], 255, 'top-left quiet zone is white');
+});

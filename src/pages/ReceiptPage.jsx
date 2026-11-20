@@ -114,12 +114,27 @@ export default function ReceiptPage() {
             <div className="border-t border-dashed border-border my-5" />
             <div className="flex justify-between font-bold"><span>Total</span><span>{amd(receipt.total)}</span></div>
             {receipt.cardAmount != null && <div className="flex justify-between text-xs text-muted mt-1"><span>{PAYMENT_LABELS[state.data.paymentMethod] || 'Non-cash'}</span><span>{amd(receipt.cardAmount)}</span></div>}
-            {receipt.qrImage && (
-              <div className="mt-7 flex justify-center">
-                {/* The image carries its own 4-module white quiet zone (required
-                    for phones to detect it); keep it on white, never shrink it
-                    below ~200px. */}
-                <img src={receipt.qrImage} alt="Receipt QR code" width="240" height="240" className="block bg-white" style={{ width: 'min(240px, 72vw)', height: 'auto' }} />
+            {(receipt.qrImage || state.data.downloadQrImage) && (
+              // Two QR codes, each with its own 4-module white quiet zone baked
+              // into the image (needed for phones to detect them) — keep them on
+              // white and never below ~200px.
+              <div className="mt-7 grid gap-6 sm:grid-cols-2 justify-items-center">
+                {state.data.downloadQrImage && (
+                  <figure className="text-center">
+                    <a href={state.data.pdfUrl} aria-label="Download the PDF invoice">
+                      <img src={state.data.downloadQrImage} alt="Scan to download the PDF invoice" width="220" height="220" className="block bg-white mx-auto" style={{ width: 'min(220px, 72vw)', height: 'auto' }} />
+                    </a>
+                    <figcaption className="mt-2 text-xs font-bold not-italic">Scan to download PDF</figcaption>
+                    <p className="text-[11px] text-muted">Opens your invoice on your phone</p>
+                  </figure>
+                )}
+                {receipt.qrImage && (
+                  <figure className="text-center">
+                    <img src={receipt.qrImage} alt="Receipt QR code" width="220" height="220" className="block bg-white mx-auto" style={{ width: 'min(220px, 72vw)', height: 'auto' }} />
+                    <figcaption className="mt-2 text-xs font-bold">Fiscal QR (SRC)</figcaption>
+                    <p className="text-[11px] text-muted">Receipt data issued by the State Revenue Committee</p>
+                  </figure>
+                )}
               </div>
             )}
           </article>

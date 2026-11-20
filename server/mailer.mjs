@@ -1149,14 +1149,33 @@ function fmtAmd(value) {
 }
 
 const INVOICE_PAYMENT_LABELS = { card: "Bank card (ArCa)", idram: "Idram" };
-// The QR PNG (server/hdm/qr.mjs) is 8 px per module incl. a 4-module quiet
-// zone: 57 modules × 8 = 456 px for a typical receipt; shown at half size so
-// each module is exactly 4 CSS px (8 device px on retina).
-const QR_EMAIL_PX = 228;
+// Both email QR PNGs (server/hdm/qr.mjs) are 8 px per module incl. the
+// 4-module quiet zone; shown at 200 px side by side (≈3.5 CSS px per module,
+// ≈7 device px on retina).
+const QR_EMAIL_PX = 200;
 
 // Invoice with the fiscal (ՀԴՄ) data, sent once SRC has registered the
 // receipt. Everything printed comes from the stored, issued receipt —
 // resending never calls SRC again. Never throws.
+// Two QR codes, clearly labelled: "scan to download" (opens the PDF — what a
+// customer wants) and the fiscal QR (SRC's receipt data, required on the
+// receipt). Side by side; stacked on phones via .up-stack.
+function qrBlock({ pdfUrl, pdfQrImageUrl, qrImageUrl }) {
+  const cell = (src, alt, caption, link) => `
+    <td class="up-stack" width="50%" align="center" valign="top" style="padding:8px;">
+      ${link ? `<a href="${escapeHtml(link)}" style="text-decoration:none;">` : ""}<img src="${escapeHtml(src)}" width="${QR_EMAIL_PX}" height="${QR_EMAIL_PX}" alt="${escapeHtml(alt)}" style="display:block;margin:0 auto;width:${QR_EMAIL_PX}px;height:${QR_EMAIL_PX}px;border:0;background:#ffffff;" />${link ? "</a>" : ""}
+      <p style="margin:8px 0 0;font-family:${FONT};font-size:12px;font-weight:600;color:${C.ink};">${escapeHtml(caption[0])}</p>
+      <p style="margin:2px 0 0;font-family:${FONT};font-size:11px;color:${C.muted};">${escapeHtml(caption[1])}</p>
+    </td>`;
+  const cells = [
+    pdfUrl && pdfQrImageUrl ? cell(pdfQrImageUrl, "Scan to download the PDF invoice", ["Scan to download PDF", "Opens your invoice on your phone"], pdfUrl) : "",
+    qrImageUrl ? cell(qrImageUrl, "Receipt QR code", ["Fiscal QR (SRC)", "Receipt data issued by the State Revenue Committee"]) : "",
+  ].filter(Boolean);
+  const table = cells.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr>${cells.join("")}</tr></table>` : "";
+  const link = pdfUrl ? `<p style="margin:14px 0 0;text-align:center;font-family:${FONT};font-size:13px;"><a href="${escapeHtml(pdfUrl)}" style="color:${C.accent};font-weight:600;">Download PDF invoice</a></p>` : "";
+  return table + link;
+}
+
 export async function sendFiscalReceiptEmail(args) {
   if (!isConfigured) return { sent: false, reason: "unconfigured", error: "Email is not configured: set ZEPTOMAIL_TOKEN (production) or SMTP_HOST/PORT/USER/PASS." };
   let mail;
@@ -1170,7 +1189,7 @@ export async function sendFiscalReceiptEmail(args) {
 }
 
 // Builds the invoice email without sending it (also used by tests).
-export function buildFiscalReceiptEmail({ to, firstName, orderNumber, receipt, receiptUrl, qrImageUrl = null, pdfUrl = null, paymentMethod = null }) {
+export function buildFiscalReceiptEmail({ to, firstName, orderNumber, receipt, receiptUrl, qrImageUrl = null, pdfUrl = null, pdfQrImageUrl = null, paymentMethod = null }) {
   {
     const when = receipt.time ? new Date(receipt.time).toLocaleString("en-GB", { timeZone: "Asia/Yerevan" }) : "";
     const items = Array.isArray(receipt.items) ? receipt.items : [];
@@ -1208,8 +1227,7 @@ export function buildFiscalReceiptEmail({ to, firstName, orderNumber, receipt, r
         `)}
         ${sectionTitle("Fiscal receipt")}
         ${infoBox(fiscalRows)}
-        ${qrImageUrl ? `<p style="margin:18px 0 0;text-align:center;"><img src="${escapeHtml(qrImageUrl)}" width="${QR_EMAIL_PX}" height="${QR_EMAIL_PX}" alt="Receipt QR code" style="display:inline-block;width:${QR_EMAIL_PX}px;height:${QR_EMAIL_PX}px;border:0;background:#ffffff;" /></p><p style="margin:6px 0 0;text-align:center;font-family:${FONT};font-size:11px;color:${C.muted};">Fiscal QR code issued by the State Revenue Committee (receipt data)</p>` : ""}
-        ${pdfUrl ? `<p style="margin:18px 0 0;text-align:center;font-family:${FONT};font-size:13px;"><a href="${escapeHtml(pdfUrl)}" style="color:${C.accent};font-weight:600;">Download PDF invoice</a></p>` : ""}`,
+        ${qrBlock({ pdfUrl, pdfQrImageUrl, qrImageUrl })}`,
       cta: { url: receiptUrl, label: "View / print receipt" },
     });
 

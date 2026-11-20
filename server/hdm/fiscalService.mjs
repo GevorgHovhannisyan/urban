@@ -384,6 +384,7 @@ export async function sendReceiptEmail(taskId) {
       receiptUrl: receiptUrl(order.orderNumber, task.accessToken),
       qrImageUrl: receiptQrUrl(order.orderNumber, task.accessToken),
       pdfUrl: invoicePdfUrl(order.orderNumber, task.accessToken),
+      pdfQrImageUrl: `${getPublicUrl()}/api/receipts/${encodeURIComponent(order.orderNumber)}/pdf-qr.png?t=${task.accessToken}`,
       paymentMethod: order.paymentMethod,
       order: {
         subtotal: Number(order.subtotal), shipping: Number(order.shipping), discountAmount: Number(order.discountAmount || 0),
@@ -446,6 +447,7 @@ export async function getInvoicePdf(orderNumber, auth = {}) {
     buyerEmail: order?.customerEmail,
     paymentMethod: view.body.paymentMethod,
     receipt: view.body.receipt,
+    pdfUrl: view.body.pdfUrl,
   });
   return { status: 200, pdf, filename: `UrbanPhoenix-invoice-${view.body.orderNumber}.pdf` };
 }
@@ -505,6 +507,9 @@ export async function getReceiptForCustomer(orderNumber, { token, customerId, cu
       status,
       paymentMethod: order.paymentMethod,
       receipt: status === 'issued' ? publicReceipt(task) : null,
+      // The secret PDF link (the caller is already authorised for it): used
+      // for the "scan to download" QR on the receipt page.
+      pdfUrl: status === 'issued' ? invoicePdfUrl(order.orderNumber, task.accessToken) : null,
     },
   };
 }
