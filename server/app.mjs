@@ -98,7 +98,7 @@ import { submitContactForm } from "./contact-api.mjs";
 import { createRateLimiter } from "./rate-limit.mjs";
 import { imageVariants } from "./image-variants.mjs";
 import { SITEMAP_PAGES, pageToPath } from "../src/seo/pageMeta.js";
-import QRCode from "qrcode";
+import { qrSvgDataUrl, qrPng } from "./hdm/qr.mjs";
 import { describeHdmConfig } from "./hdm/config.mjs";
 import * as hdmSrc from "./hdm/srcClient.mjs";
 import {
@@ -428,8 +428,7 @@ export function createApp({ allowFraming = false } = {}) {
       customerEmail: customer?.email || null,
     });
     if (result.status === 200 && result.body.receipt?.qr) {
-      const svg = await QRCode.toString(result.body.receipt.qr, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-      result.body.receipt.qrImage = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+      result.body.receipt.qrImage = await qrSvgDataUrl(result.body.receipt.qr);
     }
     res.setHeader("Cache-Control", "no-store");
     res.status(result.status).json(result.body);
@@ -442,7 +441,8 @@ export function createApp({ allowFraming = false } = {}) {
       token: typeof req.query.t === "string" ? req.query.t : "",
     });
     if (result.status !== 200 || !result.body.receipt?.qr) return res.status(404).end();
-    const png = await QRCode.toBuffer(result.body.receipt.qr, { type: "png", width: 320, margin: 1, errorCorrectionLevel: "M" });
+    // 8 px per module; the email shows it at half size (crisp on retina).
+    const png = await qrPng(result.body.receipt.qr, 8);
     res.setHeader("Cache-Control", "private, max-age=86400");
     res.type("png").send(png);
   });

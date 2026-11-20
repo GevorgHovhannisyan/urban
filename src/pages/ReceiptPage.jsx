@@ -116,7 +116,10 @@ export default function ReceiptPage() {
             {receipt.cardAmount != null && <div className="flex justify-between text-xs text-muted mt-1"><span>{PAYMENT_LABELS[state.data.paymentMethod] || 'Non-cash'}</span><span>{amd(receipt.cardAmount)}</span></div>}
             {receipt.qrImage && (
               <div className="mt-7 flex justify-center">
-                <img src={receipt.qrImage} alt="Receipt QR code" width="180" height="180" className="bg-white p-2" />
+                {/* The image carries its own 4-module white quiet zone (required
+                    for phones to detect it); keep it on white, never shrink it
+                    below ~200px. */}
+                <img src={receipt.qrImage} alt="Receipt QR code" width="240" height="240" className="block bg-white" style={{ width: 'min(240px, 72vw)', height: 'auto' }} />
               </div>
             )}
           </article>

@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
-import QRCode from 'qrcode';
+import { qrPng } from './qr.mjs';
 
 const require = createRequire(import.meta.url);
 const FONT_DIR = path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf');
@@ -16,11 +16,15 @@ const FONT = path.join(FONT_DIR, 'DejaVuSans.ttf');
 const FONT_BOLD = path.join(FONT_DIR, 'DejaVuSans-Bold.ttf');
 
 const PAYMENT_LABELS = { card: 'Bank card (ArCa)', idram: 'Idram' };
+// Printed QR size incl. its white border: ~5.3 cm, ≈0.93 mm per module for a
+// typical (49-module) receipt code.
+const QR_SIZE = 150;
 const amd = (value) => `${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AMD`;
 const yerevanTime = (ms) => (ms ? new Date(ms).toLocaleString('en-GB', { timeZone: 'Asia/Yerevan' }) : '—');
 
 export async function buildInvoicePdf({ orderNumber, orderDate, buyerName, buyerEmail, paymentMethod, receipt }) {
-  const qrPng = receipt.qr ? await QRCode.toBuffer(receipt.qr, { type: 'png', width: 360, margin: 1, errorCorrectionLevel: 'M' }) : null;
+  // 10 px per module, placed at QR_SIZE pt (quiet zone included in the image).
+  const qrImage = receipt.qr ? await qrPng(receipt.qr, 10) : null;
   const doc = new PDFDocument({ size: 'A4', margin: 48, info: { Title: `Invoice ${orderNumber}`, Author: receipt.taxpayer || 'Urban Phoenix' } });
   doc.registerFont('regular', FONT);
   doc.registerFont('bold', FONT_BOLD);
@@ -112,11 +116,12 @@ export async function buildInvoicePdf({ orderNumber, orderDate, buyerName, buyer
   doc.font('regular').fontSize(10).fillColor('#111111');
   for (const [label, value] of rows) {
     doc.fillColor(muted).text(label, left, y, { width: 150 });
-    doc.fillColor('#111111').text(String(value), left + 150, y, { width: width - 150 - 140 });
+    doc.fillColor('#111111').text(String(value), left + 150, y, { width: width - 150 - QR_SIZE - 16 });
     y += 16;
   }
-  if (qrPng) doc.image(qrPng, left + width - 120, y - rows.length * 16 - 4, { width: 120, height: 120 });
-  y = Math.max(y, y - rows.length * 16 + 124) + 16;
+  const rowsTop = y - rows.length * 16;
+  if (qrImage) doc.image(qrImage, left + width - QR_SIZE, rowsTop - 8, { width: QR_SIZE, height: QR_SIZE });
+  y = Math.max(y, qrImage ? rowsTop - 8 + QR_SIZE : y) + 12;
   doc.font('regular').fontSize(8).fillColor(muted).text(
     'This receipt is registered with the State Revenue Committee of the Republic of Armenia. The QR code contains the receipt data issued by SRC.',
     left, y, { width },

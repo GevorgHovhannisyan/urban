@@ -1149,6 +1149,10 @@ function fmtAmd(value) {
 }
 
 const INVOICE_PAYMENT_LABELS = { card: "Bank card (ArCa)", idram: "Idram" };
+// The QR PNG (server/hdm/qr.mjs) is 8 px per module incl. a 4-module quiet
+// zone: 57 modules × 8 = 456 px for a typical receipt; shown at half size so
+// each module is exactly 4 CSS px (8 device px on retina).
+const QR_EMAIL_PX = 228;
 
 // Invoice with the fiscal (ՀԴՄ) data, sent once SRC has registered the
 // receipt. Everything printed comes from the stored, issued receipt —
@@ -1204,7 +1208,7 @@ export function buildFiscalReceiptEmail({ to, firstName, orderNumber, receipt, r
         `)}
         ${sectionTitle("Fiscal receipt")}
         ${infoBox(fiscalRows)}
-        ${qrImageUrl ? `<p style="margin:18px 0 0;text-align:center;"><img src="${escapeHtml(qrImageUrl)}" width="160" height="160" alt="Receipt QR code" style="display:inline-block;width:160px;height:160px;border:0;background:#fff;" /></p><p style="margin:6px 0 0;text-align:center;font-family:${FONT};font-size:11px;color:${C.muted};">Fiscal QR code issued by the State Revenue Committee (receipt data)</p>` : ""}
+        ${qrImageUrl ? `<p style="margin:18px 0 0;text-align:center;"><img src="${escapeHtml(qrImageUrl)}" width="${QR_EMAIL_PX}" height="${QR_EMAIL_PX}" alt="Receipt QR code" style="display:inline-block;width:${QR_EMAIL_PX}px;height:${QR_EMAIL_PX}px;border:0;background:#ffffff;" /></p><p style="margin:6px 0 0;text-align:center;font-family:${FONT};font-size:11px;color:${C.muted};">Fiscal QR code issued by the State Revenue Committee (receipt data)</p>` : ""}
         ${pdfUrl ? `<p style="margin:18px 0 0;text-align:center;font-family:${FONT};font-size:13px;"><a href="${escapeHtml(pdfUrl)}" style="color:${C.accent};font-weight:600;">Download PDF invoice</a></p>` : ""}`,
       cta: { url: receiptUrl, label: "View / print receipt" },
     });
