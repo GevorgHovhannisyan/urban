@@ -118,7 +118,7 @@ export async function buildInvoicePdf({ orderNumber, orderDate, buyerName, buyer
   if (qrPng) doc.image(qrPng, left + width - 120, y - rows.length * 16 - 4, { width: 120, height: 120 });
   y = Math.max(y, y - rows.length * 16 + 124) + 16;
   doc.font('regular').fontSize(8).fillColor(muted).text(
-    'This receipt is registered with the State Revenue Committee of the Republic of Armenia. Scan the QR code to check it.',
+    'This receipt is registered with the State Revenue Committee of the Republic of Armenia. The QR code contains the receipt data issued by SRC.',
     left, y, { width },
   );
 

@@ -1204,7 +1204,7 @@ export function buildFiscalReceiptEmail({ to, firstName, orderNumber, receipt, r
         `)}
         ${sectionTitle("Fiscal receipt")}
         ${infoBox(fiscalRows)}
-        ${qrImageUrl ? `<p style="margin:18px 0 0;text-align:center;"><img src="${escapeHtml(qrImageUrl)}" width="160" height="160" alt="Receipt QR code" style="display:inline-block;width:160px;height:160px;border:0;background:#fff;" /></p><p style="margin:6px 0 0;text-align:center;font-family:${FONT};font-size:11px;color:${C.muted};">Scan to check the receipt</p>` : ""}
+        ${qrImageUrl ? `<p style="margin:18px 0 0;text-align:center;"><img src="${escapeHtml(qrImageUrl)}" width="160" height="160" alt="Receipt QR code" style="display:inline-block;width:160px;height:160px;border:0;background:#fff;" /></p><p style="margin:6px 0 0;text-align:center;font-family:${FONT};font-size:11px;color:${C.muted};">Fiscal QR code issued by the State Revenue Committee (receipt data)</p>` : ""}
         ${pdfUrl ? `<p style="margin:18px 0 0;text-align:center;font-family:${FONT};font-size:13px;"><a href="${escapeHtml(pdfUrl)}" style="color:${C.accent};font-weight:600;">Download PDF invoice</a></p>` : ""}`,
       cta: { url: receiptUrl, label: "View / print receipt" },
     });
